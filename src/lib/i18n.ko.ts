@@ -169,6 +169,8 @@ export const KO: Record<string, string> = {
   "Star on GitHub": "GitHub에서 Star 누르기",
   "Remote PCs": "원격 PC",
   "Connect another PC over an SSH alias or user@host. Its workspaces join the sidebar.": "SSH 별칭이나 user@host로 다른 PC를 연결합니다. 연결한 PC의 워크스페이스는 사이드바에 함께 보입니다.",
+  "Show remote PCs": "원격 PC 표시",
+  "List the PCs you added or saved in herdr in the sidebar, under this one. Off, the sidebar shows this PC alone; the others stay set up.": "추가했거나 herdr에 저장한 PC를 사이드바에서 이 PC 아래에 표시합니다. 끄면 이 PC만 표시되며, 다른 PC의 설정은 그대로 유지됩니다.",
   "Update PC bridges automatically": "PC 브리지 자동 업데이트",
   "When an app update needs a newer bridge, PCs that connect with their saved key are updated in the background. PCs that need a password ask first.": "앱 업데이트에 새 브리지가 필요하면, 저장된 키로 연결되는 PC는 뒤에서 업데이트됩니다. 비밀번호가 필요한 PC는 먼저 묻습니다.",
 

@@ -1,6 +1,5 @@
-/* One PC per group: its name is the head of its workspaces. The monitor sits in the rows'
-   leading cell, over the workspaces' folders, and the state line starts where the name does.
-   The fold and the + close the header at its right. */
+/* One PC per group: its name is the head of its workspaces, from the rows' leading edge, and
+   the state line starts where the name does. The fold and the + close the header at its right. */
 .machine-list {
   position: relative;
   flex: 1 1 0;
@@ -22,10 +21,10 @@
   pointer-events: none;
 }
 
-.machine-list > .tree-state { padding-left: calc(var(--side-gutter) + var(--side-box)); }
+.machine-list > .tree-state { padding-left: var(--side-gutter); }
 
 .machine-group {
-  --machine-indent: calc(var(--side-gutter) + var(--side-box));
+  --machine-indent: var(--side-gutter);
 }
 
 .machine-group + .machine-group { margin-top: var(--space-4); }

@@ -205,6 +205,8 @@ export function App() {
     return storedSelection()?.machine_id ?? "local";
   });
   const selectedMachine = machines.find((m) => m.id === selectedMachineId);
+  // the PCs the sidebar and its notices show: the Host alone until remote PCs are turned on (Settings → Remote PCs)
+  const shownMachines = settings.showRemotePcs ? machines : machines.filter((machine) => machine.kind === "local");
   const snapshot = selectedMachine?.snapshot ?? null;
   const machinesRef = useRef(machines); machinesRef.current = machines;
   const [updateRemote, setUpdateRemote] = useState(false);
@@ -1208,7 +1210,8 @@ export function App() {
         setSettingsOpen(true);
       },
       openAddPc: () => {
-        // the new PC reports its progress in the sidebar: nothing should sit over it
+        // the new PC reports its progress in the sidebar: nothing should sit over it, and it is shown
+        updateSettings({ showRemotePcs: true });
         setSettingsOpen(false);
         setUpdateRemote(false);
         addPcFocusReturn.current = true;
@@ -1321,7 +1324,8 @@ export function App() {
       <header className="app-header is-zoned">
         {/* is-zoned tells this header from the connecting shell's, which has no zones to draw.
             .header-side is the sidebar's own top row from 769px (styles.css); below that its
-            button sits in the bar. The rest of the bar is the tab strip (TabStrip, through a portal) */}
+            button sits in the bar. Right of it, the sidebar toggle leads the pane's bar, open or
+            collapsed, then the tab strip (TabStrip, through a portal) */}
         <div className="header-side">
           <button
             type="button"
@@ -1333,17 +1337,17 @@ export function App() {
           >
             {drawerOpen ? <X /> : <Menu />}
           </button>
-          <button
-            type="button"
-            className="icon-button header-desktop-only sidebar-toggle"
-            aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
-            aria-pressed={!sidebarCollapsed}
-            title={t("Toggle sidebar (⌘⇧B)")}
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          >
-            <PanelLeft />
-          </button>
         </div>
+        <button
+          type="button"
+          className="icon-button header-desktop-only sidebar-toggle"
+          aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
+          aria-pressed={!sidebarCollapsed}
+          title={t("Toggle sidebar (⌘⇧B)")}
+          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        >
+          <PanelLeft />
+        </button>
         <div ref={setTabBarHost} className="header-tabs">
           {!selectedPane && <><Brand /><span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>}
         </div>
@@ -1365,7 +1369,7 @@ export function App() {
           {/* a sidebar that cannot be drawn leaves the panes working */}
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
-            <MachineSidebar machines={machines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} onSelect={selectTarget} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); }} />
+            <MachineSidebar machines={shownMachines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} onSelect={selectTarget} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); }} />
           </RenderBoundary>
           <SidebarResizer width={sidebarWidth} onResize={setSidebarWidth} />
         </aside>
@@ -1377,7 +1381,7 @@ export function App() {
         {/* over the pane only: a bar across the window would cut the sidebar off from its top row in the header */}
         <UpdateNotice updates={updates} onOpen={() => { setSettingsSection("updates"); setSettingsOpen(true); }} />
         <TelemetryNotice enabled={locked === false} onOpen={() => { setSettingsSection("updates"); setSettingsOpen(true); }} />
-        <MachineActionBanner machines={machines} onSetup={(machine, update = false) => { setDrawerOpen(false); setUpdateRemote(update); setMachineDialog(machine); }} />
+        <MachineActionBanner machines={shownMachines} onSetup={(machine, update = false) => { setDrawerOpen(false); setUpdateRemote(update); setMachineDialog(machine); }} />
         {layoutNotice && <p className="pane-notice" role="alert">{layoutNotice}</p>}
         {health?.lan_exposure && <LanExposureNotice host={health.lan_exposure.host} onOpen={() => { setSettingsLinkPage("devices"); setSettingsOpen(true); }} />}
         {/* the pane's tab, or two tabs side by side (lib/split.ts): a tab dragged down out of its strip,

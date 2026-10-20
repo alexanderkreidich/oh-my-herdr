@@ -505,6 +505,15 @@ describe("microphone button", () => {
   });
 });
 
+describe("remote PCs in the sidebar", () => {
+  it("stay hidden until chosen, and are shared by every browser", () => {
+    expect(DEFAULT_SETTINGS.showRemotePcs).toBe(false);
+    expect(sanitizeSettings({ showRemotePcs: true }).showRemotePcs).toBe(true);
+    expect(sanitizeSettings({ showRemotePcs: "yes" }).showRemotePcs).toBe(false);
+    expect(SETTING_SCOPE.showRemotePcs).toBe("shared");
+  });
+});
+
 describe("quick replies row", () => {
   it("stays hidden until chosen in settings", () => {
     expect(DEFAULT_SETTINGS.showQuickReplies).toBe(false);

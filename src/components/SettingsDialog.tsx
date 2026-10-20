@@ -786,8 +786,12 @@ function DevicesPage({ auth, onSignOut }: { auth: HealthAuth | null; onSignOut: 
 
 function RemotePcsPage({ actions, pcSettings, pcSettingsError, onPcSettings }: { actions: AppActions; pcSettings: MachineSettings | null; pcSettingsError: string | null; onPcSettings: (patch: Partial<MachineSettings>) => void }) {
   const t = useT();
+  const { settings, update } = useSettings();
   return (
     <SettingsGroup>
+      <SettingsRow label={t("Show remote PCs")} description={t("List the PCs you added or saved in herdr in the sidebar, under this one. Off, the sidebar shows this PC alone; the others stay set up.")}>
+        <Toggle label={t("Show remote PCs")} checked={settings.showRemotePcs} onChange={(showRemotePcs) => update({ showRemotePcs })} />
+      </SettingsRow>
       <SettingsRow label={t("Add PC")} description={t("Connect another PC over an SSH alias or user@host. Its workspaces join the sidebar.")}>
         <button type="button" className="btn" onClick={actions.openAddPc}><Monitor aria-hidden="true" />{t("Add PC")}</button>
       </SettingsRow>
