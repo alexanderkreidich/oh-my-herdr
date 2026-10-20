@@ -23,12 +23,14 @@ type Frame<T extends ClientMessage["type"]> = Extract<ClientMessage, { type: T }
  * they are called through: only a frame calls them. herdr's attach answer comes later than the
  * lane too, so `terminalAttachKnown` reads it as it is now.
  */
-export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight, poke, terminalAttach, terminalAttachKnown, mayType, authorizeSocket }: {
+export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight, poke, inputApplied, terminalAttach, terminalAttachKnown, mayType, authorizeSocket }: {
   TYPED_SETTLE_MS: number;
   KEY_SETTLE_MS: number;
   clients: Set<Client>;
   sight: (client: Client, paneId: string) => TerminalSighting;
   poke: (paneId: string) => void;
+  /** the client's numbered input reached the program: its screen says so once the echo is due (local echo) */
+  inputApplied: (client: Client, paneId: string, seq: number | undefined) => void;
   terminalAttach: () => Promise<boolean>;
   terminalAttachKnown: () => boolean | null;
   mayType: (client: Client) => boolean;
@@ -41,7 +43,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
   /** panes whose last pty keystroke ended in an ESC, which herdr holds ~150ms: a key waits TYPED_SETTLE_MS there */
   const typedEscape = new Set<string>();
   /** per pane, the WS keys still waiting at the tail of the pane's queue: later keys of the same sender join them */
-  const waitingKeys = new Map<string, { keys: string[]; client: unknown; origin: unknown; pty: unknown; claim: unknown; roles: number; run: Promise<unknown> | null; sent: boolean }>();
+  const waitingKeys = new Map<string, { keys: string[]; seq?: number | undefined; client: unknown; origin: unknown; pty: unknown; claim: unknown; roles: number; run: Promise<unknown> | null; sent: boolean }>();
 
   /**
    * Runs `task` after everything queued for the pane. While a submitted line is in
@@ -112,6 +114,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
           if (!clients.has(client)) return;
           authorizeSocket(client);
           await paneSendText(message.pane_id, shaped, undefined, allowed);
+          inputApplied(client, message.pane_id, message.seq);
           // the echo is read at once, not at the mirror's next idle read
           poke(message.pane_id);
         }).catch(inputFailed);
@@ -147,13 +150,16 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
           if (mouse) {
             if (!allowed() || !sighting.write(text)) { inputFailed(); return; }
             typedIntoPty(text);
+            inputApplied(client, message.pane_id, message.seq);
             return;
           }
           await paneSendText(message.pane_id, text, undefined, allowed);
+          inputApplied(client, message.pane_id, message.seq);
         }).catch(inputFailed);
       } else {
         if (!sighting.write(message.text)) { inputFailed(); return; }
         typedIntoPty(message.text);
+        inputApplied(client, message.pane_id, message.seq);
       }
       return;
     },
@@ -192,9 +198,10 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
           return;
         }
         waiting.keys.push(...message.keys);
+        if (typeof message.seq === "number") waiting.seq = Math.max(waiting.seq ?? 0, message.seq);
         return;
       }
-      const batch = { keys: [...message.keys], client: client as unknown, origin: sighting.origin, pty: sighting.pty, claim: sighting.claim, roles, run: null as Promise<unknown> | null, sent: false };
+      const batch = { keys: [...message.keys], seq: message.seq, client: client as unknown, origin: sighting.origin, pty: sighting.pty, claim: sighting.claim, roles, run: null as Promise<unknown> | null, sent: false };
       const run = serialize(message.pane_id, async () => { try {
         // A key goes through herdr's RPC, around the attach pty that typing just went into: it
         // waits for that typing as a submitted line does, or it overtakes it (a lone ESC is
@@ -225,6 +232,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
         batch.sent = true;
         try {
           await paneSendKeys(message.pane_id, batch.keys, undefined, allowed);
+          inputApplied(client, message.pane_id, batch.seq);
         } catch (error) {
           if (!(error instanceof HerdrError && error.code === "cancelled")) throw error;
           if (clients.has(client)) send(client, { type: "error", code: "input_failed", message: "Terminal input could not be confirmed. Check the terminal before typing again.", pane_id: message.pane_id });

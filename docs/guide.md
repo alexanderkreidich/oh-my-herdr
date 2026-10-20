@@ -638,7 +638,7 @@ flowchart LR
 A React client talks to a Bun HTTP/WebSocket server.
 
 - **Status:** the server reads workspaces and agent status from herdr's Unix socket.
-- **Terminal:** it streams the real `herdr terminal attach` output through a Node PTY sidecar. Browsers watching one pane share one attach, with a bounded replay and backpressure ([terminal flow control](terminal-flow-control.md)).
+- **Terminal:** the real `herdr terminal attach` runs on a Node PTY sidecar and draws the pane's screen on the bridge. Browsers watching one pane share one attach, and each is kept in step with that screen by its differences, with local echo on a slow link ([State Synchronization Protocol](ssp.md)).
 - **Chat:** it reads the agents' own session files, and sending types into the same live pane.
 
 herdr owns the processes and the scrollback.

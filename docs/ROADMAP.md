@@ -97,11 +97,15 @@ PR shows the measurements against xterm.js.
 
 ## Phase 5 — State Synchronization Protocol
 
-Mosh's model for the bridge–browser link: synchronize screen state, not a byte stream.
+Mosh's model for the bridge–browser link: synchronize screen state, not a byte stream. Done ahead
+of Phase 4: the browser draws the synced screen into its renderer with VT output
+(`shared/ssp-display.ts`), so it does not depend on which renderer that is, and it gives the
+browser the screen as data, which the restty slice can read instead of a renderer's buffer.
+See [ssp.md](ssp.md).
 
-- [ ] **Bridge screen state.** One headless terminal (`restty/headless`) per attached pane, fed by
+- [x] **Bridge screen state.** One headless terminal (`restty/headless`) per attached pane, fed by
       herdr's attach stream: the authoritative state, numbered.
-- [ ] **Sync.** The bridge sends the difference from the state the client last acknowledged to
+- [x] **Sync.** The bridge sends the difference from the state the client last acknowledged to
       the current one; the client applies it and acknowledges. Latest state wins: a slow or
       backgrounded client skips intermediate frames instead of replaying them, and a reconnect
       resumes from its last acknowledged state. Frame rate follows the measured round-trip time.
@@ -110,7 +114,10 @@ Mosh's model for the bridge–browser link: synchronize screen state, not a byte
       confirmed by the server's state; underline unconfirmed predictions when the link is slow;
       roll back on mismatch; never predict while the terminal does not echo (passwords).
 - [ ] **Measure.** A harness with simulated latency and loss; typing at 200ms round trip feels
-      local, and the screen converges to the bridge's state after loss.
+      local, and the screen converges to the bridge's state after loss. (Convergence under loss,
+      reordering and reconnect: `src/lib/ssp/convergence.test.ts`.)
+- [ ] Follow-ups: a tab out of use still draws herdr's read-only view (`watch-data`) from its raw
+      stream, and a mirrored pane's screen is synced but polled as before.
 
 Done when: correctness tests (convergence under loss, reordering and reconnect) and the latency
 harness pass, and the old flow-control path is gone.

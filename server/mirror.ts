@@ -238,11 +238,6 @@ export class MirrorSession {
     this.timer = setTimeout(() => void this.tick(), this.options.echoMs ?? MIRROR_ECHO_MS);
   }
 
-  /** The screen last sent, whole, for a client joining now: a stream tail could cut a large one in two. */
-  get current(): string | null {
-    return this.sent === null ? null : mirrorFrame(this.sent, this.rows);
-  }
-
   write(data: string): void {
     if (this.closed) return;
     void this.options.write(data).then(() => this.poke(), () => undefined);

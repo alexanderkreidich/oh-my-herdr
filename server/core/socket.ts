@@ -7,11 +7,11 @@ import type { ServerWebSocket, WebSocketHandler } from "bun";
 import type { ClientMessage, ClientRole, ServerFeature, SessionSnapshot } from "../../shared/protocol.ts";
 import { ConnectionDiagnostics } from "../connection-diagnostics.ts";
 import { HerdrError } from "../herdr/client.ts";
-import { OUTPUT_HARD_BYTES } from "../output-window.ts";
+import { OUTPUT_HARD_BYTES } from "../transport-limits.ts";
 import { type Client, connectionOf, presenceOf, send, type SocketData } from "./connections.ts";
 import { type AttachmentView, validGeometry } from "./terminals.ts";
 
-const SERVER_FEATURES: ServerFeature[] = ["submit", "secret-input", "input-ready", "take-over", "watch", "ping"];
+const SERVER_FEATURES: ServerFeature[] = ["submit", "secret-input", "input-ready", "take-over", "watch", "ping", "ssp"];
 
 type Frame<K extends ClientMessage["type"]> = Extract<ClientMessage, { type: K }>;
 

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Server, ServerWebSocket } from "bun";
 import { MachineRelay, RelayStallClock, upstreamCloseCode } from "./machine-relay.ts";
 import type { MachineManager } from "./machines.ts";
-import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "./output-window.ts";
+import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "./transport-limits.ts";
 import { OUTPUT_STALLED_CLOSE_CODE } from "../shared/terminal-flow.ts";
 
 /** Samples every 100 ms like the relay's timer, returning the first close code. */

@@ -128,7 +128,6 @@ bun scripts/chat-browser-qa.ts  # chat lens end to end
 bun scripts/omo-plan-browser-regression.ts # OmO todo progress and plan panel on isolated native fixtures
 bun scripts/pane-input-focus-demo-regression.ts # the input focus shortcut against fictional panes
 bun scripts/shortcut-exact-modifiers-demo-regression.ts # recording exact-modifier chords: confirm, refusals, dispatch
-bun scripts/output-browser-qa.ts # terminal output flow control end to end
 bun scripts/math-browser-qa.ts  # chat math: KaTeX loads with the first expression
 bun scripts/recent-folders-regression.ts # owned workspaces: PC-scoped history, reload, three chips on one row that fill Directory, pending and failures
 bun scripts/phone-worktree-sheet-regression.ts # a phone's New worktree sheet: the agent list's own stroke, and a Shell checkout's terminal opening
@@ -754,6 +753,6 @@ input regression matrix.
 | [`shared/`](../shared/) | HTTP/WebSocket contract and generated herdr types |
 | [`scripts/`](../scripts/) | Plugin lifecycle, type generation, remote bundles, README media, the film and browser checks |
 | [`public/`](../public/) | PWA manifest, service worker and icons |
-| [`docs/`](.) | Remote PCs, updates, flow control, chat audit, brand assets and README media (`docs/media/`) |
+| [`docs/`](.) | Remote PCs, updates, screen sync (SSP), chat audit, brand assets and README media (`docs/media/`) |
 | [`site/`](../site/) | The website, built by `scripts/build-site.ts` and deployed by GitHub Pages |
 | [`DESIGN.md`](../DESIGN.md) | Design tokens and UI conventions |

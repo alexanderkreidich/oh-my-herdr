@@ -70,8 +70,6 @@ it("sends the whole screen first and after a while, and the changed rows in betw
     await read(4);
     expect(frames).toEqual([mirrorFrame(screen("|")), mirrorRows(screen("|"), screen("/"), 24), mirrorFrame(screen("-"))]);
     expect(frames[1]).toBe("\x1b[?25l\x1b[?7l\x1b[3;1H\x1b[0m\x1b[2Kworking /\x1b[4;1H\x1b[0m\x1b[2Klast row of the screen\x1b[0m\x1b[?7h");
-    // a client joining late gets the screen whole, whatever went out last
-    expect(session.current).toBe(mirrorFrame(screen("-")));
     session.kill();
   } finally { Date.now = clock; }
 });
@@ -210,17 +208,6 @@ it("adopts the pane's new size, says so first, and paints the unchanged screen a
   events.push(`frames ${frames.length}`);
   expect(events).toEqual(["frames 1", "resize 100x30", "frames 2"]);
   expect(frames).toEqual([mirrorFrame("one"), mirrorFrame("one")]);
-  session.kill();
-});
-
-it("keeps the latest screen whole for a client joining late", async () => {
-  const { session, read } = pane({ rows: 700 });
-  expect(session.current).toBeNull();
-  const big = Array.from({ length: 700 }, () => "x".repeat(400)).join("\r\n");
-  (await read(1)).resolve(big);
-  await read(2);
-  expect(session.current).toBe(mirrorFrame(big, 700));
-  expect(Buffer.byteLength(session.current!)).toBeGreaterThan(256 * 1024);
   session.kill();
 });
 

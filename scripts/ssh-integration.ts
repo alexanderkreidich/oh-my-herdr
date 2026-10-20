@@ -64,7 +64,7 @@ async function setup(target: SetupRequest, approve = true): Promise<SetupJob> {
 async function connectWs(machineId: string): Promise<{ ws: WebSocket; frames: ServerMessage[] }> {
   const ws = new WebSocket(`ws://127.0.0.1:${server!.port}/ws?machine_id=${machineId}`); sockets.push(ws);
   const frames: ServerMessage[] = [];
-  ws.onmessage = (e) => { const message = JSON.parse(String(e.data)) as ServerMessage; frames.push(message); if (message.type === "pty-data" && message.flow) ws.send(JSON.stringify({ type: "pty-ack", pane_id: message.pane_id, stream_id: message.flow.stream_id, offset: message.flow.offset })); };
+  ws.onmessage = (e) => { const message = JSON.parse(String(e.data)) as ServerMessage; frames.push(message); if (message.type === "ssp") ws.send(JSON.stringify({ type: "ssp-ack", pane_id: message.pane_id, stream: message.stream, num: message.num })); };
   await new Promise<void>((resolve, reject) => { ws.onopen = () => resolve(); ws.onerror = () => reject(new Error("Websocket failed")); });
   return { ws, frames };
 }
@@ -129,9 +129,9 @@ try {
   assert.equal(secondCreated.pane_id, paneId, "independent daemons intentionally produce equal pane IDs");
   const { ws, frames } = await connectWs(machineId);
   ws.send(JSON.stringify({ type: "role", mode: "observe" }));
-  ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, flow_control: "ack" }));
-  await until(async () => frames, (list) => list.some((m) => m.type === "pty-data"), "remote terminal paint");
-  // a mirror paints too (pty-data), on a grid it fixes: the remote PC has Node, so this must be herdr's own attach (#265)
+  ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, sync: "ssp" }));
+  await until(async () => frames, (list) => list.some((m) => m.type === "ssp"), "remote terminal paint");
+  // a mirror paints too, on a grid it fixes: the remote PC has Node, so this must be herdr's own attach (#265)
   assert.ok(!frames.some((m) => m.type === "pane-geometry" && m.fixed === true), "remote terminal is attached, not mirrored");
   ws.send(JSON.stringify({ type: "input", pane_id: paneId, text: "forbidden\n" }));
   await until(async () => frames, (list) => list.some((m) => m.type === "error" && m.code === "read_only"), "observe enforcement");
@@ -147,19 +147,21 @@ try {
   assert.ok(!other.read.text.includes("ssh-bridge-input-ok"), "equal pane IDs must not mix input");
   console.log("PASS equal pane ID isolation, remote terminal, observe, resize, input and image");
   const slow = new WebSocket(`ws://127.0.0.1:${server.port}/ws?machine_id=${machineId}`); sockets.push(slow);
-  let slowCode = 0; let slowBytes = 0;
-  slow.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === "pty-data") slowBytes += Buffer.byteLength(m.data); };
+  let slowCode = 0; let slowFrames = 0;
+  slow.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === "ssp") slowFrames += 1; };
   slow.onclose = (e) => { slowCode = e.code; };
   await until(async () => slow.readyState, (state) => state === WebSocket.OPEN, "slow observer open");
   slow.send(JSON.stringify({ type: "role", mode: "observe" }));
-  slow.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, flow_control: "ack" }));
-  await until(async () => slowBytes, (n) => n > 0, "observer paint");
+  slow.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, sync: "ssp" }));
+  await until(async () => slowFrames, (n) => n > 0, "observer paint");
   await api(path + "/pane/input", "POST", { pane_id: paneId, text: `python3 -u -c 'import sys,time; [(sys.stdout.write("\\033[H"+(str(i%10)*79+"\\n")*23),sys.stdout.flush(),time.sleep(.01)) for i in range(1500)]'` });
   await api(path + "/pane/keys", "POST", { pane_id: paneId, keys: ["Enter"] });
-  await until(async () => slowCode, (code) => code !== 0, "proxy output overload", 30_000);
-  assert.equal(slowCode, 4008); assert.ok(slowBytes <= 1024 * 1024);
+  // the remote bridge syncs screens: an observer that never acknowledges is sent a few and then
+  // waits, through the relay too, while the pane runs to its last screen
+  await until(async () => api<{ read: { text: string } }>(path + `/pane/read?pane_id=${encodeURIComponent(paneId)}&source=visible&format=text`), (r) => r.read.text.includes("9".repeat(79)), "the flood ran to its end", 60_000);
+  assert.equal(slowCode, 0); assert.ok(slowFrames < 40, `a silent observer got ${slowFrames} screens`);
   ws.send(JSON.stringify({ type: "input", pane_id: paneId, text: "\x03" }));
-  console.log("PASS end-to-end ACK budget and 4008 stalled observer eviction");
+  console.log("PASS end-to-end screen sync: a silent observer holds nothing back and is not closed");
 
   await api(path, "PATCH", { enabled: false });
   await until(async () => ws.readyState, (state) => state === WebSocket.CLOSED, "disconnect closes terminal");

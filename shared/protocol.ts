@@ -24,6 +24,7 @@ export type {
   WorkspaceInfo,
 } from "./herdr-api.generated.ts";
 
+import type { FrameDiff } from "./ssp.ts";
 import type { AgentStatus, PaneInfo, PaneScrollInfo, SessionSnapshot as HerdrSnapshot, TabInfo, WorkspaceInfo } from "./herdr-api.generated.ts";
 
 /** Friendly aliases used across the UI. */
@@ -745,18 +746,24 @@ export interface PushPayload {
 
 /** WebSocket at /ws
  *
- *  Client -> server frames: attach {pane_id, cols, rows} | detach {pane_id} | input {pane_id, text}
- *    | keys {pane_id, keys} | resize {pane_id, cols, rows} | release-size {pane_id} | role {mode}
- *    | pty-ack {pane_id, stream_id, offset} | secret {id, pane_id, prompt, secret}
- *    | watch {pane_id, cols, rows} | unwatch {pane_id} | submit {id, pane_id, text, payload, typed?}
- *  Server -> client frames: snapshot | pty-data | pty-exit | pane-geometry | role-ack
+ *  Client -> server frames: attach {pane_id, cols, rows, sync?, resume?} | detach {pane_id}
+ *    | input {pane_id, text, seq?} | keys {pane_id, keys, seq?} | resize {pane_id, cols, rows}
+ *    | release-size {pane_id} | role {mode} | ssp-ack {pane_id, stream, num}
+ *    | secret {id, pane_id, prompt, secret} | watch {pane_id, cols, rows} | unwatch {pane_id}
+ *    | submit {id, pane_id, text, payload, typed?}
+ *  Server -> client frames: snapshot | ssp | pty-data | pty-exit | pane-geometry | role-ack
  *    | pane-status | pane-exited | session-changed | secret-result | submit-result
  *    | watch-data | watch-end | error
  *
- *  attach {flow_control:"ack"} opts into per-subscription output credit.
- *  pty-data.flow carries a stream_id and cumulative UTF-8 payload offset;
- *  pty-ack is sent AFTER xterm's write callback, never on receipt or reconnect.
- *  Slow consumers close with code 4008; the UI requires an explicit pane reopen.
+ *  attach {sync:"ssp"} (feature "ssp") syncs the pane's screen instead of streaming its bytes
+ *  (shared/ssp.ts): `ssp` frames carry the difference from a screen the client has to the current
+ *  one, and `ssp-ack` says which screen the client has now. A client that falls behind skips
+ *  screens; nothing is replayed. `resume` names the stream and screen a client had on a connection
+ *  that dropped: while the pane's attachment lives, the next screen comes as a difference from it.
+ *  `seq` numbers a client's input to a pane; each `ssp` frame's `echo` is the newest the program has
+ *  had time to echo (the client's local echo checks its guesses against that screen).
+ *  An attach without `sync` (an older client) gets the raw byte stream as `pty-data`, and a
+ *  connection whose transport backs up closes with code 4008.
  *
  *  Roles: a connection starts as `interact`. `role {mode:"observe"}` demotes it server-side:
  *  input/keys/resize then answer a `read_only` error frame and attaching never resizes the
@@ -778,12 +785,12 @@ export type ClientRole = "interact" | "observe";
 
 export type ClientMessage =
   /** keep_size: the grid is not shown here (a hidden pane, a tab out of use), so the attach leaves the shared pty's size as it is */
-  | { type: "attach"; pane_id: string; cols: number; rows: number; flow_control?: "ack"; keep_size?: boolean }
+  | { type: "attach"; pane_id: string; cols: number; rows: number; keep_size?: boolean; sync?: "ssp"; resume?: { stream: string; num: number } }
   | { type: "detach"; pane_id: string }
   /** a pane another web bridge holds (`attach_held`): take herdr's attach slot from it, here, now */
   | { type: "take-over"; pane_id: string }
-  | { type: "input"; pane_id: string; text: string }
-  | { type: "keys"; pane_id: string; keys: string[] }
+  | { type: "input"; pane_id: string; text: string; seq?: number }
+  | { type: "keys"; pane_id: string; keys: string[]; seq?: number }
   /** the terminal's input line, sent to servers whose snapshot lists "submit": the server types
    * `payload` (the line shaped for the pane's bracketed-paste mode) like the keyboard would, then its
    * own Enter after a short gap, and answers with a submit-result of the same id. `text` is the line
@@ -797,8 +804,8 @@ export type ClientMessage =
    * the pty for the latest grid of another interact client still showing the terminal, or leaves it.
    * Never answered; an older server ignores it, so it needs no feature. */
   | { type: "release-size"; pane_id: string }
-  /** Cumulative UTF-8 payload bytes processed by xterm, only for this subscription. */
-  | { type: "pty-ack"; pane_id: string; stream_id: string; offset: number }
+  /** the newest screen of `stream` this client has (ssp) */
+  | { type: "ssp-ack"; pane_id: string; stream: string; num: number }
   | { type: "role"; mode: ClientRole }
   /** whether this page is in use: visible and focused. While any connection of a server says
    * so, that server sends no web push to any device (#751). Sent on connect and on every change,
@@ -841,12 +848,14 @@ export interface ClientConnectionTrace {
 }
 
 /** What a server supports beyond the base protocol, listed in its first snapshot; older bridges list nothing. */
-export type ServerFeature = "submit" | "secret-input" | "input-ready" | "take-over" | "watch" | "ping";
+export type ServerFeature = "submit" | "secret-input" | "input-ready" | "take-over" | "watch" | "ping" | "ssp";
 
 export type ServerMessage =
   | { type: "snapshot"; snapshot: SessionSnapshot; features?: ServerFeature[] }
   /** raw PTY bytes: append to the terminal, never repaint over it. A mirrored pane (HerdrIdentity.terminal_mirror) sends whole screens the same way. */
-  | { type: "pty-data"; pane_id: string; data: string; flow?: { stream_id: string; offset: number } }
+  /** the pane's screen, as the difference from one the client has (attach sync "ssp") */
+  | ({ type: "ssp"; pane_id: string } & FrameDiff)
+  | { type: "pty-data"; pane_id: string; data: string }
   | { type: "pty-exit"; pane_id: string; code: number | null }
   /** a pane that waited for another web bridge to let go of its terminal (error `attach_held`) is attached again */
   | { type: "attach-resumed"; pane_id: string }

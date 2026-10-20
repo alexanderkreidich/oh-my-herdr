@@ -4,18 +4,16 @@
  * sent.
  */
 import type { ClientMessage, ServerMessage } from "../../shared/protocol.ts";
+import { TerminalDisplay } from "../../shared/ssp-display.ts";
 import { type SightingFacts, sightingFacts } from "../input-guard.ts";
-import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS, OutputWindow, wireBytes } from "../output-window.ts";
+import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "../transport-limits.ts";
+import { EchoClock, SyncSender } from "../ssp/sync.ts";
 import { type Client, connectionOf, send } from "./connections.ts";
 import { ATTACH_HELD_MESSAGE, createSpawnAttachment, type PaneAttachment } from "./terminal-process.ts";
 
-/** joins this close together share one repaint: a reconnect brings every tab back at once */
-const REPAINT_COALESCE_MS = 50;
-/**
- * The least time between two repaints of one pane: each costs every client of it a whole screen,
- * and a joiner in the cooldown is served by the next one instead (a flapping phone, quick switches).
- */
-const REPAINT_MIN_INTERVAL_MS = 1000;
+/** how long a stream a client left may be resumed, and how many a pane keeps */
+const RESUME_FOR_MS = 60_000;
+const RESUME_MAX = 16;
 
 type Frame<T extends ClientMessage["type"]> = Extract<ClientMessage, { type: T }>;
 
@@ -71,50 +69,56 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
   // herdr releases its exclusive attach slot only after the old process exits.
   const retiringAttachments = new Map<string, Promise<void>>();
 
+  /**
+   * A client of the raw stream (an older page) whose transport stays backed up is closed (4008):
+   * nothing waits for it. The pty is never paused, as the screen takes everything it draws, and a
+   * synced client that fell behind skips to the current screen.
+   */
   function reconcileOutput(paneId: string): void {
     const attachment = attachments.get(paneId);
-    if (!attachment?.process) return;
-    let paused = false;
+    if (!attachment) return;
     for (const client of attachment.clients) {
-      const window = client.data.output.get(paneId);
-      const buffered = client.getBufferedAmount();
-      if (window) {
-        // an ACK client: measured by its ACK progress, and a joiner draining its replay never pauses the pty
-        const verdict = window.check(buffered);
-        if (verdict === "stop") end(client, "stalled");
-        else if (verdict === "pause") paused = true;
+      const sender = client.data.sync.get(paneId);
+      if (sender) {
+        sender.drain();
         continue;
       }
-      // a client without ACKs has only its transport queue to go by
-      const blocked = buffered >= OUTPUT_HIGH_BYTES;
-      if (!blocked) {
+      const buffered = client.getBufferedAmount();
+      if (buffered < OUTPUT_HIGH_BYTES) {
         attachment.stalled.delete(client);
         continue;
       }
       const since = attachment.stalled.get(client) ?? Date.now();
       attachment.stalled.set(client, since);
-      if (Date.now() - since >= OUTPUT_STALL_MS || buffered >= OUTPUT_HARD_BYTES) {
-        end(client, "stalled");
-      } else {
-        paused = true;
-      }
+      if (Date.now() - since >= OUTPUT_STALL_MS || buffered >= OUTPUT_HARD_BYTES) end(client, "stalled");
     }
-    if (attachments.get(paneId) !== attachment) return;
-    if (paused) attachment.process.pause();
-    else attachment.process.resume();
   }
 
-  function sendOutput(client: Client, paneId: string, data: string): void {
-    const window = client.data.output.get(paneId);
-    const bytes = Buffer.byteLength(data);
-    if ((window && window.pending + bytes > OUTPUT_HARD_BYTES) || client.getBufferedAmount() >= OUTPUT_HARD_BYTES) {
+  /** The attachment's terminal drew `data`: the screen takes it, and so does every client. */
+  function output(paneId: string, attachment: PaneAttachment, data: string): void {
+    const replies = attachment.screen.write(data);
+    let raw = false;
+    for (const client of attachment.clients) {
+      const sender = client.data.sync.get(paneId);
+      if (sender) sender.schedule();
+      else {
+        raw = true;
+        sendRaw(client, paneId, data);
+      }
+    }
+    // the screen answers the attach's queries (device attributes, cursor position), unless a
+    // client of the raw stream is there: its own terminal answers them, and a second answer
+    // would reach the pane as typing
+    if (replies && !raw && attachment.kind === "pty") attachment.process.write(replies);
+    reconcileOutput(paneId);
+  }
+
+  function sendRaw(client: Client, paneId: string, data: string): void {
+    if (client.getBufferedAmount() >= OUTPUT_HARD_BYTES) {
       end(client, "stalled");
       return;
     }
-    send(client, {
-      type: "pty-data", pane_id: paneId, data,
-      ...(window ? { flow: { stream_id: window.id, offset: window.write(bytes, wireBytes(data)) } } : {}),
-    });
+    send(client, { type: "pty-data", pane_id: paneId, data });
   }
 
   function broadcast(paneId: string, message: ServerMessage): void {
@@ -123,7 +127,40 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
     for (const client of attachment.clients) send(client, message);
   }
 
-  const { spawnAttachment } = createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped: stopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdFor, heldRetry, retryFor, relookupFor });
+  /** Stops syncing `client` with the pane; what it last had stays resumable for a while. */
+  function stopSync(client: Client, paneId: string, attachment: PaneAttachment | undefined): void {
+    const sender = client.data.sync.get(paneId);
+    if (!sender) return;
+    client.data.sync.delete(paneId);
+    sender.dispose();
+    const resume = sender.resumable();
+    if (!attachment || !resume) return;
+    const now = Date.now();
+    for (const [stream, entry] of attachment.resumable) if (entry.until <= now) attachment.resumable.delete(stream);
+    attachment.resumable.set(resume.stream, { ...resume, until: now + RESUME_FOR_MS });
+    while (attachment.resumable.size > RESUME_MAX) attachment.resumable.delete(attachment.resumable.keys().next().value!);
+  }
+
+  /** The newest input of `client` the program in the pane has had time to echo. */
+  function echoClock(client: Client, paneId: string): EchoClock {
+    let clock = client.data.echo.get(paneId);
+    if (!clock) {
+      clock = new EchoClock();
+      client.data.echo.set(paneId, clock);
+    }
+    return clock;
+  }
+
+  /** `client`'s input `seq` reached the pane's program: its next screen says so once the echo is due. */
+  function inputApplied(client: Client, paneId: string, seq: number | undefined): void {
+    if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq <= 0) return;
+    const due = echoClock(client, paneId).mark(seq);
+    const sender = client.data.sync.get(paneId);
+    // a timer may fire a moment early, before the echo is due: a millisecond late, it is due
+    if (sender) setTimeout(() => { if (client.data.sync.get(paneId) === sender) sender.schedule(); }, Math.max(0, due - Date.now()) + 1);
+  }
+
+  const { spawnAttachment } = createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped: stopped, closeAttachment, broadcast, output, holdFor, heldRetry, retryFor, relookupFor });
 
   function closeAttachment(paneId: string): void {
     const attachment = attachments.get(paneId);
@@ -131,12 +168,13 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
     attachments.delete(paneId);
     clearTimeout(attachment.retry);
     clearTimeout(attachment.relookup);
-    clearTimeout(attachment.repaint);
     // its members hold nothing on this pane any more (a pty that exited leaves them on
     // the "terminal ended" screen): a stale entry would read as a live claim in
     // releaseUnclaimed and keep a later, empty pty on this pane running
     for (const member of attachment.clients) member.data.attached.delete(paneId);
-    for (const member of attachment.clients) member.data.output.delete(paneId);
+    for (const member of attachment.clients) stopSync(member, paneId, undefined);
+    attachment.resumable.clear();
+    attachment.screen.dispose();
     const retired = attachment.process.exited.finally(() => {
       if (retiringAttachments.get(paneId) === retired) retiringAttachments.delete(paneId);
     });
@@ -157,24 +195,6 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
     resizePty(paneId, cols, rows);
   }
 
-  /**
-   * herdr's attach stream is a diff against the screen it last sent: what a program drew once
-   * (btop's boxes and titles) is gone from a tail that its later updates filled, and a client
-   * joining with that tail alone never saw it. Told its window changed (SIGWINCH, the size kept),
-   * `herdr terminal attach` sends the whole screen again; every client gets it, as any output.
-   */
-  function requestRepaint(paneId: string): void {
-    const attachment = attachments.get(paneId);
-    if (!attachment || attachment.kind === "mirror" || attachment.repaint) return;
-    const cooldown = attachment.repaintedAt === undefined ? 0 : attachment.repaintedAt + REPAINT_MIN_INTERVAL_MS - Date.now();
-    attachment.repaint = setTimeout(() => {
-      attachment.repaint = undefined;
-      if (attachments.get(paneId) !== attachment || !attachment.ready || attachment.held) return;
-      attachment.repaintedAt = Date.now();
-      attachment.process.winch();
-    }, Math.max(REPAINT_COALESCE_MS, cooldown));
-  }
-
   function resizePty(paneId: string, cols: number, rows: number): void {
     const attachment = attachments.get(paneId);
     // a mirrored pane's grid is herdr's own: no browser resizes it
@@ -182,10 +202,8 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
     attachment.cols = cols;
     attachment.rows = rows;
     attachment.process.resize(cols, rows);
-    // herdr redraws the whole screen for a new size: a repaint still waiting would send it twice
-    clearTimeout(attachment.repaint);
-    attachment.repaint = undefined;
-    attachment.repaintedAt = Date.now();
+    // the screen takes the new grid now; herdr redraws it whole for the new size
+    attachment.screen.resize(cols, rows);
     broadcast(paneId, { type: "pane-geometry", pane_id: paneId, cols, rows });
   }
 
@@ -204,8 +222,9 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
   }
 
   function detach(paneId: string, client: Client): void {
-    client.data.output.delete(paneId);
     const attachment = attachments.get(paneId);
+    stopSync(client, paneId, attachment);
+    client.data.echo.delete(paneId);
     if (!attachment) return;
     attachment.clients.delete(client);
     attachment.stalled.delete(client);
@@ -222,7 +241,9 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
 
   function dropClaims(client: Client): void {
     client.data.attached.clear();
-    client.data.output.clear();
+    for (const sender of client.data.sync.values()) sender.dispose();
+    client.data.sync.clear();
+    client.data.echo.clear();
   }
 
   /**
@@ -267,10 +288,6 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
   /** The terminal frames a connection sends, each handled as its `case` in the socket's frame switch was. */
   const terminalFrames = {
     async attach(client: Client, message: Frame<"attach">): Promise<void> {
-      if (message.flow_control !== undefined && message.flow_control !== "ack") {
-        send(client, { type: "error", code: "invalid_flow_control", message: "flow_control must be ack" });
-        return;
-      }
       const geometry = validGeometry(message.cols, message.rows);
       if (!geometry) {
         send(client, { type: "error", code: "invalid_geometry", message: "cols and rows must be integers in 1..1000" });
@@ -300,21 +317,29 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
         send(client, { type: "pty-exit", pane_id: message.pane_id, code: null });
         return;
       }
-      // An idempotent attach must not replay terminal bytes a second time.
+      // An idempotent attach must not start the screen over.
       const alreadyAttached = attachment.clients.has(client);
       attachment.clients.add(client);
-      if (!alreadyAttached && message.flow_control === "ack") client.data.output.set(message.pane_id, new OutputWindow());
       // a mirrored screen is drawn for the pane's own grid: the client takes that size
       // before the screen, or the rows would wrap in a grid of another width
       if (attachment.kind === "mirror") send(client, { type: "pane-geometry", pane_id: message.pane_id, cols: attachment.cols, rows: attachment.rows, fixed: true });
-      // hand the newcomer the current screen it would otherwise have missed
-      // (a mirror keeps its latest screen whole; a pty keeps a bounded tail of its stream)
-      const replay = attachment.kind === "mirror" ? attachment.process.current ?? "" : attachment.replay.text();
-      if (!alreadyAttached && replay) {
-        client.data.output.get(message.pane_id)?.join(replay, client.getBufferedAmount());
-        sendOutput(client, message.pane_id, replay);
-        // a tail that lost the stream's start may miss what was drawn once: herdr draws it again
-        if (attachment.kind !== "mirror" && attachment.ready && !attachment.held && attachment.replay.truncated) requestRepaint(message.pane_id);
+      // the newcomer starts from the current screen: a synced client from the screen it had, if it
+      // names one this pane still keeps, an older page from the screen drawn whole
+      if (!alreadyAttached && message.sync === "ssp") {
+        const resume = message.resume && typeof message.resume.stream === "string" ? attachment.resumable.get(message.resume.stream) : undefined;
+        const base = resume && resume.until > Date.now() && Number.isInteger(message.resume!.num) ? resume.frames.get(message.resume!.num) : undefined;
+        if (resume) attachment.resumable.delete(resume.stream);
+        const paneId = message.pane_id;
+        const sender = new SyncSender(attachment.screen, {
+          send: (diff) => send(client, { type: "ssp", pane_id: paneId, ...diff }) !== 0,
+          buffered: () => client.getBufferedAmount(),
+          echo: () => client.data.echo.get(paneId)?.echo() ?? 0,
+        }, base ? { stream: resume!.stream, base } : undefined);
+        client.data.sync.set(paneId, sender);
+        sender.schedule();
+      } else if (!alreadyAttached && attachment.screen.drawn) {
+        const screen = attachment.screen.frame();
+        sendRaw(client, message.pane_id, new TerminalDisplay().draw(screen, (id) => attachment.screen.styleOf(id)));
       }
       // a pane waiting for another web bridge to let go says so to each newcomer, too
       if (!alreadyAttached && attachment.held) send(client, { type: "error", code: "attach_held", message: ATTACH_HELD_MESSAGE, pane_id: message.pane_id });
@@ -352,15 +377,11 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
       detach(message.pane_id, client);
       return;
     },
-    "pty-ack"(client: Client, message: Frame<"pty-ack">): void {
-      // Observers may acknowledge output, but never input or resize it.
-      const window = client.data.output.get(message.pane_id);
-      if (window && window.id === message.stream_id && !window.acknowledge(message.stream_id, message.offset)) {
-        send(client, { type: "error", code: "invalid_ack", message: "offset must acknowledge bytes already sent" });
-        return;
-      }
-      reconcileOutput(message.pane_id);
-      return;
+    "ssp-ack"(client: Client, message: Frame<"ssp-ack">): void {
+      // Observers acknowledge screens too: they are synced like everyone else, they only never type.
+      const sender = client.data.sync.get(message.pane_id);
+      if (!sender || sender.stream !== message.stream) return;
+      if (!sender.ack(message.num)) send(client, { type: "error", code: "invalid_ack", message: "num must name a screen already sent", pane_id: message.pane_id });
     },
     async resize(client: Client, message: Frame<"resize">): Promise<void> {
       if (connectionOf(client).mode === "observe") {
@@ -411,5 +432,5 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
   // the same live records, read through their grid and held state only: the server outside reaches a
   // pane's terminal through `sight`, `poke` and the frames
   const views: ReadonlyMap<string, AttachmentView> = attachments;
-  return { attachments: views, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, terminalFrames };
+  return { attachments: views, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, inputApplied, terminalFrames };
 }

@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "./index.ts";
 import { herdrRpc, paneSendText, paneSendKeys } from "./herdr/client.ts";
-import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "./output-window.ts";
-import { OUTPUT_STALLED_CLOSE_CODE } from "../shared/terminal-flow.ts";
+import { applyDiff, frameText, PLAIN_STYLE, type Frame, type FrameDiff, type Style } from "../shared/ssp.ts";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.ts";
 
 const root = mkdtempSync(join(tmpdir(), "herdr-output-contract-"));
@@ -35,39 +34,56 @@ async function pane(): Promise<string> {
   return created.root_pane.pane_id;
 }
 
-async function connect(paneId: string, ack = true, observer = false, port = server.port, find = "") {
+async function connect(paneId: string, ack = true, observer = false, port = server.port, sync = true, resume?: { stream: string; num: number }) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   sockets.push(ws);
+  const styles = new Map<number, Style>([[0, PLAIN_STYLE]]);
   const state = {
-    bytes: 0, frames: 0, ack, code: 0, exits: 0,
-    latest: undefined as Extract<ServerMessage, { type: "pty-data" }> | undefined,
-    errors: [] as string[], tail: "",
-    /** the first frame's text (a joiner's replay), and whether `find` has arrived since the attach */
-    first: undefined as string | undefined, find, found: false,
+    frames: 0, ack, code: 0, exits: 0,
+    errors: [] as string[],
+    /** the raw stream's tail (an older page), or the synced screen's text */
+    tail: "",
+    screen: null as Frame | null,
+    diffs: [] as FrameDiff[],
+    /** the newest input of ours the program has had time to echo */
+    echo: 0,
   };
   const send = (message: ClientMessage) => ws.send(JSON.stringify(message));
-  const acknowledge = (frame = state.latest) => {
-    if (frame?.flow && ws.readyState === WebSocket.OPEN) send({ type: "pty-ack", pane_id: paneId, ...frame.flow });
-  };
+  const frames = new Map<number, Frame>();
+  let stream: string | null = null;
   ws.addEventListener("message", (event) => {
     const frame = JSON.parse(String(event.data)) as ServerMessage;
     if (frame.type === "error") state.errors.push(frame.code);
     if (frame.type === "pty-exit" && frame.pane_id === paneId) state.exits++;
-    if (frame.type !== "pty-data" || frame.pane_id !== paneId) return;
-    state.bytes += Buffer.byteLength(frame.data);
+    if (frame.type === "pty-data" && frame.pane_id === paneId) {
+      state.frames++;
+      state.tail = (state.tail + frame.data).slice(-8192);
+    }
+    if (frame.type !== "ssp" || frame.pane_id !== paneId) return;
+    const { type: _type, pane_id: _pane, ...diff } = frame;
+    state.diffs.push(diff);
+    if (state.ack && ws.readyState === WebSocket.OPEN && diff.base !== 0 && !frames.has(diff.base) && diff.stream !== stream) send({ type: "ssp-ack", pane_id: paneId, stream: diff.stream, num: diff.base });
+    if (diff.stream !== stream) {
+      frames.clear();
+      stream = diff.stream;
+    }
+    const base = diff.base === 0 ? null : frames.get(diff.base) ?? null;
+    if (diff.base !== 0 && !base) return;
+    const next = applyDiff(base, diff, styles);
+    frames.set(next.num, next);
     state.frames++;
-    state.latest = frame;
-    state.first ??= frame.data;
-    if (state.find && (state.tail.slice(-state.find.length) + frame.data).includes(state.find)) state.found = true;
-    state.tail = (state.tail + frame.data).slice(-8192);
-    if (state.ack) acknowledge(frame);
+    state.screen = next;
+    state.echo = Math.max(state.echo, diff.echo);
+    state.tail = frameText(next).join("\n");
+    if (state.ack && ws.readyState === WebSocket.OPEN) send({ type: "ssp-ack", pane_id: paneId, stream: diff.stream, num: next.num });
   });
   ws.addEventListener("close", (event) => { state.code = event.code; });
   await until(() => ws.readyState === WebSocket.OPEN, "socket open");
   if (observer) send({ type: "role", mode: "observe" });
-  send({ type: "attach", pane_id: paneId, cols: 100, rows: 30, flow_control: "ack" });
-  await until(() => state.frames > 0, "initial terminal paint");
-  return { ws, state, send, acknowledge };
+  send({ type: "attach", pane_id: paneId, cols: 100, rows: 30, ...(sync ? { sync: "ssp" as const } : {}), ...(resume ? { resume } : {}) });
+  // a resumed stream's first frame names a base this test client never kept: it is counted unapplied
+  await until(() => state.frames > 0 || (resume !== undefined && state.diffs.length > 0), "initial terminal paint");
+  return { ws, state, send };
 }
 
 /** Bun.spawn throws synchronously for the pty sidecar while `node` is not on PATH (herdr itself stays found). */
@@ -92,16 +108,17 @@ async function flood(paneId: string, command = FLOOD): Promise<void> {
   await paneSendKeys(paneId, ["Enter"]);
 }
 
-describe("real terminal output flow control", () => {
-  it("waits for the old attach to retire when a pane is reopened immediately", async () => {
+describe("the screen synced to every client (ssp)", () => {
+  it("starts a new stream when a pane is reopened at once, and ignores the old stream's acknowledgements", async () => {
     const paneId = await pane();
     const client = await connect(paneId);
     try {
-      const old = client.state.latest!.flow!;
+      const old = client.state.diffs.at(-1)!.stream;
       client.send({ type: "detach", pane_id: paneId });
-      client.send({ type: "attach", pane_id: paneId, cols: 100, rows: 30, flow_control: "ack" });
-      await until(() => !!client.state.latest?.flow && client.state.latest.flow.stream_id !== old.stream_id, "fresh attach after retirement");
-      client.send({ type: "pty-ack", pane_id: paneId, stream_id: old.stream_id, offset: Number.MAX_SAFE_INTEGER });
+      client.send({ type: "attach", pane_id: paneId, cols: 100, rows: 30, sync: "ssp" });
+      await until(() => client.state.diffs.at(-1)!.stream !== old, "a new stream after the retirement");
+      expect(client.state.diffs.at(-1)!.base === 0 || client.state.diffs.some((diff) => diff.stream !== old && diff.base === 0)).toBe(true);
+      client.send({ type: "ssp-ack", pane_id: paneId, stream: old, num: Number.MAX_SAFE_INTEGER });
       await Bun.sleep(100);
       expect(client.state.errors).toEqual([]);
       expect(client.state.exits).toBe(0);
@@ -109,110 +126,106 @@ describe("real terminal output flow control", () => {
     } finally { client.ws.close(); }
   }, 20_000);
 
-  it("bounds a stalled observer, releases the operator, and leaves the pane alive", async () => {
+  it("keeps the operator in step while an observer never acknowledges, without pausing the pane or closing anyone", async () => {
     const paneId = await pane();
     const operator = await connect(paneId);
     const observer = await connect(paneId, false, true);
     try {
-      await flood(paneId);
-      await until(() => observer.state.bytes >= OUTPUT_HIGH_BYTES, "observer high watermark", 15_000);
-      const started = Date.now();
-      await until(() => observer.state.code !== 0, "stalled observer closed", OUTPUT_STALL_MS + 3000);
-      expect(observer.state.code).toBe(OUTPUT_STALLED_CLOSE_CODE);
-      expect(observer.state.bytes).toBeLessThanOrEqual(OUTPUT_HARD_BYTES);
-      expect(Date.now() - started).toBeLessThan(OUTPUT_STALL_MS + 2000);
-      const received = operator.state.bytes;
-      await until(() => operator.state.bytes > received + 4096, "operator output resumes");
-      // Ctrl+C takes the actual WS input path while output is running.
-      operator.send({ type: "input", pane_id: paneId, text: "\x03" });
-      await Bun.sleep(200);
-      operator.send({ type: "input", pane_id: paneId, text: "printf 'FLOW_%s\\n' ALIVE\r" });
-      await until(() => operator.state.tail.includes("FLOW_ALIVE"), "pane survives observer eviction");
+      await flood(paneId, `${FLOOD}; echo flood-$((1+1))-done`);
+      // the operator's screen keeps up to the end, whatever the observer does
+      await until(() => operator.state.tail.includes("flood-2-done"), "the operator sees the last screen", 30_000);
+      // the observer is sent a few screens, then waits for its acknowledgement: nothing piles up
+      expect(observer.state.frames).toBeLessThan(40);
+      expect(observer.state.code).toBe(0);
       expect(operator.state.code).toBe(0);
-      expect(operator.state.errors).toEqual([]);
+      // and once it acknowledges, it skips straight to the current screen
+      observer.state.ack = true;
+      const last = observer.state.diffs.at(-1)!;
+      observer.send({ type: "ssp-ack", pane_id: paneId, stream: last.stream, num: last.num });
+      await until(() => observer.state.tail.includes("flood-2-done"), "the observer catches up in one step", 10_000);
+      // the pane is alive and answers
+      operator.send({ type: "input", pane_id: paneId, text: "echo alive-$((6*7))\r" });
+      await until(() => operator.state.tail.includes("alive-42"), "the pane still runs");
+      expect([...operator.state.errors, ...observer.state.errors]).toEqual([]);
     } finally { operator.ws.close(); observer.ws.close(); }
-  }, 35_000);
+  }, 60_000);
 
-  it("gives a late joiner time to acknowledge its replay without pausing the operator", async () => {
+  it("gives a client joining late the whole current screen, including what was drawn once", async () => {
     const paneId = await pane();
     const operator = await connect(paneId);
-    let joiner: Awaited<ReturnType<typeof connect>> | undefined;
     try {
-      await flood(paneId);
-      // the replay tail is full: the joiner's first frame is ~128 KiB
-      await until(() => operator.state.bytes >= 160 * 1024, "operator fills the replay tail", 15_000);
-      // a phone on a slow link: it does not acknowledge its replay for longer than the stall deadline
-      joiner = await connect(paneId, false);
-      const joined = Date.now();
-      expect(joiner.state.bytes).toBeGreaterThan(64 * 1024);
-      await Bun.sleep(1000); // fixed wait: the joiner must stay silent past the time its window blocks
-      const before = operator.state.bytes;
-      await Bun.sleep(OUTPUT_STALL_MS); // fixed wait: proving nothing stalls or closes for a full stall deadline
-      // the joiner held only its own window up: the shared pty kept streaming to the operator
-      expect(operator.state.bytes - before).toBeGreaterThan(64 * 1024);
-      expect(Date.now() - joined).toBeGreaterThan(OUTPUT_STALL_MS);
-      expect(joiner.state.code).toBe(0);
-      // its ACK arrives inside its budget and it carries on as an ordinary client
-      joiner.state.ack = true;
-      joiner.acknowledge();
-      const caught = joiner.state.bytes;
-      await until(() => joiner!.state.bytes > caught + 4096, "joiner keeps receiving");
-      expect(joiner.state.code).toBe(0);
-      expect(operator.state.code).toBe(0);
-      operator.send({ type: "input", pane_id: paneId, text: "\x03" });
-    } finally { operator.ws.close(); joiner?.ws.close(); }
-  }, 30_000);
+      await Bun.sleep(150); // herdr's attach consumes very early keystrokes
+      operator.send({ type: "input", pane_id: paneId, text: "clear; printf 'drawn-once\\n'; " + FLOOD.replace("range(1500)", "range(200)") + "\r" });
+      await until(() => operator.state.tail.includes("9".repeat(79)), "the flood ended", 30_000);
+      const joiner = await connect(paneId);
+      try {
+        await until(() => joiner.state.tail === operator.state.tail, "the joiner has the operator's screen");
+        expect(joiner.state.diffs[0]!.base).toBe(0);
+      } finally { joiner.ws.close(); }
+    } finally { operator.ws.close(); }
+  }, 60_000);
 
-  it("repaints what was drawn once for a client joining after the replay tail lost it", async () => {
-    // btop's shape: a frame drawn once on the alternate screen, then only changing cells. herdr's
-    // attach stream sends differences, so the frame is in the stream once, at its start.
-    const MARK = "STATIC_FRAME_TITLE";
-    const program = `python3 -u -c 'import sys,time,itertools
-sys.stdout.write("\\033[?1049h\\033[2J\\033[1;1H${MARK}\\033[2;1H"+"="*60); sys.stdout.flush()
-for i in itertools.count(): sys.stdout.write("".join("\\033[%d;1H%s" % (r, str((i+r)%10)*79) for r in range(5,25))); sys.stdout.flush(); time.sleep(.01)'`;
+  it("says which typed input the program has had time to echo", async () => {
     const paneId = await pane();
-    const operator = await connect(paneId, true, false, server.port, MARK);
-    let joiner: Awaited<ReturnType<typeof connect>> | undefined;
+    const client = await connect(paneId);
     try {
-      await flood(paneId, program);
-      await until(() => operator.state.found, "the frame is drawn", 15_000);
-      const drawn = operator.state.bytes;
-      // the updates since the frame overflow the 128 KiB tail a joiner is sent
-      await until(() => operator.state.bytes - drawn > 192 * 1024, "the tail fills with updates", 20_000);
-      joiner = await connect(paneId, true, false, server.port, MARK);
-      // the replay alone has no frame (the bug this guards against): herdr's repaint brings it
-      expect(joiner.state.first?.includes(MARK)).toBe(false);
-      await until(() => joiner!.state.found, "the frame reaches the joiner", 10_000);
-      expect(joiner.state.errors).toEqual([]);
-      expect(joiner.state.code).toBe(0);
-      expect(operator.state.code).toBe(0);
-    } finally {
-      operator.send({ type: "input", pane_id: paneId, text: "\x03" });
-      operator.ws.close();
-      joiner?.ws.close();
-    }
-  }, 45_000);
-
-  it("resumes on valid ACKs and rejects future credit without accepting stale subscriptions", async () => {
-    const paneId = await pane();
-    const client = await connect(paneId, false);
-    try {
-      const initial = client.state.latest!;
-      client.send({ type: "pty-ack", pane_id: paneId, stream_id: initial.flow!.stream_id, offset: Number.MAX_SAFE_INTEGER });
-      await until(() => client.state.errors.includes("invalid_ack"), "future ACK refused");
-      await flood(paneId);
-      await until(() => client.state.bytes >= OUTPUT_HIGH_BYTES, "pause at high watermark", 15_000);
-      await Bun.sleep(200);
-      const paused = client.state.bytes;
-      client.send({ type: "pty-ack", pane_id: paneId, stream_id: "previous-subscription", offset: paused });
-      await Bun.sleep(200);
-      expect(client.state.bytes).toBe(paused);
-      client.state.ack = true;
-      client.acknowledge();
-      await until(() => client.state.bytes > paused + 4096, "valid credit resumes output");
-      expect(client.state.code).toBe(0);
-      client.send({ type: "input", pane_id: paneId, text: "\x03" });
+      await Bun.sleep(300); // herdr's attach consumes very early keystrokes
+      client.send({ type: "input", pane_id: paneId, text: "echo seq", seq: 7 });
+      await until(() => client.state.echo >= 7, "the echo acknowledgement");
+      expect(client.state.tail).toContain("echo seq");
+      // keys through herdr are numbered the same way
+      client.send({ type: "keys", pane_id: paneId, keys: ["Enter"], seq: 8 });
+      await until(() => client.state.echo >= 8, "the key's echo acknowledgement");
     } finally { client.ws.close(); }
+  }, 20_000);
+
+  it("resumes a stream across a reconnect while the pane's attachment lives", async () => {
+    const paneId = await pane();
+    const stays = await connect(paneId);
+    const leaves = await connect(paneId);
+    try {
+      const last = leaves.state.diffs.at(-1)!;
+      leaves.ws.close();
+      await until(() => leaves.state.code !== 0, "the first connection closed");
+      const back = await connect(paneId, true, false, server.port, true, { stream: last.stream, num: last.num });
+      try {
+        expect(back.state.diffs[0]!.stream).toBe(last.stream);
+        expect(back.state.diffs[0]!.base).toBe(last.num);
+      } finally { back.ws.close(); }
+      // an unknown stream starts a new one from a blank screen
+      const stranger = await connect(paneId, true, false, server.port, true, { stream: "nope", num: 3 });
+      try {
+        expect(stranger.state.diffs[0]!.base).toBe(0);
+        expect(stranger.state.diffs[0]!.stream).not.toBe("nope");
+      } finally { stranger.ws.close(); }
+    } finally { stays.ws.close(); }
+  }, 20_000);
+
+  it("refuses an acknowledgement of a screen never sent", async () => {
+    const paneId = await pane();
+    const client = await connect(paneId);
+    try {
+      const last = client.state.diffs.at(-1)!;
+      client.send({ type: "ssp-ack", pane_id: paneId, stream: last.stream, num: last.num + 1_000_000 });
+      await until(() => client.state.errors.includes("invalid_ack"), "invalid_ack");
+    } finally { client.ws.close(); }
+  }, 20_000);
+
+  it("draws the screen whole for an older page on the raw stream, then streams its bytes", async () => {
+    const paneId = await pane();
+    const operator = await connect(paneId);
+    try {
+      await Bun.sleep(300); // herdr's attach consumes very early keystrokes
+      operator.send({ type: "input", pane_id: paneId, text: "echo before-$((6*7))\r" });
+      await until(() => operator.state.tail.includes("before-42"), "the operator's screen");
+      const older = await connect(paneId, true, false, server.port, false);
+      try {
+        await until(() => older.state.tail.includes("before-42"), "the raw client's first paint has the screen");
+        operator.send({ type: "input", pane_id: paneId, text: "echo after-$((6*7))\r" });
+        await until(() => older.state.tail.includes("after-42"), "the raw stream goes on");
+        expect(older.state.errors).toEqual([]);
+      } finally { older.ws.close(); }
+    } finally { operator.ws.close(); }
   }, 30_000);
 });
 
@@ -229,7 +242,7 @@ describe("a terminal attach that cannot spawn (#154)", () => {
     await until(() => ws.readyState === WebSocket.OPEN, "socket open");
     const restore = breakPath();
     try {
-      ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 100, rows: 30, flow_control: "ack" } satisfies ClientMessage));
+      ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 100, rows: 30, sync: "ssp" } satisfies ClientMessage));
       await until(() => errors.includes("command_failed"), "the failed spawn is reported");
     } finally { restore(); }
     // the next attach spawns its own pty instead of joining a dead record
@@ -264,7 +277,7 @@ describe("a herdr the server cannot start (#925)", () => {
     const previous = process.env["HERDR_WEB_HERDR_BIN"];
     process.env["HERDR_WEB_HERDR_BIN"] = missing;
     try {
-      ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 100, rows: 30, flow_control: "ack" } satisfies ClientMessage));
+      ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 100, rows: 30, sync: "ssp" } satisfies ClientMessage));
       await until(() => errors.includes("attach_failed"), "the missing herdr is reported", 3_000);
     } finally {
       console.error = log;
@@ -321,7 +334,7 @@ describe("an attach herdr refuses over a read in progress", () => {
       const client = await connect(paneId);
       try {
         // the refusals are retried; the third attach is real and paints the pane
-        await until(() => herdr.attempts() === 3 && client.state.tail.includes("\x1b[?1049h"), "the third attach paints");
+        await until(() => herdr.attempts() === 3 && client.state.screen?.modes.altScreen === true, "the third attach paints");
         await Bun.sleep(300); // herdr's attach consumes very early keystrokes
         client.send({ type: "input", pane_id: paneId, text: "echo attach-$((6*7))\r" });
         await until(() => client.state.tail.includes("attach-42"), "the retried attach streams the pane");
@@ -362,7 +375,7 @@ describe("an attach herdr refuses over a read in progress", () => {
       const client = await connect(paneId);
       try {
         expect(client.state.errors).toEqual([]);
-        expect(herdr.attempts()).toBe(2);
+        await until(() => herdr.attempts() === 2, "the pane attached again");
       } finally { client.ws.close(); }
     });
   }, 30_000);
@@ -380,6 +393,7 @@ describe("an attach herdr refuses over a read in progress", () => {
           const frame = JSON.parse(String(event.data)) as ServerMessage;
           if (frame.type === "pty-exit" && frame.pane_id === paneId) exits++;
           if (frame.type === "pty-data" && frame.pane_id === paneId) tail += frame.data;
+          if (frame.type === "ssp" && frame.pane_id === paneId) tail += frame.lines.map(([, line]) => line.t).join("\n");
         });
         await until(() => ws.readyState === WebSocket.OPEN, "socket open");
         ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 100, rows: 30 } satisfies ClientMessage));
@@ -418,10 +432,10 @@ describe("herdr's attach-time terminal queries", () => {
       const paneId = await pane();
       const first = await connect(paneId);
       try {
-        await until(() => first.state.tail.includes("\x1b[?1049h"), "the attach behind the queries paints");
+        await until(() => first.state.screen?.modes.altScreen === true, "the attach behind the queries paints");
         await until(() => existsSync(replies) && readFileSync(replies, "utf8").length === 18, "the bridge answered");
         expect(readFileSync(replies, "utf8")).toBe("\x1b[?1016;4$y\x1b[?1;2c");
-        // a browser joining later gets the replay: the queries are not in it to be answered again
+        // a browser joining later gets the screen: the queries are not in it to be answered again
         const second = await connect(paneId);
         try {
           for (const client of [first, second]) {

@@ -78,6 +78,8 @@ interface AttachState {
   keepSize: boolean;
   /** This connection has sized the terminal since its last grid release. */
   releaseSizeOwed: boolean;
+  /** the newest screen this tab acknowledged (ssp): a reconnect resumes from it while the pane's attachment lives */
+  resume?: { stream: string; num: number };
 }
 
 function defaultUrl(): string {
@@ -306,7 +308,7 @@ export class HerdrSocket {
       for (const handler of this.beforeReplayHandlers) handler();
       for (const [paneId, state] of this.attached) {
         state.releaseSizeOwed = !state.keepSize;
-        this.rawSend({ type: "attach", pane_id: paneId, cols: state.cols, rows: state.rows, flow_control: "ack", ...(state.keepSize ? { keep_size: true } : {}) });
+        this.rawSend({ type: "attach", pane_id: paneId, cols: state.cols, rows: state.rows, sync: "ssp", ...(state.keepSize ? { keep_size: true } : {}), ...(state.resume ? { resume: state.resume } : {}) });
       }
     });
 
@@ -355,9 +357,12 @@ export class HerdrSocket {
       }
       if (message.type === "error" && message.code === "attach_held") this.trace.record("input_held", {}, true);
       if (message.type === "watch-end") this.watched.delete(message.pane_id);
-      if (message.type === "pty-data") this.outputSeen.add(message.pane_id);
-      if ((message.type === "input-ready" && message.ready !== false) || (message.type === "pty-data" && this.snapshotKnown && !this.features.has("input-ready"))) {
+      const output = message.type === "pty-data" || message.type === "ssp" ? message.pane_id : null;
+      if (output !== null) this.outputSeen.add(output);
+      if (message.type === "input-ready" && message.ready !== false) {
         if (this.attached.has(message.pane_id)) this.inputReady.add(message.pane_id);
+      } else if (output !== null && this.snapshotKnown && !this.features.has("input-ready")) {
+        if (this.attached.has(output)) this.inputReady.add(output);
       }
       if ((message.type === "input-ready" && message.ready === false) || message.type === "pty-exit" || (message.type === "error" && message.pane_id && ["attach_held", "input_not_ready"].includes(message.code))) this.inputReady.delete(message.pane_id!);
       if (message.type === "submit-result" && this.matchesRequest(message.id, "submit", message.pane_id)) {
@@ -652,7 +657,7 @@ export class HerdrSocket {
     this.outputSeen.delete(paneId);
     this.inputReady.delete(paneId);
     this.attached.set(paneId, { cols, rows, keepSize, releaseSizeOwed: !keepSize });
-    this.send({ type: "attach", pane_id: paneId, cols, rows, flow_control: "ack", ...(keepSize ? { keep_size: true } : {}) });
+    this.send({ type: "attach", pane_id: paneId, cols, rows, sync: "ssp", ...(keepSize ? { keep_size: true } : {}) });
     if (this.stopped) {
       this.stopped = false;
       this.stoppedHidden = false;
@@ -662,17 +667,15 @@ export class HerdrSocket {
     }
   }
 
-  /** Capture connection AND subscription before xterm's asynchronous write. Never queue ACKs. */
-  outputAcknowledgement(message: Extract<ServerMessage, { type: "pty-data" }>): (() => void) | undefined {
-    const flow = message.flow;
-    if (!flow) return undefined;
-    const connection = this.socket;
-    const subscription = this.attached.get(message.pane_id);
-    return () => {
-      if (!connection || this.socket !== connection || !this.connected || !subscription
-        || this.attached.get(message.pane_id) !== subscription) return;
-      this.rawSend({ type: "pty-ack", pane_id: message.pane_id, stream_id: flow.stream_id, offset: flow.offset });
-    };
+  /**
+   * This tab has screen `num` of the pane's `stream` (ssp). Never queued: a screen acknowledged on
+   * a dropped connection is resumed from by the reconnect's attach instead.
+   */
+  sspAck(paneId: string, stream: string, num: number): void {
+    const state = this.attached.get(paneId);
+    if (!state) return;
+    state.resume = { stream, num };
+    if (this.connected) this.rawSend({ type: "ssp-ack", pane_id: paneId, stream, num });
   }
 
   detach(paneId: string): void {
@@ -772,7 +775,22 @@ export class HerdrSocket {
 
   sendInput(paneId: string, text: string): boolean {
     if (!this.canInput(paneId)) { this.traceProbeRefusal(); return false; }
-    try { this.rawSend({ type: "input", pane_id: paneId, text }); return true; } catch { return false; }
+    const seq = this.nextInputSeq(paneId);
+    try { this.rawSend({ type: "input", pane_id: paneId, text, seq }); return true; } catch { return false; }
+  }
+
+  /** Each pane's input is numbered: the screen says which the program has had time to echo (local echo). */
+  private readonly inputSeqs = new Map<string, number>();
+
+  private nextInputSeq(paneId: string): number {
+    const seq = (this.inputSeqs.get(paneId) ?? 0) + 1;
+    this.inputSeqs.set(paneId, seq);
+    return seq;
+  }
+
+  /** The number the last input or keys sent to the pane carried. */
+  lastInputSeq(paneId: string): number {
+    return this.inputSeqs.get(paneId) ?? 0;
   }
 
   /**
@@ -877,7 +895,8 @@ export class HerdrSocket {
 
   sendKeys(paneId: string, keys: string[]): boolean {
     if (!this.canInput(paneId)) { this.traceProbeRefusal(); return false; }
-    try { this.rawSend({ type: "keys", pane_id: paneId, keys }); return true; } catch { return false; }
+    const seq = this.nextInputSeq(paneId);
+    try { this.rawSend({ type: "keys", pane_id: paneId, keys, seq }); return true; } catch { return false; }
   }
 
   close(): void {

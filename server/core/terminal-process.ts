@@ -7,11 +7,10 @@ import type { HerdrPane, ServerMessage } from "../../shared/protocol.ts";
 import { AttachOutputTail, AttachStartupProbes, isTakeoverExit } from "../attach-output.ts";
 import { HerdrError, herdrSocketPath, paneRead, paneSendText, sessionSnapshot } from "../herdr/client.ts";
 import { MirrorSession } from "../mirror.ts";
-import { ReplayBuffer } from "../output-window.ts";
 import { PtySession } from "../pty/session.ts";
+import { Screen } from "../ssp/screen.ts";
+import type { SyncResume } from "../ssp/sync.ts";
 import { type Client, connectionOf } from "./connections.ts";
-
-const MAX_REPLAY_BYTES = 128 * 1024;
 
 /**
  * herdr's refusal of an attach while a read of the same terminal is in progress; it asks
@@ -75,9 +74,11 @@ interface AttachmentState {
   grids: Map<Client, { cols: number; rows: number }>;
   /** the client whose grid the pty took last: only its release may hand the pty on */
   driver?: Client;
-  /** bounded tail so a client joining late still sees the current screen */
-  replay: ReplayBuffer;
-  /** when each client without ACKs (no OutputWindow) became blocked on its transport queue */
+  /** the pane's screen as the attach stream drew it: what every client is kept in step with (server/ssp) */
+  screen: Screen;
+  /** streams of clients that left, for one that comes back on a new connection to resume (server/ssp/sync.ts) */
+  resumable: Map<string, SyncResume & { until: number }>;
+  /** when each client of the raw stream (an older page) became blocked on its transport queue */
   stalled: Map<Client, number>;
   /** another web bridge holds herdr's one attach slot for this terminal: waiting for it to let go */
   held?: boolean;
@@ -85,18 +86,14 @@ interface AttachmentState {
   retry?: ReturnType<typeof setTimeout>;
   /** the next look for the terminal a pane lives on after herdr ended its attach; a closed attachment cancels it */
   relookup?: ReturnType<typeof setTimeout>;
-  /** a repaint asked of herdr for clients that joined with only the replay tail; a closed attachment cancels it */
-  repaint?: ReturnType<typeof setTimeout>;
-  /** when herdr was last asked to repaint (or redrew for a resize), for REPAINT_MIN_INTERVAL_MS */
-  repaintedAt?: number;
 }
 
 /**
  * One live PTY per pane, shared by every client watching that pane.
  *
  * The terminal is a real `herdr terminal attach` on a PTY rather than repeated
- * `pane.read` snapshots, so the browser receives an actual byte stream: xterm.js
- * keeps screen state and selection, while herdr owns scrollback.
+ * `pane.read` snapshots: its stream draws the attachment's screen, which every client is kept in
+ * step with, while herdr owns scrollback.
  */
 export interface PtyAttachment extends AttachmentState {
   readonly kind: "pty";
@@ -121,7 +118,7 @@ export type PaneAttachment = PtyAttachment | MirrorAttachment;
  * The attach the server's clients share for each pane. `attachments` stays the server's: a callback
  * of an attachment that is no longer the pane's record does nothing.
  */
-export function createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdFor, heldRetry, retryFor, relookupFor }: {
+export function createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped, closeAttachment, broadcast, output, holdFor, heldRetry, retryFor, relookupFor }: {
   attachments: Map<string, PaneAttachment>;
   retiringAttachments: Map<string, Promise<void>>;
   terminalAttach: () => Promise<boolean>;
@@ -129,8 +126,8 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
   isStopped: () => boolean;
   closeAttachment: (paneId: string) => void;
   broadcast: (paneId: string, message: ServerMessage) => void;
-  sendOutput: (client: Client, paneId: string, data: string) => void;
-  reconcileOutput: (paneId: string) => void;
+  /** the attachment's terminal drew `data`: its screen and its clients take it */
+  output: (paneId: string, attachment: PaneAttachment, data: string) => void;
   holdFor: number;
   heldRetry: number;
   retryFor: number;
@@ -161,11 +158,17 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
     // watching phone's viewport
     const spawnCols = forObserver || mirrored ? (rect?.width ?? 80) : cols;
     const spawnRows = forObserver || mirrored ? (rect?.height ?? 24) : rows;
+    const screen = await Screen.create(spawnCols, spawnRows);
+    if (isStopped()) {
+      screen.dispose();
+      throw new HerdrError("server_stopped", "the web bridge stopped during attachment creation");
+    }
     const state = {
       clients: new Set<Client>(),
       cols: spawnCols,
       rows: spawnRows,
-      replay: new ReplayBuffer(MAX_REPLAY_BYTES),
+      screen,
+      resumable: new Map(),
       stalled: new Map(),
       grids: new Map(),
     };
@@ -185,14 +188,14 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
           if (attachments.get(paneId) !== attachment) return;
           attachment.cols = cols;
           attachment.rows = rows;
+          attachment.screen.resize(cols, rows);
           broadcast(paneId, { type: "pane-geometry", pane_id: paneId, cols, rows, fixed: true });
         },
         read: async () => (await paneRead({ paneId, source: "visible", format: "ansi" })).text,
         write: (data) => paneSendText(paneId, data),
         onData: (frame) => {
           if (attachments.get(paneId) !== attachment) return;
-          for (const client of attachment.clients) sendOutput(client, paneId, frame);
-          reconcileOutput(paneId);
+          output(paneId, attachment, frame);
         },
         onExit: (code) => {
           if (attachments.get(paneId) !== attachment) return;
@@ -217,9 +220,7 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
     // a read can last, instead of ending their terminal.
     const forward = (data: string): void => {
       if (attachments.get(paneId) !== attachment) return;
-      attachment.replay.append(data);
-      for (const client of attachment.clients) sendOutput(client, paneId, data);
-      reconcileOutput(paneId);
+      output(paneId, attachment, data);
     };
     let retries = 0;
     let refusedSince: number | null = null;
@@ -465,6 +466,7 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
       // placeholder must go with it, or the next attach joins a record with no pty and
       // its close dereferences one (#154). The waiting attaches get the error in-band.
       attachments.delete(paneId);
+      attachment.screen.dispose();
       spawnFailure(paneId, error);
       throw error;
     }

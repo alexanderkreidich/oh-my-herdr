@@ -342,7 +342,8 @@ describe("a herdr without terminal attach (Windows)", () => {
     const pane = created.root_pane.pane_id;
     const socket = await Socket.connect(bare.port);
     try {
-      socket.send({ type: "attach", pane_id: pane, cols: 33, rows: 7, flow_control: "ack" });
+      // an older page's raw stream: the mirror's own screens, as it sends them
+      socket.send({ type: "attach", pane_id: pane, cols: 33, rows: 7 });
       const geometry = await socket.waitFor((message) => message.type === "pane-geometry" && message.pane_id === pane);
       // the grid is herdr's, not the 33x7 this client asked for
       expect(geometry.fixed).toBe(true);

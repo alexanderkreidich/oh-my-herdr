@@ -120,11 +120,11 @@ try {
   const created = await api<WorkspaceCreated>(path + "/workspace/create", "POST", { cwd: "/home/fixture", label: "herdr-web-ui-test-ssh-profile" });
   const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws?machine_id=${machine.id}`); sockets.push(ws);
   const frames: ServerMessage[] = [];
-  ws.onmessage = (event) => { const m = JSON.parse(String(event.data)) as ServerMessage; frames.push(m); if (m.type === "pty-data" && m.flow) ws.send(JSON.stringify({ type: "pty-ack", pane_id: m.pane_id, stream_id: m.flow.stream_id, offset: m.flow.offset })); };
+  ws.onmessage = (event) => { const m = JSON.parse(String(event.data)) as ServerMessage; frames.push(m); if (m.type === "ssp") ws.send(JSON.stringify({ type: "ssp-ack", pane_id: m.pane_id, stream: m.stream, num: m.num })); };
   await until(async () => ws.readyState, (state) => { assert.notEqual(state, WebSocket.CLOSED, "WebSocket failed"); return state === WebSocket.OPEN; }, "WebSocket open", 10_000);
   ws.send(JSON.stringify({ type: "role", mode: "interact" }));
-  ws.send(JSON.stringify({ type: "attach", pane_id: created.pane_id, cols: 80, rows: 24, flow_control: "ack" }));
-  await until(async () => frames, (f) => f.some((m) => m.type === "pty-data"), "terminal paint");
+  ws.send(JSON.stringify({ type: "attach", pane_id: created.pane_id, cols: 80, rows: 24, sync: "ssp" }));
+  await until(async () => frames, (f) => f.some((m) => m.type === "ssp"), "terminal paint");
   ws.send(JSON.stringify({ type: "resize", pane_id: created.pane_id, cols: 90, rows: 28 }));
   await until(async () => frames, (f) => f.some((m) => m.type === "pane-geometry" && m.cols === 90 && m.rows === 28), "terminal resize");
   // The marker is absent from the echoed command, so only executed input can satisfy the read.
