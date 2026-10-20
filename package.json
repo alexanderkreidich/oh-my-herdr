@@ -13,6 +13,7 @@
     "dev": "bun --bun vite",
     "build": "bun --bun vite build",
     "server": "bun run server/index.ts",
+    "sandbox": "bun run scripts/sandbox.ts",
     "start": "bun run build && bun run server/managed.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json",
     "check": "bun scripts/check.ts",

@@ -1,0 +1,102 @@
+# Roadmap
+
+restty-herdr: an improved, minimal fork of herdr web UI with a Ghostty-like terminal emulator
+([restty](https://github.com/wiedymi/restty)) and a Mosh-style State Synchronization Protocol.
+
+Each phase is a few slices; each slice is one branch and one PR (AGENTS.md, Development flow).
+A slice is done when its "Done when" holds, with evidence in the PR.
+
+## Phase 0 — Development flow
+
+- [x] AGENTS.md for the fork: product, flow, UX and motion rules, traps.
+- [x] Emil Kowalski's design and animation skills in `.agents/skills/` (`.claude/skills` links).
+- [x] `bun run sandbox`: an isolated herdr and bridge for UI work, with `--shot` screenshots.
+- [x] This roadmap.
+
+## Phase 1 — Minimal chrome
+
+The visible UI shrinks to a workspace list, one top bar of pill tabs and the terminal.
+
+- [ ] **Top bar with pill tabs.** The header and the tab strip become one bar: sidebar toggle,
+      then the tabs as pills (the pane's icon — agent mark or terminal glyph — and its title or the
+      tab's own name), the open tab on a filled pill, `+` at the end. A status dot sits on the icon.
+      The connection chip shows only while the bridge is not live.
+- [ ] **Header removals.** No Chat/Terminal switch, no Files button, no More (…) menu, no search
+      button.
+- [ ] **Sidebar: workspaces only.** No Agents section; no folder or favicon face on workspace
+      rows (a worktree group folds with a chevron).
+- [ ] **Command palette on Ctrl+F.** The search button goes; Find in terminal stays on
+      Mod+Shift+F and in the palette.
+- [ ] **No chat lens.** Every pane opens in the terminal; the lens switch shortcut, the default
+      view setting and the palette's lens actions go.
+- [ ] **Motion pass.** Tokens from the skills (`--ease-out`, `--ease-in-out`), press feedback on
+      tabs and buttons, new tabs enter, menus and dialogs open from their origin, the sidebar
+      slides; reduced-motion variants. Nothing keyboard-initiated animates.
+
+Done when: desktop (1440×900) and phone (390×844) screenshots in both themes show only the
+workspace list, the tab bar and the terminal; `bun run check fast` is green;
+`review-animations` passes on the diff.
+
+## Phase 2 — Delete chat and files
+
+Phase 1 makes them unreachable; this phase deletes them, client, server, contract, scripts and
+docs, so the tree is as small as the product.
+
+- [ ] Client: `ChatView`, `Composer` and the chat-only parts of `PaneTerminal`, chat timeline,
+      minimap, pending messages, the chat libraries, `AgentSidebar`, the `PaneView` lens type.
+- [ ] Client: `FilesDialog`, `FileViewer`, `RepoDiffViewer`, `WebPanel`, file panels and their
+      settings.
+- [ ] Server: transcript readers and conversation push (`conversation*`, `codex*`, `claude-*`,
+      `gjc*`, `devin*`, `grok*`, `agy*`, OpenCode, Hermes, OmO and the rest), skills and command
+      menus that only the composer used, `files.ts`, `file-view.ts`; their routes in `shared/`.
+- [ ] Scripts and docs that test or describe them (chat and file browser QA, chat docs).
+
+Done when: no `chat` lens or transcript route remains; `bun run check full` is green; the PR
+lists the bundle size and line count before and after.
+
+## Phase 3 — Fork identity and cleanup
+
+- [ ] Own identity: plugin id, `package.json` repository, push subject, remote-bundle URL,
+      updater source. Telemetry to upstream's endpoint is removed.
+- [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left.
+- [ ] CI for the fork: one GitHub Actions workflow running `bun run check fast` on PRs; upstream's
+      Pages, growth, release and self-hosted-runner workflows go.
+- [ ] Decide, one by one, what else leaves (each a small PR or a "keep" note here): the website
+      (`site/`), native shells (`app/`), the film, usage meters and CLIProxy, voice input, Portal,
+      in-app alerts (Droplet), the sidebar's Install app button.
+
+## Phase 4 — restty terminal
+
+Replace xterm.js with restty: libghostty-vt in WASM for VT parsing and state, WebGPU rendering
+with a WebGL2 fallback, TypeScript text shaping.
+
+- [ ] Spike behind a setting: restty's `restty/xterm` compatibility wrapper against its native
+      `Restty` API; pick one with numbers (frame time while `cat`-ing a large file, input
+      latency, memory, bundle size).
+- [ ] `PaneTerminal` on restty: the attach stream in; keys, IME, paste and mouse out; selection
+      and copy, links, search, resize and fit, the mirrored (read-only) pane.
+- [ ] Ghostty look: themes from Ghostty's palette set, font rendering and ligatures, cursor
+      styles. xterm, its patches and `scripts/build-xterm.ts` go.
+
+Done when: the terminal input, IME, paste, copy and selection regressions pass on restty, and the
+PR shows the measurements against xterm.js.
+
+## Phase 5 — State Synchronization Protocol
+
+Mosh's model for the bridge–browser link: synchronize screen state, not a byte stream.
+
+- [ ] **Bridge screen state.** One headless terminal (`restty/headless`) per attached pane, fed by
+      herdr's attach stream: the authoritative state, numbered.
+- [ ] **Sync.** The bridge sends the difference from the state the client last acknowledged to
+      the current one; the client applies it and acknowledges. Latest state wins: a slow or
+      backgrounded client skips intermediate frames instead of replaying them, and a reconnect
+      resumes from its last acknowledged state. Frame rate follows the measured round-trip time.
+- [ ] **Predictive local echo.** As Mosh: predict printable characters, backspace and cursor
+      moves on the current line; group predictions in epochs and show them only once an epoch is
+      confirmed by the server's state; underline unconfirmed predictions when the link is slow;
+      roll back on mismatch; never predict while the terminal does not echo (passwords).
+- [ ] **Measure.** A harness with simulated latency and loss; typing at 200ms round trip feels
+      local, and the screen converges to the bridge's state after loss.
+
+Done when: correctness tests (convergence under loss, reordering and reconnect) and the latency
+harness pass, and the old flow-control path is gone.
