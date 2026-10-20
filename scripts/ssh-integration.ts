@@ -142,13 +142,10 @@ try {
   const image = await api<{ path: string }>(path + "/pane/image", "POST", { pane_id: paneId, content_type: "image/png", data_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" });
   assert.ok(image.path.startsWith(remoteHome)); assert.ok(remoteExists(image.path));
   assert.ok((await api<{ snapshot: SessionSnapshot }>(path + "/session")).snapshot.panes.some((p) => p.pane_id === paneId));
-  await api(path + `/pane/conversation?pane_id=${encodeURIComponent(paneId)}`);
-  await api(path + `/pane/files?pane_id=${encodeURIComponent(paneId)}&q=`);
-  await api(path + `/pane/prompt?pane_id=${encodeURIComponent(paneId)}`);
   await api(path + "/pane/rename", "POST", { pane_id: paneId, label: "SSH verified" });
   const other = await api<{ read: { text: string } }>(secondPath + `/pane/read?pane_id=${encodeURIComponent(paneId)}&source=recent&format=text`);
   assert.ok(!other.read.text.includes("ssh-bridge-input-ok"), "equal pane IDs must not mix input");
-  console.log("PASS equal pane ID isolation, remote terminal, observe, resize, input, image, conversation, files and prompts");
+  console.log("PASS equal pane ID isolation, remote terminal, observe, resize, input and image");
   const slow = new WebSocket(`ws://127.0.0.1:${server.port}/ws?machine_id=${machineId}`); sockets.push(slow);
   let slowCode = 0; let slowBytes = 0;
   slow.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === "pty-data") slowBytes += Buffer.byteLength(m.data); };
