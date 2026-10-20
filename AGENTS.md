@@ -1,16 +1,98 @@
-# herdr-web-ui
+# restty-herdr
 
-Browser UI for the herdr terminal multiplexer: a React 19 + xterm.js client (`src/`), a Bun
-backend (`server/`) that bridges herdr's unix-socket API, and the wire contract both import
-(`shared/`). herdr owns every pty, scrollback and agent state; this app is only a bridge.
+Improved, minimal fork of [herdr web UI](https://github.com/devswha/herdr-web-ui) with a
+Ghostty-like terminal emulator and a State Synchronization Protocol.
 
-These files hold only the traps the code and tests do not show. Commands, layout, checks and
-release steps are in [docs/development.md](docs/development.md); contributors follow
-[CONTRIBUTING.md](CONTRIBUTING.md). Code conventions (imports, CSS tokens, i18n entries, fixed
-sleeps, wording, icons) are enforced by the `conventions.test.ts` files, whose failures say what
-to change. Also read [server/AGENTS.md](server/AGENTS.md) and [src/AGENTS.md](src/AGENTS.md).
+A browser client for the herdr terminal multiplexer: a React 19 client (`src/`), a Bun bridge
+(`server/`) that talks to herdr's unix-socket API, and the wire contract both import (`shared/`).
+herdr owns every pty, scrollback and agent state; this app is a bridge and a terminal.
+
+The plan, phase by phase, is in [docs/ROADMAP.md](docs/ROADMAP.md). Read it before starting work:
+it says what is being removed, what is being built, and what "done" means for each slice.
+
+## Product
+
+1. **Terminal first.** One fast, beautiful terminal surface. Rendering moves from xterm.js to
+   [restty](https://github.com/wiedymi/restty) (libghostty-vt in WASM, WebGPU with a WebGL2
+   fallback, TypeScript text shaping): Ghostty's VT behaviour and look in the browser.
+2. **State Synchronization Protocol.** Mosh's model between bridge and browser: the bridge keeps
+   the authoritative screen state of each pane and sends the client the difference from the last
+   state the client acknowledged; latest state wins, nothing is replayed. On top of it the client
+   runs Mosh-style predictive local echo, so typing feels local on a slow link.
+3. **Minimal chrome.** The sidebar lists workspaces and nothing else; one top bar carries pill
+   tabs; no chat, no file browser, no overflow menus. What is not used every session lives behind
+   a shortcut or the command palette (Ctrl+F).
+4. **Feels right.** Smooth where motion helps, instant where it would slow you down. See
+   [UX and motion](#ux-and-motion).
+
+Removed for good, not hidden: the chat lens and composer, agent transcript readers, Files and the
+file viewer, the sidebar's Agents list, the header's More menu and search button. Code from them
+still in the tree is dead code waiting for its deletion slice, not a pattern to extend. Never add
+them back.
+
+## Development flow
+
+- One slice per branch, cut from `main`: `feat/…`, `fix/…`, `refactor/…`, `chore/…`, `docs/…`.
+  A slice is one roadmap item, small enough to review in one sitting.
+- Pull requests go to this fork only:
+  `gh pr create -R alexanderkreidich/restty-herdr --base main`. In a fork `gh` defaults to the
+  parent repository: never open a PR, issue or comment on `devswha/herdr-web-ui`.
+- Upstream is a source of fixes, not a branch to follow. Cherry-pick bridge and terminal fixes
+  (`git remote add upstream https://github.com/devswha/herdr-web-ui`); never merge its `main`.
+- Commits and everything on GitHub are in English, Conventional Commits
+  (`feat(tabs): …`, `refactor(chat): delete the transcript readers`).
+- No changelog fragments and no `v*` tags until the fork has its own release train (roadmap):
+  installed updaters act on tags alone.
+
+The loop for a UI slice:
+
+1. Read the roadmap item and the skills it needs (below).
+2. Run a disposable herdr and bridge: `bun run sandbox` (herdr session `restty-sandbox`, bridge on
+   127.0.0.1:7417), then `HERDR_WEB_API_PORT=7417 bun run dev` for Vite with HMR on :5173.
+3. Implement. When the roadmap says remove, delete the code, its CSS, its i18n entries and its
+   tests; do not leave a disabled path behind.
+4. Verify:
+   - `bun run typecheck`, the tests next to what changed (`bun test src/lib/foo.test.ts`),
+     `bun run build`;
+   - screenshots: `bun run build && bun run sandbox --shot /tmp/desktop.png` and
+     `--size 390x844` for a phone, `--theme light` when colours change. Look at them;
+   - `bun run check fast` before a PR (generated types and themes, typecheck, build, unit tests).
+     Changes to `server/`, `shared/` or terminal I/O also run
+     `bun run check integration browser` (each lane runs on a herdr of its own).
+5. Run the `review-animations` skill over a diff that touches motion; fix what it blocks.
+6. Commit, push the branch, open the PR with before/after screenshots.
+
+Stop the sandbox's herdr when done: `herdr --session restty-sandbox server stop`.
+
+## UX and motion
+
+Skills for this live in `.agents/skills/` (Emil Kowalski's, MIT; `.claude/skills` links to them):
+`emil-design-eng` (principles), `animate` (build one), `review-animations` (before a PR),
+`improve-animations` (audit), `find-animation-opportunities`, `animation-performance`,
+`animation-vocabulary`, `apple-design`, `mobile-native`, `break-ui`, `prototype` (try variants of a
+UI piece behind a switcher before committing to one).
+
+- Gate every animation by how often it is seen. Keyboard-initiated or 100+ times a day (palette,
+  tab or pane switching by key, focus moves): no animation. Tens a day (hover, press): near
+  imperceptible. Occasional (menus, dialogs, sidebar, a new tab): standard.
+- Durations: press 100–160ms, tooltips and small popovers 125–200ms, menus 150–250ms, dialogs
+  and drawers 200–300ms. Nothing in the UI over 300ms.
+- Easing: entering and exiting `ease-out`, moving on screen `ease-in-out`, colour and hover
+  `ease`; never `ease-in`. Use the tokens in `src/styles.css` (`--ease-out`, `--ease-in-out`,
+  `--ease-spring` for drawers, `--dur-*`), never an ad-hoc curve.
+- Animate `transform` and `opacity` only. Never from `scale(0)`: start at 0.95–0.97 with opacity 0.
+  Popovers grow from their trigger; dialogs stay centred.
+- Transitions, not keyframes, for anything that can be triggered again mid-flight;
+  `@starting-style` for entrances.
+- Hover motion only under `(hover: hover) and (pointer: fine)`. Every animation ships with its
+  `prefers-reduced-motion` variant: keep opacity and colour, drop movement.
+- Never animate something that resizes the terminal frame by frame (each fit is a pty resize):
+  change the layout once and animate an overlay.
+- Minimalism is a rule, not a style: an element earns its place by being used every session. A
+  new button, icon or label needs a reason, and preferably replaces one.
 
 ## Bridge traps
+
 - Never load node-pty inside Bun: it panics the runtime. PTY work goes through the Node sidecar.
 - Never pass `--takeover` to `herdr terminal attach` on the server's own initiative; it cuts off
   whoever holds the pane. Only a user's explicit take-over request may.
@@ -19,82 +101,34 @@ to change. Also read [server/AGENTS.md](server/AGENTS.md) and [src/AGENTS.md](sr
   set. Caching answers is fine.
 - `pane.process_info` takes `pane_id`, not `target` (with `target` herdr answers for the focused
   pane).
-- Keep xterm `scrollback: 0` and never rebuild an attached terminal from `pane.read`: the attach
-  stream is the truth. Only a mirrored pane (Windows, or no Node for the sidecar) is drawn from
-  `pane.read`, so never assume a pty exists.
+- The attach stream is the truth for a pane's screen. Never rebuild an attached terminal from
+  `pane.read`; only a mirrored pane (no attach: Windows, or no Node for the sidecar) is drawn from
+  it, so never assume a pty exists. The SSP state is derived from the attach stream on the bridge.
 - Nothing the user typed is sent automatically after a disconnect: it waits in a draft until the
-  user sends or discards it.
+  user sends or discards it. Local echo predictions are display only and never resend input.
 - Prompt answers go through `POST /api/pane/prompt/answer`, never guessed digit keys.
 - Selecting a pane or tab in the browser never moves herdr's own focus; only an explicit action
   that needs it calls `pane.focus`.
 - Never edit `shared/herdr-api.generated.ts`; run `bun run generate:types`.
-- Theme colors are edited only in the theme blocks of `src/styles.css`. Never edit
+- Theme colours are edited only in the theme blocks of `src/styles.css`. Never edit
   `src/lib/themes.generated.ts` or the generated copies in DESIGN.md, index.html and
   `public/manifest.webmanifest`; run `bun run generate:themes`.
+- The fork still carries upstream's identity (plugin id `devswha.herdr-web-ui`, updater,
+  telemetry endpoint, remote-bundle URL). Until the roadmap's fork-identity slice lands, do not
+  ship a build that reports to or updates from upstream.
+
+`server/AGENTS.md` and `src/AGENTS.md` hold the traps local to each side. Code conventions
+(imports, CSS tokens, i18n entries, fixed sleeps, wording, icons) are enforced by the
+`conventions.test.ts` files, whose failures say what to change.
 
 ## Tests and QA
+
 - Tests never touch the user's herdr session or real state: they use the isolated test session,
   a `mkdtempSync` `stateDir` and `port: 0` for every `createServer`. Never run the real
   `herdr update` in a test.
-- Screenshots and recordings come from the demo or a test session, never the user's live one.
-- A web UI server an agent starts for someone to open (manual QA, a preview) binds to this PC's
-  Tailscale address, not loopback: `HOST=$(tailscale ip -4) PORT=<free port> bun run server`,
-  then hand over `http://<that address>:<port>`. A Tailscale-only bind stays inside the tailnet
-  (`lanExposed` in `server/access.ts`); never bind `0.0.0.0` for it. Tests keep `port: 0` on
-  loopback.
-- That bind is for a throwaway preview only. A server someone installs as an app from another
-  device needs HTTPS (only `localhost` installs over plain http): bind it to `127.0.0.1` and let
-  `tailscale serve` add the address. Moving a port that `tailscale serve` already fronts to the
-  Tailscale address breaks that HTTPS address.
-- The maintainer's "herdr main" test app always serves the latest main at
-  `https://home-server.tail1e211e.ts.net:17421` (user unit `herdr-web-main.service`, which
-  follows origin/main by itself). Open it to try main instead of starting another main preview,
-  and never stop it.
-- Mac and iOS Simulator checks run on the maintainer's test MacBook Air, `ssh eamac`, which stays
-  awake for it. Never drive the MacBook Pro (`ssh macbook`, `ssh mymac`): it is the maintainer's
-  working machine, and automation there takes over their keyboard and focus. Native Windows
-  checks run on the maintainer's Windows 11 PC, `ssh home-window`, which never sleeps on AC. On
-  either box, run a PR's checks in a fresh `git clone` in a temporary directory (`/tmp` on eamac,
-  `%TEMP%` on Windows) and delete it afterwards. Leave their own checkouts alone.
-
-## Maintainer workflow
-- A session that changes code, in any harness, stops at an open PR: only the maintainer's merge
-  pass merges, unless the maintainer asks that session to merge. One session that edits files per
-  worktree; read-only sessions may share it.
-- A worktree an agent adds with `git worktree add` that outlives its session (an open PR) goes
-  under `~/.herdr/worktrees/herdr-web-ui-wt/`, named after its branch with `/` as `-`
-  (`fix/pin-order` in `herdr-web-ui-wt/fix-pin-order`); a short-lived one may stay in the run's
-  temp root, and skills that name their own path keep it. Once its PR merges, remove the
-  worktree and its branch.
-- After a merge, the merge pass also closes the herdr worktree workspace the PR came from (the
-  one checked out on the PR's branch, under `~/.herdr/worktrees/herdr-web-ui/`), only when all
-  hold: no pane in it has an agent `working`, `git status` there is clean, and the branch's tip
-  is the PR's head commit (`gh pr view --json headRefOid`), so nothing was added after it. Close
-  it with `herdr worktree remove --workspace <id>`, never `git worktree remove`, so the
-  workspace leaves with its checkout. herdr keeps the branch: then `git branch -D` it (a squash
-  merge leaves it unmerged to git; GitHub already deletes the remote one). A workspace that
-  fails a check stays, and the merge report names it and why. A session never removes the
-  worktree it runs in.
-- Everything written to git and GitHub (commits, branches, PRs, reviews, issues, changelog
-  fragments) is in English.
-- Never push a `v*` tag by hand: installed updaters act on tags alone.
-- The merge pass cuts releases ([steps](docs/development.md#releasing)); any other session may
-  prepare the release PR but stops at it. When that PR raises `REMOTE_BUNDLE_VERSION`, the merge
-  pass merges nothing touching `server/`, `shared/`, `bun.lock` or `patches/` from its merge until
-  the Release run is done.
-- Required checks: Fast checks, Integration and browser, Native Windows install. Resolve review
-  threads before merging (branch protection does not enforce it).
-- CodeRabbit's reviews are rationed per PR author, and agents open their PRs as one account:
-  opening a PR, a push and each `@coderabbitai review` spend one, and past about 80 in a week
-  one comes back per hour. Open verified work ready for review, not as a draft: the merge pass
-  reviews every PR itself and stops at a draft. A draft is only for work still unfinished; push
-  it once when it is ready. Do not open a stack of PRs at once, and ask for another review
-  only after a commit that changes behaviour in `server/`, `src/` or `shared/`, an HTTP/WS
-  contract or a workflow. A rebase, changelog fragment, docs, comment or test-only commit gets
-  none.
-- A rate-limited review still shows a passing CodeRabbit check; its "Review limit reached"
-  comment means no review ran. A PR touching `--takeover`, observe permissions, queued input,
-  authentication, an HTTP/WS contract or a workflow waits for a real review. Any other PR says
-  in a comment that CodeRabbit did not review it, and merges on its checks and the maintainer.
-- Changelog entries go in `changelog.d/` fragments ([format](changelog.d/README.md)), not
-  CHANGELOG.md; only a release folds them in.
+- Screenshots and recordings come from the sandbox, the demo or a test session, never the user's
+  live one.
+- A server started for someone else to open binds to loopback or the Tailscale address
+  (`HOST=$(tailscale ip -4)`), never `0.0.0.0`.
+- When a removal makes a test meaningless, delete the test with the code. Do not keep tests alive
+  for dead features, and do not weaken a test of a kept feature to make a removal pass.

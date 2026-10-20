@@ -29,6 +29,9 @@ const buildRevision: Plugin = {
   },
 };
 
+// the bridge Vite proxies to: a sandbox (scripts/sandbox.ts) or a second checkout runs on another port
+const apiPort = process.env["HERDR_WEB_API_PORT"] || "7317";
+
 export default defineConfig({
   plugins: [react(), thirdPartyNotices, buildRevision, compressedAssets(), serviceWorkerBuild()],
   define: {
@@ -42,8 +45,8 @@ export default defineConfig({
     proxy: {
       // not the string shorthand: Vite gives that changeOrigin, and the server's same-origin check
       // compares the browser's Origin (:5173) with the Host it was sent, which must stay :5173
-      "/api": { target: "http://localhost:7317", changeOrigin: false },
-      "/ws": { target: "ws://localhost:7317", ws: true },
+      "/api": { target: `http://localhost:${apiPort}`, changeOrigin: false },
+      "/ws": { target: `ws://localhost:${apiPort}`, ws: true },
     },
   },
   // Keep Vite 6's syntax targets when changing the bundler, including installed mobile clients.
