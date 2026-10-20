@@ -22,8 +22,8 @@
   height: 100%;
 }
 
-/* the grid keeps a small gutter of its own: the host (styles.css) has none, because the
-   chat lens and the composer want the full width. The gutter sits on .xterm itself, not
+/* the grid keeps a small gutter of its own: the host (styles.css) has none, so the input line
+   and the key bar take the full width. The gutter sits on .xterm itself, not
    on the mount: the fit addon subtracts the terminal element's padding but reads the
    parent's border-box width, so padding on the mount would overflow the last columns */
 .pane-terminal {
@@ -33,7 +33,7 @@
   overflow: hidden;
   /* a drag here is ours (PaneTerminal turns it into wheel events for herdr): without
      this the browser takes the gesture after its first move and scrolls the page or
-     the composer instead, or starts pull-to-refresh */
+     the input line instead, or starts pull-to-refresh */
   touch-action: none;
   overscroll-behavior: contain;
 }
@@ -58,9 +58,9 @@
   text-autospace: no-autospace;
 }
 
-/* the mount's own box: everything that may overlay the pty (the chat lens) is
-   positioned against THIS, never against the stack — the composer and key bar
-   below keep their rows no matter which lens is on */
+/* the mount's own box: everything that may overlay the pty (the viewport tools, the pinch
+   badge) is positioned against THIS, never against the stack: the input line and key bar
+   below keep their rows */
 .terminal-surface {
   position: relative;
   display: flex;
@@ -88,23 +88,6 @@
   white-space: nowrap;
   box-shadow: var(--shadow-card);
   pointer-events: none;
-}
-
-/* Under the chat lens a prompt card and the held messages can take the stack's whole height (a
-   phone with its keyboard up). The transcript's box then reaches zero, and its scroller, which
-   keeps its own padding, must not paint over what stands under it. The xterm mount is not
-   resized by this. */
-.terminal-stack.is-chat > .terminal-surface {
-  overflow: hidden;
-}
-
-/* A phone's glass header lies over the stack's top (styles.css): the transcript reaches up under
-   it (ChatView.css), so the clip opens upward by that height and stays shut below and aside */
-@media (max-width: 768px) {
-  .terminal-stack.is-chat > .terminal-surface {
-    overflow: visible;
-    clip-path: inset(calc(-1 * var(--header-over, 0px)) 0 0 0);
-  }
 }
 
 /* no pane selected: the mount keeps its size (the fit needs it) but never paints, so its
@@ -166,8 +149,7 @@
    clicks pass through to the pty except where the review banner re-enables them */
 .terminal-banners {
   position: absolute;
-  /* below a phone's glass header when it lies over the chat (styles.css) */
-  top: calc(var(--space-2) + var(--header-over, 0px));
+  top: var(--space-2);
   right: var(--space-3);
   /* one above the input line and the masked input, which float at --z-banner from a slot later
      in the stack (TerminalInput.css): in a short pane a grown line reaches the grid's top, and the
@@ -362,9 +344,3 @@
   .pane-terminal .xterm-rows { pointer-events: none; }
 }
 
-/* under the chat lens the grid is covered: skip drawing it (xterm pauses its renderer while
-   the screen is not intersecting, and repaints in full on return). The box keeps its size,
-   so the grid never refits to zero */
-.terminal-stack.is-chat .pane-terminal {
-  content-visibility: hidden;
-}

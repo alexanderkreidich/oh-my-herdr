@@ -34,8 +34,8 @@ export type UsageGlance = "week" | "session";
  *  catppuccin: Catppuccin Mocha in dark, Latte in light. A record naming a palette that was removed
  *  (report, lilac, forest) loads as amber. */
 export type Palette = ThemeId;
-/** the chat lane's widest: the transcript, the composer column and the held list share it (--chat-w in src/styles.css).
- *  narrow: 820px; default: follows the pane, up to 60rem (chatLaneWidth); wide: 72rem; full: the pane, less the gutters */
+/** the chat lane's widest. The chat is gone; this and the other chat and file viewer settings stay
+ *  only while the telemetry schema carries them (docs/ROADMAP.md, Phase 3). */
 export type ChatWidth = "narrow" | "default" | "wide" | "full";
 export const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "default", "wide", "full"];
 /** the microphone button. auto: in the chat composer off a phone, and only where dictation can work;
@@ -106,8 +106,7 @@ export interface Settings {
   /** the interface's body size in px (--fs-md; every other --fs-* scales with it as --ui-scale); null follows the density.
    *  The chat follows it until it has a size of its own; the terminal keeps terminalFontSize */
   uiFontSize: number | null;
-  /** how wide the chat lane may run on a large screen, keyed as data-chat-width in src/styles.css; default follows the pane
-   *  (chatLaneWidth, written by lib/chatLane.ts); a narrower pane is never affected */
+  /** how wide the chat lane ran (kept for the telemetry schema, as ChatWidth says) */
   chatWidth: ChatWidth;
   /** true: Enter sends in the composer, Shift+Enter breaks the line; false: Ctrl/Cmd+Enter sends */
   enterSends: boolean;
@@ -353,11 +352,6 @@ export function wantsVoiceInput(setting: VoiceButton, mode: "chat" | "terminal",
   return setting === "on" || (setting === "auto" && mode === "chat" && !phone);
 }
 
-/** The replies worth a button: what the list holds, without the blank ones still being written. */
-export function quickReplyButtons(settings: Settings): string[] {
-  return settings.quickReplies.filter((reply) => reply.trim() !== "");
-}
-
 /** This device's alert choices, as the server keeps them with its push subscription. */
 export function alertPrefs(settings: Settings): AlertPrefs {
   return { input: settings.alertInput, done: settings.alertDone };
@@ -387,47 +381,6 @@ export function uiFontSize(settings: Settings): number {
 /** The chat's body text size in px: the chosen one, or the interface's. */
 export function chatFontSize(settings: Settings): number {
   return settings.chatFontSize ?? uiFontSize(settings);
-}
-
-/** The Default chat lane never runs narrower than this, in px: --content-w, the Narrow step. */
-export const CHAT_LANE_MIN = 820;
-/** ...or wider than this, in rem: 960px at a 16px root. In rem because Wide is (72rem, styles.css),
- *  so Default stays the narrower of the two at a root font of 11.39px and up; under that the
- *  820px floor wins and is itself wider than Wide (see chatLaneLength). */
-export const CHAT_LANE_MAX_REM = 60;
-/** The share of its pane the Default chat lane takes between the two. */
-export const CHAT_LANE_RATIO = 0.7143;
-/** The root font size chatLaneWidth resolves the rem ceiling with when none is given. */
-export const ROOT_FONT_PX = 16;
-
-/** The Default lane's pane-following part in whole px, before the rem ceiling: 71.43% of the pane, min 820px. */
-function chatLaneFollow(paneWidth: number): number {
-  if (!Number.isFinite(paneWidth)) return CHAT_LANE_MIN;
-  return Math.max(CHAT_LANE_MIN, Math.round(paneWidth * CHAT_LANE_RATIO));
-}
-
-/**
- * The Default chat lane for a pane this wide, as the CSS length lib/chatLane.ts writes to --chat-w:
- * 71.43% of the pane, min 820px, max 60rem.
- * A length with no percentage in it: the lane's columns sit in boxes of different widths (the
- * transcript and the composer column inside a gutter, the held list and the menus outside it),
- * and one length is what keeps them equal. A pane narrower than the result is unaffected:
- * every column is min(100%, lane).
- * The ceiling is left to the stylesheet engine as 60rem, not resolved here: Wide's 72rem follows
- * the root font size the moment it changes, and so must this, or Default would be the wider of
- * the two until the pane was next measured.
- * Where the two ends cross (60rem is under 820px below a 13.67px root) the floor wins: Default is
- * then the same lane as Narrow, never narrower than it, and still no wider than Wide down to an
- * 11.39px root, under which Narrow's own 820px is already wider than Wide's 72rem.
- */
-export function chatLaneLength(paneWidth: number): string {
-  return `min(max(${CHAT_LANE_MIN}px, ${CHAT_LANE_MAX_REM}rem), ${chatLaneFollow(paneWidth)}px)`;
-}
-
-/** What chatLaneLength resolves to at this root font size, in px (960 at most at 16px): the rule in numbers. */
-export function chatLaneWidth(paneWidth: number, rootFontPx: number = ROOT_FONT_PX): number {
-  const root = Number.isFinite(rootFontPx) && rootFontPx > 0 ? rootFontPx : ROOT_FONT_PX;
-  return Math.min(Math.max(CHAT_LANE_MIN, CHAT_LANE_MAX_REM * root), chatLaneFollow(paneWidth));
 }
 
 /** Only known keys with the right type survive: a stale or hand-edited record never breaks the UI. */

@@ -53,8 +53,7 @@
 }
 
 /* the bar at the bottom of the screen (KeyBar.tsx) keeps clear of the home indicator, though
-   less than the whole safe area: the bar's own padding around its keys is part of that room,
-   as the composer's is (Composer.css) */
+   less than the whole safe area: the bar's own padding around its keys is part of that room */
 .key-bar.is-at-screen-bottom {
   height: calc(var(--keybar-h) + max(0px, env(safe-area-inset-bottom, 0px) - var(--space-2)));
   padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--space-2)));

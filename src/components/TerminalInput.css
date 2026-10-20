@@ -1,4 +1,4 @@
-/* The slot PaneTerminal.tsx keeps above the key bar in the terminal lens: one row of the input
+/* The slot PaneTerminal.tsx keeps above the key bar: one row of the input
    line in flow, whatever floats in it. The line grows to four rows (and a note under it) upward
    over the grid's last rows instead of taking them: the grid's height is the pty's size, and each
    change of it resizes the pane for every device on it. The masked input (SecretInput.css) takes
@@ -15,11 +15,6 @@
 /* the masked input stands in on a pane that types straight into the grid: no row is kept */
 .terminal-input-slot.is-empty {
   height: 0;
-}
-
-/* the chat lens keeps the masked input in this slot too (PaneTerminal.tsx), in flow: no box */
-.terminal-stack.is-chat > .terminal-input-slot {
-  display: contents;
 }
 
 /* the terminal's input line on touch screens (TerminalInput.tsx): one row that grows to four,

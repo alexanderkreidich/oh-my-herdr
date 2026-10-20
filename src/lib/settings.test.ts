@@ -11,7 +11,7 @@ import { FONT_FAMILY_MAX_CHARS } from "./fontFamily.ts";
 import { DEFAULT_KEY_BAR_ITEMS, migrateKeyBarItems } from "./keyBar.ts";
 import { SHARED_SETTING_KEYS } from "../../shared/preferences.ts";
 import { NOTICE_VERSION, TELEMETRY_SETTINGS_KEYS, TELEMETRY_THEME_SIDE_KEYS, telemetrySettings } from "../../shared/telemetry.ts";
-import { SETTING_SCOPE, telemetrySettingsSnapshot, alertPrefs, CHAT_FONT_MAX, CHAT_FONT_MIN, CHAT_LANE_MAX_REM, CHAT_LANE_MIN, CHAT_WIDTHS, chatFontSize, chatLaneLength, chatLaneWidth, DEFAULT_SETTINGS, MARKDOWN_WIDTHS, QUICK_REPLIES_MAX, QUICK_REPLY_MAX_CHARS, quickReplyButtons, sanitizeSettings, terminalTheme, forgetPaneViews, DICTATION_LANGUAGES, VOICE_BUTTONS, wantsVoiceInput } from "./settings.ts";
+import { SETTING_SCOPE, telemetrySettingsSnapshot, alertPrefs, CHAT_FONT_MAX, CHAT_FONT_MIN, chatFontSize, DEFAULT_SETTINGS, MARKDOWN_WIDTHS, sanitizeSettings, terminalTheme, forgetPaneViews, DICTATION_LANGUAGES, VOICE_BUTTONS, wantsVoiceInput } from "./settings.ts";
 import { applyToDocument, loadSettings, saveSettings } from "./settings.ts";
 import { sanitizeSettings as oldSanitizeSettings, saveSettings as oldSaveSettings } from "./settings.legacy-fixture.ts";
 import { themeFor } from "./themeFor.ts";
@@ -369,118 +369,6 @@ describe("chat font size", () => {
 
 });
 
-describe("chat width", () => {
-  it("is the default lane until one is chosen, and accepts only the four steps", () => {
-    expect(DEFAULT_SETTINGS.chatWidth).toBe("default");
-    expect(sanitizeSettings({}).chatWidth).toBe("default");
-    expect([...CHAT_WIDTHS]).toEqual(["narrow", "default", "wide", "full"]);
-    for (const chatWidth of CHAT_WIDTHS) expect(sanitizeSettings({ chatWidth }).chatWidth).toBe(chatWidth);
-    for (const chatWidth of [null, true, 960, "huge", "Wide", ["wide"]]) expect(sanitizeSettings({ chatWidth }).chatWidth).toBe("default");
-  });
-
-  it("has one lane token with an override per step, and the dialogs keep their own width", () => {
-    const css = (name: string): string => readFileSync(join(import.meta.dir, "..", name), "utf8");
-    const tokens = css("styles.css");
-    expect(tokens).toContain("--content-w: 820px;");
-    // unmeasured, the lane is the Default rule's floor; the measured one is chatLaneLength's
-    expect(tokens).toContain("--chat-w: var(--content-w);");
-    expect(tokens).toContain(`--content-w: ${CHAT_LANE_MIN}px;`);
-    const step = (name: string): string | undefined => new RegExp(`\\[data-chat-width="${name}"\\] \\{\\s*--chat-w: ([^;]+);`).exec(tokens)?.[1];
-    expect(step("narrow")).toBe("var(--content-w)");
-    expect(step("wide")).toBe("72rem");
-    expect(step("full")).toBe("100%");
-    // the default step has no rule here: PaneTerminal writes its pane's lane on .terminal-stack, and a
-    // file viewer, outside every pane, the lane of the pane that opened it on itself (lib/chatLane.ts)
-    expect(step("default")).toBeUndefined();
-    // a percentage in the token would resolve against each column's own box; Full is the one
-    // step that means exactly that
-    expect([...tokens.matchAll(/--chat-w: ([^;]+);/g)].map((match) => match[1]).filter((value) => value?.includes("%"))).toEqual(["100%"]);
-    // one rule for both, so a change to it cannot miss the viewer
-    expect(css("lib/chatLane.ts")).toContain(`setProperty("--chat-w", chatLaneLength(`);
-    expect(css("components/PaneTerminal.tsx")).toContain("usePaneLane(stackRef)");
-    expect(css("components/FileViewer.tsx")).toContain("useOpeningPaneLane(");
-    for (const name of ["components/PaneTerminal.tsx", "components/FileViewer.tsx"]) expect(css(name)).not.toContain("chatLaneLength(");
-    // the root font size is not read in JS: the ceiling is 60rem in the length itself
-    expect(css("lib/chatLane.ts")).not.toContain("chatLaneWidth(");
-    // Settings and New workspace stay on --content-w. That the chat columns share the lane is
-    // measured in the browser (scripts/ui-regression.ts), not read from the stylesheets
-    for (const file of ["components/SettingsDialog.css", "components/NewSessionDialog.css"]) {
-      expect(css(file)).toContain("var(--content-w)");
-      expect(css(file)).not.toContain("var(--chat-w)");
-    }
-  });
-});
-
-describe("the default chat lane", () => {
-  it("is 71.43% of the pane, never under 820px or over 60rem (960px at a 16px root)", () => {
-    expect(CHAT_LANE_MIN).toBe(820);
-    expect(CHAT_LANE_MAX_REM).toBe(60);
-    // the pane beside a 320px sidebar in a 1280, 1440, 1680 and 1920 window
-    expect([960, 1120, 1360, 1600].map((pane) => chatLaneWidth(pane))).toEqual([820, 820, 960, 960]);
-    // between the two ends it follows the pane, in whole px
-    expect(chatLaneWidth(1148)).toBe(820);
-    expect(chatLaneWidth(1149)).toBe(821);
-    expect(chatLaneWidth(1200)).toBe(857);
-    expect(chatLaneWidth(1300)).toBe(929);
-    expect(chatLaneWidth(1343)).toBe(959);
-    expect(chatLaneWidth(1344)).toBe(960);
-  });
-
-  it("is the floor for a phone, an unmeasured pane or a width that is not a number", () => {
-    for (const width of [0, 390, 780, -1, Number.NaN, Number.POSITIVE_INFINITY]) expect(chatLaneWidth(width)).toBe(820);
-  });
-
-  it("has its ceiling in rem, so it is never wider than Wide's 72rem at a root font of 11.4px and up", () => {
-    const wide = (root: number): number => 72 * root;
-    // 16px: the sizes above, whether the root is passed or not
-    expect([960, 1149, 1300, 1344, 1600, 4000].map((pane) => chatLaneWidth(pane, 16))).toEqual([820, 821, 929, 960, 960, 960]);
-    // 20px: 60rem is 1200px, reached by a 1680px pane; Wide is 1440px
-    expect([1148, 1344, 1600, 1679, 1680, 4000].map((pane) => chatLaneWidth(pane, 20))).toEqual([820, 960, 1143, 1199, 1200, 1200]);
-    // 13px: 60rem is 780px, under the 820px floor. The floor wins: the lane is Narrow's at every
-    // pane, and Wide (936px) is still the wider one. Before, a large pane got 960px here
-    expect([960, 1149, 1344, 1600, 4000].map((pane) => chatLaneWidth(pane, 13))).toEqual([820, 820, 820, 820, 820]);
-    // the two ends meet at 820 / 60 = 13.67px; a root just over it has a ceiling just over the floor
-    expect(chatLaneWidth(4000, 14)).toBe(840);
-    // a fractional root
-    expect(chatLaneWidth(4000, 17.6)).toBe(1056);
-    for (const root of [13, 14, 16, 17.6, 20, 24]) {
-      for (const pane of [0, 960, 1344, 1920, 4000]) {
-        const lane = chatLaneWidth(pane, root);
-        expect(lane).toBeGreaterThanOrEqual(CHAT_LANE_MIN);
-        expect(lane).toBeLessThanOrEqual(wide(root));
-      }
-    }
-  });
-
-  it("resolves the ceiling at 16px when the root font size is not a usable number", () => {
-    for (const root of [0, -16, Number.NaN, Number.POSITIVE_INFINITY]) expect(chatLaneWidth(4000, root)).toBe(960);
-  });
-
-  it("is written as one length with the ceiling left in rem, so it follows the root font size without being measured again", () => {
-    expect(chatLaneLength(1600)).toBe("min(max(820px, 60rem), 1143px)");
-    expect(chatLaneLength(4000)).toBe("min(max(820px, 60rem), 2857px)");
-    for (const pane of [0, 390, -1, Number.NaN, Number.POSITIVE_INFINITY]) expect(chatLaneLength(pane)).toBe("min(max(820px, 60rem), 820px)");
-    // no percentage (each column would resolve it against its own box), and no root size baked in
-    // as px: the only px in it are the floor and the pane's share
-    const resolve = (length: string, root: number): number => {
-      const match = /^min\(max\((\d+)px, (\d+)rem\), (\d+)px\)$/.exec(length);
-      if (!match) throw new Error(`not the lane's form: ${length}`);
-      return Math.min(Math.max(Number(match[1]), Number(match[2]) * root), Number(match[3]));
-    };
-    // one length, written once at a 16px root, is right at every other root: a font size changed
-    // while the tab is open needs no new measurement. A px ceiling written at 16px stayed 960px
-    // at 13px, wider than Wide's 936px, until the pane was next resized
-    const written = chatLaneLength(4000);
-    expect([13, 14, 16, 17.6, 20].map((root) => resolve(written, root))).toEqual([820, 840, 960, 1056, 1200]);
-    for (const root of [13, 14, 16, 17.6, 20, 24]) {
-      for (const pane of [0, 960, 1149, 1344, 1600, 1920, 4000]) {
-        expect(resolve(chatLaneLength(pane), root)).toBe(chatLaneWidth(pane, root));
-        expect(resolve(chatLaneLength(pane), root)).toBeLessThanOrEqual(72 * root);
-      }
-    }
-  });
-});
-
 describe("font families", () => {
   const family = (value: unknown): string => sanitizeSettings({ terminalFontFamily: value }).terminalFontFamily;
 
@@ -586,19 +474,6 @@ describe("alert choices", () => {
 });
 
 describe("quick replies", () => {
-  it("keep replies as typed, bounded, and show only the ones with something to send", () => {
-    expect(quickReplyButtons(DEFAULT_SETTINGS)).toEqual(["continue", "yes", "no", "commit and push", "retry"]);
-    // a trailing space is the next word being typed: it stays
-    const typed = sanitizeSettings({ quickReplies: ["run the ", "", "  ", 7, "ship it"] });
-    expect(typed.quickReplies).toEqual(["run the ", "", "  ", "ship it"]);
-    expect(quickReplyButtons(typed)).toEqual(["run the ", "ship it"]);
-    const many = sanitizeSettings({ quickReplies: Array.from({ length: 20 }, (_, index) => "x".repeat(300) + index) });
-    expect(many.quickReplies).toHaveLength(QUICK_REPLIES_MAX);
-    expect(many.quickReplies.every((reply) => reply.length === QUICK_REPLY_MAX_CHARS)).toBe(true);
-    // an emptied list is a choice, not a broken record
-    expect(sanitizeSettings({ quickReplies: [] }).quickReplies).toEqual([]);
-    expect(sanitizeSettings({}).quickReplies).toEqual(DEFAULT_SETTINGS.quickReplies);
-  });
 });
 
 describe("microphone button", () => {

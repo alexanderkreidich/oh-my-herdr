@@ -7,7 +7,6 @@ import { useSettings } from "../lib/settings.ts";
 import { announcesUpdate, readAnnounced, summaryFor, watchAnnounced, writeAnnounced } from "../lib/updateNotes.ts";
 import { describeUpdate } from "../lib/updateProgress.ts";
 import type { UpdatesModel } from "../lib/updates.ts";
-import { lazyChunkFailed, onLazyChunkFailure } from "../lib/lazyChunk.ts";
 import { Markdown } from "./Markdown.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import "./Machines.css";
@@ -212,19 +211,3 @@ export function UpdateNotice({ updates, onOpen }: { updates: UpdatesModel; onOpe
   </div>;
 }
 
-/**
- * The reload line alone, for a page without the update model: the markdown reader tab
- * (FileReader). A part of the app that failed to load there (lib/lazyChunk.ts) leaves math as its
- * source or a diagram as code until a reload, which this line offers. No status is polled.
- */
-export function ChunkFailureNotice() {
-  const t = useT();
-  const [failed, setFailed] = useState(lazyChunkFailed);
-  // subscribed first, then read: a failure between the first render and the subscription is kept
-  useEffect(() => { const stop = onLazyChunkFailure(() => setFailed(true)); setFailed(lazyChunkFailed()); return stop; }, []);
-  if (!failed) return null;
-  return <div className="update-notice is-line is-warning" role="status">
-    <span>{t("Part of the app could not load. Save unsent drafts, then reload.")}</span>
-    <button type="button" className="btn" onClick={() => window.location.reload()}>{t("Reload app")}</button>
-  </div>;
-}

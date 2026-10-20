@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { paneCommands } from "../commands.ts";
-import { typedTerminalCommand } from "../../src/lib/compose.ts";
 import { source } from "./cmd.ts";
 
 // Copied from Command Code 1.84.0, dist/bundled/command-code-knowledge/reference/custom-slash-commands.md:
@@ -122,9 +121,6 @@ describe("Command Code command catalog", () => {
     expect(source.forms?.["memory"]).toEqual([{ match: "bare", interaction: "terminal" }]);
     expect(source.forms?.["design"]?.find(({ match }) => match === "bare")?.interaction).toBe("terminal");
     expect(paneCommands("cmd", null, temp()).find(({ name }) => name === "model")?.visibility).not.toBe("terminal");
-    const model = paneCommands("cmd", null, temp()).find(({ name }) => name === "model")!;
-    expect(typedTerminalCommand([model], "/model")).toBe(model);
-    expect(typedTerminalCommand([model], "/model gpt-5")).toBeNull();
   });
 
   it("keeps only well-formed subcommand and other match rules", () => {

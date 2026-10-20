@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { resolveLink } from "./deepLink.ts";
-import { machineGone, machineMissing, notificationLanding, notificationTargetFromSearch, notificationTargets, notificationViewForPane, sameLink } from "./notificationTarget.ts";
+import { machineGone, machineMissing, notificationLanding, notificationTargets, sameLink } from "./notificationTarget.ts";
 
 function messages() {
   let receive!: (event: MessageEvent) => void;
@@ -18,46 +18,23 @@ describe("notification pane delivery", () => {
     expect(selected).toEqual([{ machine_id: "remote&pc", pane_id: "latest pane/?" }]);
   });
 
-  it("preserves the requested chat view with a pane target", () => {
+  it("ignores the lens an older worker names", () => {
     const source = messages();
     const selected: unknown[] = [];
     source.subscribe((target) => selected.push(target));
     source.send({ type: "select-pane", pane_id: "pi-pane", machine_id: "local", view: "chat" });
-    expect(selected).toEqual([{ machine_id: "local", pane_id: "pi-pane", view: "chat" }]);
-  });
-
-  it("reads a chat target from a cold-start notification URL only when a pane is present", () => {
-    expect(notificationTargetFromSearch("?machine=remote%26pc&pane=pi%2F1&view=chat")).toEqual({
-      machine_id: "remote&pc",
-      pane_id: "pi/1",
-      view: "chat",
-    });
-    expect(notificationTargetFromSearch("?pane=pi-pane&view=chat")).toEqual({
-      machine_id: "local",
-      pane_id: "pi-pane",
-      view: "chat",
-    });
-    expect(notificationTargetFromSearch("?pane=pi-pane")).toBeNull();
-    expect(notificationTargetFromSearch("?view=chat")).toBeNull();
-  });
-
-  it("forces the requested view only for that exact PC and pane", () => {
-    const target = { machine_id: "remote", pane_id: "pi-pane", view: "chat" as const };
-    expect(notificationViewForPane(target, "remote", "pi-pane")).toBe("chat");
-    expect(notificationViewForPane(target, "local", "pi-pane")).toBeNull();
-    expect(notificationViewForPane(target, "remote", "another-pane")).toBeNull();
-    expect(notificationViewForPane({ machine_id: "remote", pane_id: "pi-pane" }, "remote", "pi-pane")).toBeNull();
+    expect(selected).toEqual([{ machine_id: "local", pane_id: "pi-pane" }]);
   });
 
   it("carries the workspace the worker names, and nothing for an empty or malformed one", () => {
     const source = messages();
     const selected: unknown[] = [];
     source.subscribe((target) => selected.push(target));
-    source.send({ type: "select-pane", pane_id: "w1:p9", machine_id: "local", view: "chat", workspace_id: "w1" });
+    source.send({ type: "select-pane", pane_id: "w1:p9", machine_id: "local", workspace_id: "w1" });
     source.send({ type: "select-pane", pane_id: "w1:p9", machine_id: "local", workspace_id: "" });
     source.send({ type: "select-pane", pane_id: "w1:p9", machine_id: "local", workspace_id: 7 });
     expect(selected).toEqual([
-      { machine_id: "local", pane_id: "w1:p9", view: "chat", workspace_id: "w1" },
+      { machine_id: "local", pane_id: "w1:p9", workspace_id: "w1" },
       { machine_id: "local", pane_id: "w1:p9" },
       { machine_id: "local", pane_id: "w1:p9" },
     ]);
@@ -134,25 +111,25 @@ describe("notification landing", () => {
 
   it("waits on a PC the roster in hand lacks instead of discarding the tap, and asks again", () => {
     // the cached roster may predate a PC set up elsewhere: the tap waits as a link, marked stale
-    expect(notificationLanding(roster, { machine_id: "pc-gone", pane_id: "w1:p1", view: "chat" })).toEqual({
-      kind: "link", link: { machine: "pc-gone", workspace: null, pane: "w1:p1", view: "chat", settings: null }, stale: true,
+    expect(notificationLanding(roster, { machine_id: "pc-gone", pane_id: "w1:p1" })).toEqual({
+      kind: "link", link: { machine: "pc-gone", workspace: null, pane: "w1:p1", settings: null }, stale: true,
     });
   });
 
   it("selects a pane the roster lists at once", () => {
-    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p1", view: "chat" })).toEqual({ kind: "select" });
+    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p1" })).toEqual({ kind: "select" });
   });
 
   it("waits as a link while the roster, the PC's panes or the pane are not known", () => {
-    const link = (machine: string, pane: string) => ({ kind: "link" as const, link: { machine, workspace: null, pane, view: "chat" as const, settings: null }, stale: false });
-    expect(notificationLanding([], { machine_id: "pc-gone", pane_id: "w1:p1", view: "chat" })).toEqual(link("pc-gone", "w1:p1"));
-    expect(notificationLanding(roster, { machine_id: "pc2", pane_id: "w1:p1", view: "chat" })).toEqual(link("pc2", "w1:p1"));
-    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9", view: "chat" })).toEqual(link("local", "w1:p9"));
-    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9" })).toEqual({ kind: "link", link: { machine: "local", workspace: null, pane: "w1:p9", view: null, settings: null }, stale: false });
+    const link = (machine: string, pane: string) => ({ kind: "link" as const, link: { machine, workspace: null, pane, settings: null }, stale: false });
+    expect(notificationLanding([], { machine_id: "pc-gone", pane_id: "w1:p1" })).toEqual(link("pc-gone", "w1:p1"));
+    expect(notificationLanding(roster, { machine_id: "pc2", pane_id: "w1:p1" })).toEqual(link("pc2", "w1:p1"));
+    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9" })).toEqual(link("local", "w1:p9"));
+    expect(notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9" })).toEqual({ kind: "link", link: { machine: "local", workspace: null, pane: "w1:p9", settings: null }, stale: false });
   });
 
   it("names the workspace an ended pane was last seen in, so its workspace opens with the pane-closed note", () => {
-    const landing = notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9", view: "chat", workspace_id: "w1" });
+    const landing = notificationLanding(roster, { machine_id: "local", pane_id: "w1:p9", workspace_id: "w1" });
     expect(landing.kind).toBe("link");
     const link = landing.kind === "link" ? landing.link : null;
     expect(link?.workspace).toBe("w1");
@@ -165,11 +142,11 @@ describe("notification landing", () => {
   });
 
   it("tells a second delivery of one tap from another place", () => {
-    const link = { machine: "local", workspace: "w1", pane: "w1:p9", view: "chat" as const, settings: null };
+    const link = { machine: "local", workspace: "w1", pane: "w1:p9", settings: null };
     expect(sameLink(null, link)).toBe(false);
     expect(sameLink({ ...link }, link)).toBe(true);
     expect(sameLink({ ...link, pane: "w1:p8" }, link)).toBe(false);
     expect(sameLink({ ...link, machine: "pc2" }, link)).toBe(false);
-    expect(sameLink({ ...link, view: null }, link)).toBe(false);
+    expect(sameLink({ ...link, workspace: null }, link)).toBe(false);
   });
 });

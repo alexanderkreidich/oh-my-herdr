@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import type { WorkspaceBranch } from "./worktreeBranches.ts";
 
 /**
@@ -32,15 +31,3 @@ export function publishBranches(machineId: string, branches: ReadonlyMap<string,
   for (const listener of [...listeners]) listener();
 }
 
-export function publishedBranch(machineId: string, workspaceId: string | null): string | null {
-  return workspaceId === null ? null : published.get(machineId)?.get(workspaceId) ?? null;
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
-}
-
-export function usePaneBranch(machineId: string, workspaceId: string | null): string | null {
-  return useSyncExternalStore(subscribe, () => publishedBranch(machineId, workspaceId));
-}

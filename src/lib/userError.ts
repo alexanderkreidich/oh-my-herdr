@@ -10,30 +10,8 @@ export interface UserError {
 /** How a request failed, as far as the browser can tell. */
 export type FailureKind = "signed-out" | "gone" | "changed" | "slow" | "unreachable" | "refused" | "unknown";
 
-/**
- * A failure in the parts a chat or composer surface draws (DESIGN.md, Messages say only what the
- * person needs now): the action that failed and the cause make one line ("Couldn't attach · PC disk
- * is full"); with no known cause the line is the action alone and Try again stands beside it; the
- * advice and the server's or the browser's own words sit behind a Details toggle.
- */
-export interface UserFailure {
-  kind: FailureKind;
-  /** a short phrase with no full stop ("PC disk is full"); null when the cause is not known */
-  cause: string | null;
-  /** what to do beyond trying again; null when trying again is all there is */
-  advice: string | null;
-  /** the server's or the browser's own words, kept selectable; null when they add nothing */
-  detail: string | null;
-}
-
 /** What fetch rejects with when the request never got an answer: Chrome, Firefox and Safari words. */
 const NETWORK_FAILURE = /failed to fetch|networkerror|network request failed|load failed/i;
-
-/** A cause the server's own words name outright, whatever the status: the words become the sentence. */
-const NAMED_CAUSES: ReadonlyArray<[RegExp, () => string]> = [
-  [/\bENOSPC\b|disk full|no space left/i, () => t("PC disk is full")],
-  [/\bEACCES\b|\bEPERM\b|permission denied/i, () => t("No permission on the PC")],
-];
 
 /** A failure the server names by a code of its own, whatever the status: the sentence is the next step on the PC. */
 const SENTENCE_BY_CODE: Readonly<Record<string, () => string>> = {
@@ -72,26 +50,6 @@ const SENTENCE: Record<FailureKind, () => string> = {
   unknown: () => t("Something went wrong. Try again."),
 };
 
-const CAUSE: Record<FailureKind, (() => string) | null> = {
-  "signed-out": () => t("Not signed in to this PC"),
-  gone: () => t("It no longer exists on the PC"),
-  changed: () => t("It changed on the PC"),
-  slow: () => t("The PC took too long"),
-  unreachable: () => t("Can't reach the PC"),
-  refused: null,
-  unknown: null,
-};
-
-const ADVICE: Record<FailureKind, (() => string) | null> = {
-  "signed-out": () => t("Pair it again in Settings → Phone & devices."),
-  gone: () => t("Refresh and try again."),
-  changed: () => t("Check it and try again."),
-  slow: null,
-  unreachable: () => t("Check your connection, then try again."),
-  refused: () => t("Try again; if it keeps failing, restart herdr web ui on the PC."),
-  unknown: null,
-};
-
 /** A plain sentence for a failure, with what the server or the browser said kept beside it. */
 export function userErrorMessage(cause: unknown): UserError {
   const coded = cause instanceof ApiError && cause.code !== null && Object.hasOwn(SENTENCE_BY_CODE, cause.code) ? SENTENCE_BY_CODE[cause.code] : undefined;
@@ -108,15 +66,3 @@ export function saysHerdrAway(words: string): boolean {
   return HERDR_AWAY.test(words);
 }
 
-/** The failure's parts: the cause when the status or the server's words name one, the advice, the words. */
-export function userFailure(cause: unknown): UserFailure {
-  const kind = kindOf(cause);
-  const original = ownWords(cause).trim();
-  const named = NAMED_CAUSES.find(([pattern]) => pattern.test(original))?.[1];
-  return { kind, cause: named?.() ?? CAUSE[kind]?.() ?? null, advice: ADVICE[kind]?.() ?? null, detail: original === "" ? null : original };
-}
-
-/** Whether Try again is the control beside the line: no cause is known, or the PC was only slow. */
-export function offersRetry(failure: UserFailure): boolean {
-  return failure.cause === null || failure.kind === "slow";
-}

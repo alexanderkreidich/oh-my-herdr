@@ -1,33 +1,21 @@
-import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { BookOpen, Check, Copy, ImageOff, Maximize2 } from "lucide-react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Check, Copy, Maximize2 } from "lucide-react";
 
 import { foldCode, mathNestsTooDeep, parseMarkdown, type InlineNode, type ListBlock, type MarkdownBlock } from "../lib/markdown.ts";
-import { codeIsFilePath, OpenFileContext, splitFilePaths } from "../lib/filePaths.ts";
-import { FilePathLink } from "./FilePathLink.tsx";
-import { fileUriPath } from "../lib/terminalFileLinks.ts";
-import { WebPanelContext } from "../lib/webPanel.ts";
-import { MachineContext } from "../lib/machineContext.tsx";
 import { CHAT_HIGHLIGHT_LIMIT, languageForFence } from "../lib/highlight.ts";
 import { HighlightedCode } from "./HighlightedCode.tsx";
 import { useT } from "../lib/i18n.ts";
-import { type MarkdownImagePreview } from "../lib/markdownImages.ts";
-import { imageSlotStyle, standaloneImage } from "../lib/imageBox.ts";
-import { formatBytes } from "../lib/bridgeProgress.ts";
 import { MermaidLightbox } from "./MermaidLightbox.tsx";
 import { copyText } from "../lib/clipboard.ts";
 import { lazyChunk } from "../lib/lazyChunk.ts";
-import type { SkillMatcher } from "../lib/skillMentions.ts";
-import { previewChunks } from "../lib/textPreview.ts";
-
-/** The pane's skill names: a name in an answer's plain text, in its trigger form, reads as a chip. */
-const SkillMatcherContext = createContext<SkillMatcher | null>(null);
+import "./Markdown.css";
 
 type Katex = typeof import("katex").default;
 /** KaTeX is a fifth of the app's script: the first expression loads it (lib/katex.ts), and every later one has it at once. */
 let katexModule: Katex | null = null;
 
 /**
- * KaTeX, fetched once; a static render (the unit test) waits on it to draw math as the chat does.
+ * KaTeX, fetched once; a static render (the unit test) waits on it to draw math.
  * Offline before it was ever fetched, or in a tab older than the server's build, every expression
  * stays in its source form and the app offers a reload (lib/lazyChunk.ts).
  */
@@ -107,117 +95,25 @@ function MermaidDiagram({ value }: { value: string }) {
   );
 }
 
-/** Stats an image before it can load; null context keeps chat images as links. */
-type MarkdownImageResolver = (src: string) => Promise<MarkdownImagePreview | null>;
-export const MarkdownImageContext = createContext<MarkdownImageResolver | null>(null);
-
-/**
- * An image that holds its box until it decodes (lib/imageBox.ts). With `slot`, the wrapper is the
- * box while the bytes arrive and after a failure, where a note stands in for the picture, so the
- * row around it moves at most once, when the natural size is in; ChatView.css draws a standalone
- * Markdown image's 16:9 frame and a chat thumbnail's fixed box. Decoded, the wrapper gives its box
- * up (`display: contents`) and the one image renders bare, nothing remounted: its box, hit area
- * and alignment are its own. Without `slot` (a badge in a sentence) nothing is held and a failure
- * shows `fallback`. `src` is null while an address is still being resolved: the slot stands from
- * the first paint.
- */
-export function ReservedImage({ src, alt, width, className, slot, slotStyle, fallback }: {
-  src: string | null; alt: string; width?: number; className?: string; slot: boolean; slotStyle?: CSSProperties; fallback?: ReactNode;
-}) {
-  const t = useT();
-  // keyed by address: another one starts from the slot again and never takes the old one's answer
-  const [settled, setSettled] = useState<{ src: string; failed: boolean } | null>(null);
-  const phase = src !== null && settled?.src === src ? (settled.failed ? "failed" : "decoded") : "loading";
-  // a cached image is complete before `onLoad` can fire
-  const complete = useCallback((image: HTMLImageElement | null) => {
-    if (image !== null && src !== null && image.complete && image.naturalWidth > 0) setSettled({ src, failed: false });
-  }, [src]);
-  if (phase === "failed" && !slot) return <>{fallback}</>;
-  const image = src === null ? null : <img ref={complete} className={className} src={src} alt={alt} width={width} loading="lazy"
-    onLoad={() => setSettled({ src, failed: false })} onError={() => setSettled({ src, failed: true })} />;
-  if (!slot) return image;
-  if (phase === "failed") {
-    return <span className="image-slot is-failed" style={slotStyle}>
-      <span className="image-slot-note"><ImageOff aria-hidden="true" /><span>{t("Image unavailable")}</span>{alt !== "" && <span>{alt}</span>}</span>
-    </span>;
-  }
-  if (phase === "loading") return <span className="image-slot is-loading" style={slotStyle} role="status" aria-label={t("Loading image")}>{image}</span>;
-  return <span className="image-slot">{image}</span>;
-}
-
-function MarkdownImage({ src, alt, width, fallback, resolve, interactive, standalone }: { src: string; alt: string; width?: number; fallback: ReactNode; resolve: MarkdownImageResolver; interactive: boolean; standalone: boolean }) {
-  const t = useT();
-  const [loaded, setLoaded] = useState<{ src: string; resolve: MarkdownImageResolver; preview: MarkdownImagePreview | null } | null>(null);
-  useEffect(() => {
-    let live = true;
-    resolve(src).then(
-      (preview) => { if (live) setLoaded({ src, resolve, preview }); },
-      () => { if (live) setLoaded({ src, resolve, preview: null }); },
-    );
-    return () => { live = false; };
-  }, [src, resolve]);
-  const preview = loaded?.src === src && loaded.resolve === resolve ? loaded.preview : undefined;
-  if (preview === null) return <>{fallback}</>;
-  if (preview?.kind === "too-large") {
-    const message = t("This image is {size}; download it to view.", { size: formatBytes(preview.size) });
-    return interactive ? <a href={preview.downloadUrl} download>{message}</a> : <span>{message}</span>;
-  }
-  // still being stat'ed: a standalone image's slot stands from the first paint, a badge shows its alt
-  if (preview === undefined && !standalone) return <span>{alt}</span>;
-  return <ReservedImage src={preview?.url ?? null} alt={alt} width={width} className="markdown-image" slot={standalone} slotStyle={standalone ? imageSlotStyle(width) : undefined} fallback={fallback} />;
-}
-
-/**
- * `interactive` is false inside a link or file label: nothing clickable nests in another.
- * `standalone` says the line is one image and nothing else (lib/imageBox.ts): it holds a slot while it decodes.
- */
-function Inline({ nodes, interactive = true, standalone = false }: { nodes: InlineNode[]; interactive?: boolean; standalone?: boolean }) {
-  const context = useContext(OpenFileContext);
-  const open = interactive ? context : null;
-  const t = useT();
-  const imageResolver = useContext(MarkdownImageContext);
-  const skillMatcher = useContext(SkillMatcherContext);
-  const openWebPage = useContext(WebPanelContext);
-  const machineId = useContext(MachineContext);
-  // a plain or Shift click may open the address beside the pane; Ctrl, Cmd and Alt keep the browser's own meaning
-  const webClick = (href: string) => (event: MouseEvent<HTMLAnchorElement>): void => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (openWebPage?.(href, event.shiftKey, machineId)) event.preventDefault();
-  };
+/** `interactive` is false inside a link or file label: nothing clickable nests in another. */
+function Inline({ nodes, interactive = true }: { nodes: InlineNode[]; interactive?: boolean }) {
   return <>{nodes.map((node, index) => {
     const key = `${node.type}-${index}`;
     switch (node.type) {
-      case "text":
-        // a skill chip carries its raw text, so a selection copies what the agent wrote; not inside a link or file label
-        return <span key={key}>{(interactive && skillMatcher !== null ? skillMatcher(node.value) : [node.value]).map((piece, p) => {
-          if (typeof piece !== "string") return <span key={p} className="markdown-skill"><BookOpen aria-hidden="true" />{piece.raw}</span>;
-          if (open === null) return piece;
-          return <Fragment key={p}>{splitFilePaths(piece).map((part, n) => typeof part === "string" ? part : <FilePathLink key={n} path={part.path} code={false} open={open} />)}</Fragment>;
-        })}</span>;
-      case "code": {
-        const file = fileUriPath(node.value);
-        if (open !== null && file !== null) return <FilePathLink key={key} path={file} code open={open} />;
-        // agents often put an address in backticks: it stays code to the eye, and opens
-        if (interactive && /^https?:\/\/\S+$/i.test(node.value)) return <a key={key} className="markdown-code-link" href={node.value} target="_blank" rel="noopener noreferrer" onClick={webClick(node.value)}><code>{node.value}</code></a>;
-        return open !== null && codeIsFilePath(node.value) ? <FilePathLink key={key} path={node.value} code open={open} /> : <code key={key}>{node.value}</code>;
-      }
+      case "text": return <span key={key}>{node.value}</span>;
+      case "code":
+        // an address in backticks stays code to the eye, and opens
+        if (interactive && /^https?:\/\/\S+$/i.test(node.value)) return <a key={key} className="markdown-code-link" href={node.value} target="_blank" rel="noopener noreferrer"><code>{node.value}</code></a>;
+        return <code key={key}>{node.value}</code>;
       case "math": return <MathExpression key={key} value={node.value} />;
-      case "image": {
-        return <span key={key}>{imageResolver === null
-          ? <Inline key={key} nodes={node.fallback} interactive={interactive} />
-          : <MarkdownImage src={node.src} alt={node.alt} width={node.width} resolve={imageResolver} interactive={interactive} standalone={standalone} fallback={<Inline nodes={node.fallback} interactive={interactive} />} />}</span>;
-      }
+      // an image's alt text, as a link where it has one: the page loads no image from a PC's files
+      case "image": return <span key={key}><Inline nodes={node.fallback} interactive={interactive} /></span>;
       case "strong": return <strong key={key}><Inline nodes={node.children} interactive={interactive} /></strong>;
       case "em": return <em key={key}><Inline nodes={node.children} interactive={interactive} /></em>;
       case "del": return <del key={key}><Inline nodes={node.children} interactive={interactive} /></del>;
-      case "link": return <a key={key} href={node.href} target="_blank" rel="noopener noreferrer" onClick={webClick(node.href)}><Inline nodes={node.children} interactive={false} standalone={standalone} /></a>;
-      // the label opens the file; where nothing can open one, the path shows after it, as Codex's terminal does
-      case "file": {
-        const label = <Inline nodes={node.children} interactive={false} />;
-        return open !== null
-          ? <button key={key} type="button" className="markdown-file" title={t("Open {path}", { path: node.path })} onClick={() => open(node.path)}>{label}</button>
-          : <span key={key}>{label} (<code>{node.path}</code>)</span>;
-      }
+      case "link": return <a key={key} href={node.href} target="_blank" rel="noopener noreferrer"><Inline nodes={node.children} interactive={false} /></a>;
+      // a file label shows its path after it, as Codex's terminal does
+      case "file": return <span key={key}><Inline nodes={node.children} interactive={false} /> (<code>{node.path}</code>)</span>;
     }
   })}</>;
 }
@@ -244,15 +140,9 @@ function List({ block }: { block: ListBlock }) {
   );
 }
 
-/** A fence in no language, or in one that says plain output (a log, a command's answer): the files it names open. */
-const PLAIN_FENCE = /^(?:|text|txt|plain|plaintext|log|console|output|shell-session)$/i;
-
 function CodeBlock({ language, value }: { language: string; value: string }) {
   const t = useT();
-  const open = useContext(OpenFileContext);
   const grammar = languageForFence(language);
-  // the tag decides, not the grammar: code in a language with no grammar here is still code
-  const plain = PLAIN_FENCE.test(language.trim().split(/\s+/)[0] ?? "");
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -276,8 +166,7 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
     if (!folding.current) return;
     folding.current = false;
     const node = block.current;
-    const view = node?.closest(".chat-view");
-    if (node && view && node.getBoundingClientRect().top < view.getBoundingClientRect().top) node.scrollIntoView({ block: "start" });
+    if (node && node.getBoundingClientRect().top < 0) node.scrollIntoView({ block: "start" });
   }, [expanded]);
   return (
     <div className="markdown-code" ref={block} data-language={language}>
@@ -288,8 +177,7 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
         </button>
       </div>
       {copyFailed && <p className="markdown-code-error" role="alert">{t("Couldn't copy. Select the text and copy it manually.")}</p>}
-      {/* a block in no language is output (a log, a command's answer): the files it names open */}
-      <HighlightedCode code={fold !== null && !expanded ? fold.head : value} language={grammar} limit={CHAT_HIGHLIGHT_LIMIT} open={plain ? open : null} />
+      <HighlightedCode code={fold !== null && !expanded ? fold.head : value} language={grammar} limit={CHAT_HIGHLIGHT_LIMIT} />
       {fold !== null && (
         <button type="button" className="markdown-code-more" aria-expanded={expanded} onClick={toggle}>
           {expanded ? t("Show less") : t("Show all {n} lines", { n: fold.lines })}
@@ -304,12 +192,11 @@ function Blocks({ blocks }: { blocks: MarkdownBlock[] }) {
     const key = `${block.type}-${index}`;
     switch (block.type) {
       case "heading":
-        // agent headings are h3 whatever the agent wrote: the app's own h1/h2 (Brand, the dialog
-        // titles) stay the outline above them. The level rides on a class, so the stylesheet
-        // keeps drawing each level as it did (ChatView.css `.markdown h1`...`.markdown h6`).
+        // headings are h3 whatever the text wrote: the app's own h1/h2 (Brand, the dialog
+        // titles) stay the outline above them. The level rides on a class.
         return <h3 key={key} className={`markdown-h${block.level}${block.align ? " markdown-center" : ""}`}><Inline nodes={block.content} /></h3>;
       case "paragraph":
-        return <p key={key} className={block.align ? "markdown-center" : undefined}>{block.lines.map((line, lineIndex) => <span key={lineIndex}><Inline nodes={line} standalone={standaloneImage(line)} />{lineIndex < block.lines.length - 1 && <br />}</span>)}</p>;
+        return <p key={key} className={block.align ? "markdown-center" : undefined}>{block.lines.map((line, lineIndex) => <span key={lineIndex}><Inline nodes={line} />{lineIndex < block.lines.length - 1 && <br />}</span>)}</p>;
       case "list": return <List key={key} block={block} />;
       case "blockquote": return <blockquote key={key}><Blocks blocks={block.blocks} /></blockquote>;
       case "code": return block.language === "mermaid"
@@ -329,43 +216,15 @@ function Blocks({ blocks }: { blocks: MarkdownBlock[] }) {
 }
 
 /**
- * Markdown rendered. Its props are primitive values, so `memo` skips a parent's re-render: a long plan in
- * the file viewer is not rendered again every time the app polls.
+ * Markdown rendered (the release notes Settings and the update notice show). Its props are
+ * primitive values, so `memo` skips a parent's re-render.
  */
-export const Markdown = memo(function Markdown({ children, className, html = false, skills = null }: { children: string; className?: string; html?: boolean; skills?: SkillMatcher | null }) {
+export const Markdown = memo(function Markdown({ children, className, html = false }: { children: string; className?: string; html?: boolean }) {
   const blocks = useMemo(() => parseMarkdown(children, 0, html), [children, html]);
-  const parsed = <ParsedMarkdown blocks={blocks} className={className} />;
-  return skills === null ? parsed : <SkillMatcherContext.Provider value={skills}>{parsed}</SkillMatcherContext.Provider>;
+  return <ParsedMarkdown blocks={blocks} className={className} />;
 });
 
-/**
- * Markdown parsed elsewhere, rendered as `Markdown` renders its text: the file viewer parses a file
- * in a worker, so a file the parser is slow on cannot hold the page.
- */
+/** Markdown parsed already, rendered as `Markdown` renders its text (the unit tests draw a parse). */
 export const ParsedMarkdown = memo(function ParsedMarkdown({ blocks, className }: { blocks: MarkdownBlock[]; className?: string }) {
   return <div className={className === undefined ? "markdown" : `markdown ${className}`}><Blocks blocks={blocks} /></div>;
-});
-
-const BlockChunk = memo(function BlockChunk({ blocks }: { blocks: MarkdownBlock[] }) {
-  return <Blocks blocks={blocks} />;
-});
-
-/**
- * `ParsedMarkdown` drawn a chunk of blocks per task (previewChunks), for a whole file's Preview: up
- * to PREVIEW_ELEMENT_LIMIT elements drawn and laid out in one task held a slow page past a second.
- * The first chunk shows at once and each later one is added in a task of its own; a drawn chunk is
- * never drawn again, and new blocks start over from the first chunk.
- */
-export const ProgressiveMarkdown = memo(function ProgressiveMarkdown({ blocks, className }: { blocks: MarkdownBlock[]; className?: string }) {
-  const chunks = useMemo(() => previewChunks(blocks), [blocks]);
-  const [drawn, setDrawn] = useState<{ blocks: MarkdownBlock[]; count: number }>({ blocks, count: 1 });
-  const count = drawn.blocks === blocks ? drawn.count : 1;
-  useEffect(() => {
-    if (count >= chunks.length) return;
-    const timer = setTimeout(() => setDrawn({ blocks, count: count + 1 }), 0);
-    return () => clearTimeout(timer);
-  }, [blocks, chunks.length, count]);
-  return <div className={className === undefined ? "markdown" : `markdown ${className}`}>
-    {chunks.slice(0, count).map((chunk, index) => <BlockChunk key={index} blocks={chunk} />)}
-  </div>;
 });

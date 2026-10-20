@@ -54,16 +54,6 @@ export function settingsEntry(state: unknown): SettingsEntry | null {
 const fieldOf = (state: unknown, key: string): unknown =>
   state !== null && typeof state === "object" ? (state as Record<string, unknown>)[key] : undefined;
 
-/**
- * The state for an entry another dialog (a file preview) pushes from this one. It is no Settings
- * entry, so it does not copy one: it notes the opening it lies above instead, which a reload on
- * it closes without stepping back over it.
- */
-export function outsideSettings(state: unknown): Record<string, unknown> {
-  const { [KEY]: _entry, [BASE_KEY]: opening, ...rest } = state !== null && typeof state === "object" ? state as Record<string, unknown> : {};
-  return settingsEntry(state) !== null && typeof opening === "string" ? { ...rest, [ABOVE_KEY]: opening } : rest;
-}
-
 type Listener = (entry: SettingsEntry | null, own: boolean) => void;
 const listeners = new Set<Listener>();
 let wanted: readonly SettingsLevel[] = [];

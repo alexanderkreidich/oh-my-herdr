@@ -3,8 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { Machine } from "../../shared/machines.ts";
 import type { AgentStatus, HerdrPane } from "../../shared/protocol.ts";
 import { liveSeqs, markSeen, newSeqMemory, shownStatus, type SeenRecord, type SeqMemory } from "./sidebarOrder.ts";
-import { cleanSeen, loadSeen, saveSeen, seenEvent, seenKey, SEEN_PREFIX } from "./seenFinishes.ts";
-import { conversationFinishEvidence } from "./panePresentation.ts";
+import { cleanSeen, loadSeen, saveSeen, seenEvent, SEEN_PREFIX } from "./seenFinishes.ts";
 
 export interface SidebarActivity {
   seqs(machineId: string): ReadonlyMap<string, number>;
@@ -76,8 +75,7 @@ export function useSidebarActivityState(machines: readonly Machine[], selectedMa
       const pane = machine.state === "connected" && machine.id === selectedMachineId && pageVisible && paneInFront()
         ? machine.snapshot?.panes.find((pane) => pane.pane_id === presentedPaneId) : undefined;
       if (pane?.agent_status === "done" && !pane.background_wait && pane.finish_id !== undefined && pane.finish_id > 0) {
-        record = markSeen(record, pane.pane_id, saveSeen(machine.id, epoch, pane.pane_id, pane.finish_id,
-          conversationFinishEvidence.answer(seenKey(machine.id, epoch, pane.pane_id), pane.finish_id)));
+        record = markSeen(record, pane.pane_id, saveSeen(machine.id, epoch, pane.pane_id, pane.finish_id));
       }
       next.set(machine.id, { epoch, record });
     }

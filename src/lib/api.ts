@@ -4,40 +4,28 @@ import { machinePath, type BridgeHealth, type HerdrIdentity, type Machine, type 
 import type {
   AgentKind,
   AgentRenameRequest,
-  ConversationResponse,
   CreateWorktreeRequest,
   CreateTabRequest,
   CreateWorkspaceRequest,
   DirectoryCreated,
   DirectoryListing,
-  FileInfo,
   FocusPaneRequest,
   HealthAuth,
   IntegrationsResponse,
   LanExposure,
-  InteractivePrompt,
   MoveTabRequest,
   TabMoved,
-  OmoActivity,
   OpenWorktreeRequest,
   PairedDevice,
   PairingCode,
   PaneDirection,
   PaneInfo,
-  PanePlan,
-  PaneReadResult,
   PaneResized,
-  RepoDiffFileList,
-  RepoDiffFilePatch,
-  RepoDiffScope,
   PaneSplit,
   PaneSwapped,
   PaneZoomed,
   PaneFindRequest,
   PaneFindResponse,
-  PlanStep,
-  ProjectFavicon,
-  PromptAnswer,
   PushKey,
   PortalStatus,
   RemoteAccess,
@@ -45,7 +33,6 @@ import type {
   ResizePaneRequest,
   SessionSnapshot,
   SetSplitRatioRequest,
-  SlashCommand,
   SplitPaneDirection,
   SplitPaneRequest,
   SwapPaneRequest,
@@ -69,7 +56,6 @@ import type { TelemetryChange, TelemetryStatus } from "../../shared/telemetry.ts
 import type { VoiceConfigUpdate, VoiceStatus } from "../../shared/voice.ts";
 import { MAX_ATTACHMENT_BYTES } from "../../shared/attachments.ts";
 import { t } from "./i18n.ts";
-import { chatReadDeadlineMs, withChatReadDeadline } from "./chatReadDeadline.ts";
 import type { UsageLoginAccounts, UsageLoginProvider, UsageLoginRequest, UsageLoginStarted } from "../../shared/usage-login.ts";
 
 export function fetchUsageLoginProviders(signal: AbortSignal): Promise<{ providers: readonly UsageLoginProvider[] }> {
@@ -218,124 +204,6 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
 export async function fetchSession(machineId = "local"): Promise<SessionSnapshot> {
   const body = await getJson<{ snapshot: SessionSnapshot }>(machinePath(machineId, "session"));
   return body.snapshot;
-}
-
-/** PCs whose herdr rejected `recent_unwrapped`: an older herdr, read row by row from then on. */
-const wrappedOnly = new Set<string>();
-
-/**
- * GET /api/pane/read as the chat view reads it: herdr's own scrollback (up to
- * `lines`), ANSI-stripped text. herdr owns scrollback — the attach stream cannot
- * serve history, so the transcript reads it back instead. `recent_unwrapped`
- * rejoins the rows the terminal soft-wrapped, so a line reflows to the chat's
- * width instead of breaking where the pty's columns ended.
- */
-export async function fetchPaneTranscript(paneId: string, lines: number, machineId = "local"): Promise<PaneReadResult> {
-  const read = async (source: "recent" | "recent_unwrapped"): Promise<PaneReadResult> => {
-    const query = new URLSearchParams({ pane_id: paneId, source, format: "text", lines: String(lines) });
-    return (await withChatReadDeadline((signal) => getJson<{ read: PaneReadResult }>(machinePath(machineId, `pane/read?${query.toString()}`), { signal }), chatReadDeadlineMs(machineId))).read;
-  };
-  if (wrappedOnly.has(machineId)) return read("recent");
-  try {
-    return await read("recent_unwrapped");
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.code !== "invalid_request") throw error;
-    wrappedOnly.add(machineId);
-    return read("recent");
-  }
-}
-
-/** Which turns (ConversationResponse.cursor): the page `before` a cursor, not past `since`; the newest ones `from` a held start. */
-export type ConversationPageQuery = { before?: string; since?: string; from?: string; /** Revalidate a new finish without borrowing another key's 304. */ fresh?: boolean };
-
-/**
- * The last answer per newest-page conversation URL and its ETag. The chat reads it again on
- * every transcript push (at most every 2s), every send and status edge, and a 10s backstop
- * (2s without pushes),
- * and a newest page can be megabytes: an unchanged one comes back as a bodyless 304,
- * and the chat gets the very same object back, which tells it nothing changed. An
- * older page (`before`) is asked for once, so it keeps no ETag and takes no slot.
- *
- * A count alone does not bound what a tab holds: sixteen polled panes is a small number of
- * bodies, each as large as the server makes it, so the cache also gives up its oldest entries
- * once the answers together pass a byte budget. The answer just fetched is never given up for
- * that (it is the one the caller is about to read), the panes after it go first.
- */
-interface ConversationAnswer {
-  etag: string;
-  body: ConversationResponse;
-  /** the body's rough size: what the count cap alone cannot bound */
-  bytes: number;
-}
-const conversationAnswers = new Map<string, ConversationAnswer>();
-const CONVERSATION_ANSWERS_KEPT = 16;
-/** …and this much of them, about four ordinary conversation pages each. */
-const CONVERSATION_ANSWERS_BYTES = 8 * 1024 * 1024;
-
-/**
- * The body a cache entry carries: the server's own count when it sends one for the body as it is,
- * else the JSON we parsed. A compressed answer's length counts the bytes on the wire, not these.
- */
-export function conversationAnswerBytes(body: ConversationResponse, contentLength: string | null, contentEncoding: string | null = null): number {
-  const declared = Number(contentLength);
-  const identity = contentEncoding === null || contentEncoding.trim().toLowerCase() === "identity";
-  if (identity && Number.isFinite(declared) && declared > 0) return declared;
-  return JSON.stringify(body)?.length ?? 0;
-}
-
-/** Drops the least recently used answers until the cache is back inside both caps. */
-function trimConversationAnswers(keep: string): void {
-  let total = 0;
-  for (const answer of conversationAnswers.values()) total += answer.bytes;
-  while (conversationAnswers.size > CONVERSATION_ANSWERS_KEPT || total > CONVERSATION_ANSWERS_BYTES) {
-    const oldest = conversationAnswers.keys().next().value;
-    if (oldest === undefined || oldest === keep) break;
-    total -= conversationAnswers.get(oldest)!.bytes;
-    conversationAnswers.delete(oldest);
-  }
-}
-
-function conversationUrl(paneId: string, machineId: string, page: ConversationPageQuery): string {
-  const query = new URLSearchParams({ pane_id: paneId });
-  if (page.before !== undefined) query.set("before", page.before);
-  if (page.since !== undefined) query.set("since", page.since);
-  if (page.from !== undefined) query.set("from", page.from);
-  return machinePath(machineId, `pane/conversation?${query.toString()}`);
-}
-
-/**
- * The newest page last answered for this pane (no page query), without asking the server: a chat
- * that mounts draws it at once while its read revalidates it. It leaves the cache order alone.
- */
-export function peekPaneConversation(paneId: string, machineId = "local"): ConversationResponse | undefined {
-  return conversationAnswers.get(conversationUrl(paneId, machineId, {}))?.body;
-}
-
-/** GET /api/pane/conversation: structured turns, or scrollback fallback; `page` as ConversationResponse.cursor describes. */
-export async function fetchPaneConversation(paneId: string, machineId = "local", page: ConversationPageQuery = {}): Promise<ConversationResponse> {
-  const url = conversationUrl(paneId, machineId, page);
-  const polled = page.before === undefined;
-  const known = polled ? conversationAnswers.get(url) : undefined;
-  const { response, body } = await withChatReadDeadline(async (signal) => {
-    const response = await fetch(url, { cache: "no-store", signal, ...(known && !page.fresh ? { headers: { "if-none-match": known.etag } } : {}) });
-    if (response.status === 304 && known) return { response, body: known.body };
-    if (!response.ok) throw await errorFrom(url, response);
-    return { response, body: (await response.json()) as ConversationResponse };
-  }, chatReadDeadlineMs(machineId));
-  // Cache changes occur after the bounded read: a late, aborted answer cannot replace it.
-  if (response.status === 304 && known) {
-    conversationAnswers.delete(url);
-    conversationAnswers.set(url, known);
-    return body;
-  }
-  const etag = response.headers.get("etag");
-  if (!polled) return body;
-  conversationAnswers.delete(url);
-  if (etag !== null) {
-    conversationAnswers.set(url, { etag, body, bytes: conversationAnswerBytes(body, response.headers.get("content-length"), response.headers.get("content-encoding")) });
-    trimConversationAnswers(url);
-  }
-  return body;
 }
 
 export interface HealthInfo {
@@ -591,71 +459,6 @@ export async function createDirectory(path: string, name: string, machineId = "l
   return (await response.json()) as DirectoryCreated;
 }
 
-function fileQuery(path: string, paneId: string | null): string {
-  return new URLSearchParams({ path, ...(paneId ? { pane_id: paneId } : {}) }).toString();
-}
-
-/**
- * GET /api/fs/stat: a file to open; `path` is absolute, `~/…` or relative to the pane's
- * folder. A bare name that several files under the folder end in answers with them.
- */
-export async function fetchFileInfo(path: string, paneId: string | null, machineId = "local"): Promise<FileInfo | { candidates: string[] }> {
-  const url = machinePath(machineId, `fs/stat?${fileQuery(path, paneId)}`);
-  const response = await fetch(url);
-  if (response.status === 409) {
-    const body = (await response.json().catch(() => null)) as { error?: { candidates?: unknown } } | null;
-    if (Array.isArray(body?.error?.candidates)) return { candidates: body.error.candidates.map(String) };
-  }
-  if (!response.ok) throw await errorFrom(url, response);
-  return (await response.json()) as FileInfo;
-}
-
-/** GET /api/fs/favicon: the icon the project in folder `root` keeps, or null, in one request. */
-export async function fetchProjectFavicon(root: string, machineId = "local"): Promise<FileInfo | null> {
-  return (await getJson<ProjectFavicon>(machinePath(machineId, `fs/favicon?${new URLSearchParams({ root }).toString()}`))).icon;
-}
-
-/** GET /api/fs/file: the file itself, streamed (ranges for media); `download` saves it instead. */
-export function fileUrl(path: string, paneId: string | null, machineId = "local", download = false): string {
-  return machinePath(machineId, `fs/file?${fileQuery(path, paneId)}${download ? "&download=1" : ""}`);
-}
-
-/**
- * Which repository and which two of its states: the pane's folder (or `directory`, read when the
- * pane is gone), and the working tree against the index, the index against HEAD, or two commits.
- */
-export interface RepoDiffQuery {
-  paneId: string | null;
-  directory: string | null;
-  scope: RepoDiffScope;
-  /** `commit` only: the list's hashes, so a file is read from the same comparison */
-  base: string | null;
-  head: string | null;
-}
-
-function repoDiffQuery(query: RepoDiffQuery): URLSearchParams {
-  return new URLSearchParams({
-    ...(query.paneId ? { pane_id: query.paneId } : {}),
-    ...(query.directory ? { directory: query.directory } : {}),
-    scope: query.scope,
-    ...(query.scope === "commit" && query.base ? { base: query.base } : {}),
-    ...(query.scope === "commit" && query.head ? { head: query.head } : {}),
-  });
-}
-
-/** GET /api/workspace/diff/files: the files a comparison changed, with their status and counts. */
-export async function fetchRepoDiffFiles(query: RepoDiffQuery, machineId = "local"): Promise<RepoDiffFileList> {
-  return getJson<RepoDiffFileList>(machinePath(machineId, `workspace/diff/files?${repoDiffQuery(query).toString()}`));
-}
-
-/** GET /api/workspace/diff/file: one changed file's patch, as git prints it, or why there is none. */
-export async function fetchRepoDiffFile(query: RepoDiffQuery, path: string, oldPath: string | null, machineId = "local"): Promise<RepoDiffFilePatch> {
-  const params = repoDiffQuery(query);
-  params.set("path", path);
-  if (oldPath !== null) params.set("old_path", oldPath);
-  return getJson<RepoDiffFilePatch>(machinePath(machineId, `workspace/diff/file?${params.toString()}`));
-}
-
 export type { CreateTabRequest, CreateWorkspaceRequest } from "../../shared/protocol.ts";
 
 /**
@@ -726,50 +529,6 @@ export async function closeWorkspace(workspaceId: string, machineId = "local", c
 export async function removeWorktree(request: RemoveWorktreeRequest, machineId = "local"): Promise<WorktreeRemoved> {
   const response = await sendJson(machinePath(machineId, "worktree/remove"), "POST", request);
   return (await response.json()) as WorktreeRemoved;
-}
-
-/** GET /api/pane/commands: the slash commands the pane's agent understands (built-in + custom). */
-export async function fetchPaneCommands(paneId: string, machineId = "local"): Promise<SlashCommand[]> {
-  return (await getJson<{ commands: SlashCommand[] }>(machinePath(machineId, `pane/commands?pane_id=${encodeURIComponent(paneId)}`))).commands;
-}
-
-/** GET /api/pane/omo-tasks: the background tasks and workflows the pane's OmO session started, and that PC's clock. */
-export async function fetchPaneOmoActivity(paneId: string, machineId = "local"): Promise<{ tasks: OmoActivity["tasks"]; runs: OmoActivity["runs"]; serverTime: string | null }> {
-  const activity = await getJson<Partial<OmoActivity>>(machinePath(machineId, `pane/omo-tasks?pane_id=${encodeURIComponent(paneId)}`));
-  // a bridge from before workflows answers tasks only
-  return { tasks: activity.tasks ?? [], runs: activity.runs ?? [], serverTime: activity.server_time ?? null };
-}
-
-/** GET /api/pane/plan: the plan the pane's Claude Code or Codex session keeps, and that PC's clock. */
-export async function fetchPanePlan(paneId: string, machineId = "local"): Promise<{ steps: PlanStep[] | null; serverTime: string | null }> {
-  const answer = await getJson<Partial<PanePlan>>(machinePath(machineId, `pane/plan?pane_id=${encodeURIComponent(paneId)}`));
-  return { steps: answer.plan?.steps ?? null, serverTime: answer.server_time ?? null };
-}
-
-/** GET /api/pane/files: paths under the pane's cwd matching `query`, for @-mentions. */
-export async function fetchPaneFiles(paneId: string, query: string, limit = 20, machineId = "local"): Promise<string[]> {
-  const params = new URLSearchParams({ pane_id: paneId, q: query, limit: String(limit) });
-  return (await getJson<{ files: string[] }>(machinePath(machineId, `pane/files?${params.toString()}`))).files;
-}
-
-/** GET /api/pane/prompt: the agent's interactive menu currently on screen, or null. */
-export async function fetchPanePrompt(paneId: string, machineId = "local"): Promise<InteractivePrompt | null> {
-  return (await fetchPanePromptState(paneId, machineId)).prompt;
-}
-
-/** The waiting prompt, and with none, the next prompt the agent suggests; restored is a send the agent put back in its input box when it was cancelled (older servers send neither). */
-export async function fetchPanePromptState(paneId: string, machineId = "local"): Promise<{ prompt: InteractivePrompt | null; suggestion: string | null; restored: string | null }> {
-  const body = await getJson<{ prompt: InteractivePrompt | null; suggestion?: string | null; restored?: string | null }>(machinePath(machineId, `pane/prompt?pane_id=${encodeURIComponent(paneId)}`));
-  return {
-    prompt: body.prompt,
-    suggestion: typeof body.suggestion === "string" && body.suggestion !== "" ? body.suggestion : null,
-    restored: typeof body.restored === "string" && body.restored !== "" ? body.restored : null,
-  };
-}
-
-/** POST /api/pane/prompt/answer: ApiError 409 `prompt_changed` when the menu moved on. */
-export async function answerPanePrompt(answer: PromptAnswer, machineId = "local"): Promise<void> {
-  await sendJson(machinePath(machineId, "pane/prompt/answer"), "POST", answer);
 }
 
 /** GET /api/push: the server's VAPID key, the `applicationServerKey` this device subscribes with. */
