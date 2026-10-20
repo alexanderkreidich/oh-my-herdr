@@ -170,7 +170,7 @@ Grok 聊天仅支持 Linux，并要求进程只持有一个会话，且与 herdr
 
 从[用户指南](docs/guide.md)开始：[快速入门](docs/guide.md#quick-start) · [支持的智能体](docs/guide.md#supported-agents) · [功能](docs/guide.md#features) · [手机](docs/guide.md#on-your-phone) · [远程电脑](docs/remote-pcs.md) · [访问与安全](docs/guide.md#access-and-safety) · [配置](docs/guide.md#configuration) · [键盘快捷键](docs/guide.md#keyboard-shortcuts) · [常见问题](docs/guide.md#faq)。
 
-深入了解：[工作原理](docs/guide.md#how-it-works) · [聊天记录](docs/chat-mode-audit.md) · [终端流量控制](docs/terminal-flow-control.md) · [应用更新](docs/app-updates.md) · [更新日志](CHANGELOG.md)。
+深入了解：[工作原理](docs/guide.md#how-it-works) · [终端流量控制](docs/terminal-flow-control.md) · [应用更新](docs/app-updates.md) · [更新日志](CHANGELOG.md)。
 
 ## 致谢
 
