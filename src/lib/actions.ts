@@ -20,7 +20,6 @@ export interface AppActions {
   /** the previous/next pane in sidebar order; wraps around */
   selectAdjacentPane: (direction: -1 | 1) => void;
   setView: (view: PaneView) => void;
-  toggleView: () => void;
   /** Focus the selected pane's mounted input without sending any text or keys. */
   focusInput: () => void;
   scrollPage: (direction: -1 | 1) => void;
@@ -51,8 +50,6 @@ export interface AppActions {
   /** null once alerts are on (or unsupported); otherwise asks for permission */
   enableNotifications: (() => void) | null;
   refresh: () => void;
-  /** null without a pane: the files of its folder, each opened in the file viewer */
-  openFiles: (() => void) | null;
   /**
    * herdr's split beside the selected pane (its prefix+v and prefix+-), null without a pane. The
    * selection stays on this pane, as herdr's --no-focus keeps its focus, unless `focus` asks for

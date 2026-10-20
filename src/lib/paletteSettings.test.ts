@@ -40,7 +40,7 @@ describe("settings entries", () => {
     const pages = pagesIn(identity);
     expect(rankByTitle("theme", pages)).toEqual(["appearance"]);
     expect(rankByTitle("palette", pages)).toEqual(["appearance"]);
-    expect(rankByTitle("font", pages)).toEqual(["chat", "terminal"]);
+    expect(rankByTitle("font", pages)).toEqual(["terminal"]);
   });
 
   it("finds Appearance by the literal word palette in every language, and by the language's own word", () => {

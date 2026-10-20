@@ -1,6 +1,6 @@
 import type { Translate } from "./i18n.ts";
 
-export type SettingsPageId = "appearance" | "chat" | "terminal" | "alerts" | "voice" | "usage" | "shortcuts" | "devices" | "remote" | "integrations" | "about";
+export type SettingsPageId = "appearance" | "terminal" | "alerts" | "voice" | "usage" | "shortcuts" | "devices" | "remote" | "integrations" | "about";
 
 /** What the palette shows for one Settings page: its name and the words a user may look for it by. */
 export interface SettingsPageEntry {
@@ -17,7 +17,6 @@ export interface SettingsPageEntry {
 export function settingsPageEntries(t: Translate): SettingsPageEntry[] {
   return [
     { id: "appearance", label: t("Appearance"), aliases: t("theme themes palette dark light mode colors density language sidebar logos") },
-    { id: "chat", label: t("Chat"), aliases: t("chat font size message width composer enter send thinking code") },
     { id: "terminal", label: t("Terminal"), aliases: t("terminal font size key bar keyboard clipboard") },
     { id: "alerts", label: t("Alerts"), aliases: t("notifications sound push bell needs input finished") },
     { id: "voice", label: t("Voice input"), aliases: t("dictation microphone speech openai") },
@@ -40,14 +39,12 @@ export function actionAliases(t: Translate): Readonly<Record<string, string>> {
     "split-right-open": t("divide pane layout side"),
     "split-down-open": t("divide pane layout below"),
     zoom: t("maximize fullscreen full screen focus"),
-    view: t("lens chat terminal conversation"),
     sidebar: t("panel drawer hide show"),
     theme: t("dark light mode appearance colors"),
     settings: t("preferences options config"),
     "add-pc": t("remote machine computer connect ssh"),
     notifications: t("alerts push bell"),
     lock: t("logout log out lock"),
-    files: t("folder explorer open file"),
     refresh: t("reload update sync"),
   };
 }

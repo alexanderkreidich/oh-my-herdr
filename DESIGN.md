@@ -2138,7 +2138,9 @@ The values are the ones in `src/styles.css`.
 | Pulse | `--dur-pulse` | `1600ms` | Working and reconnecting dots (trough opacity 0.35; text never pulses) |
 | Spin | `--dur-spin` | `1600ms` | One turn of a stepped spinner (the command palette's busy arc); the step count sets the frame rate |
 | Breathe | `--dur-breathe` | `2000ms` | The sidebar's working dot: full for 40% of the cycle, six steps down to opacity 0.5, held, six steps back; every dot shares the document clock's phase, so several runs breathe together. It replaced a spinning arc that read as flicker beside the rows |
-| Easing | `--ease-out` | `cubic-bezier(0.2, 0, 0, 1)` | Finite transitions |
+| Easing | `--ease-out` | `cubic-bezier(0.23, 1, 0.32, 1)` | Finite transitions: anything entering, and press feedback |
+| Move easing | `--ease-in-out` | `cubic-bezier(0.77, 0, 0.175, 1)` | Something moving on screen from one place to another |
+| Dialog | `--dur-modal` | `220ms` | A dialog growing in from `641px` (scale 0.96 and opacity, centred) over its darkening scrim |
 | Pulse easing | `--ease-pulse` | `steps(2, jump-none)` | Endless working and reconnecting dots; avoids drawing every display refresh |
 | Spring easing | `--ease-spring` | `cubic-bezier(0.32, 0.72, 0, 1)` | Voice recording pill enter (180ms, scale 0.96->1 + opacity, from the mic button) and exit (120ms); a phone's sheet rising and springing back |
 | Sheet in | `--dur-sheet` | `360ms` | A phone's sheet rising, and springing back after a short drag |
@@ -2147,9 +2149,16 @@ The values are the ones in `src/styles.css`.
 ### Rules
 - Only state changes move: hover/press, the drawer, a phone's sheets, settings switches, working and
   reconnecting.
-- From `641px` dialogs and their scrims snap open and closed; they have no entrance or exit
-  animation. At `<=640px` they are bottom sheets and move as an iPhone's do (Modal, above): what a
-  finger drags follows the finger, and the rest rises and drops.
+- From `641px` a dialog grows in (`--dur-modal`, scale 0.96 and opacity, centred) over a scrim
+  that darkens with it, and closes at once. The command palette is opened by key many times a day
+  and snaps both ways. At `<=640px` dialogs are bottom sheets and move as an iPhone's do (Modal,
+  above): what a finger drags follows the finger, and the rest rises and drops.
+- A press gives a little under the pointer: `.btn` to scale 0.97, `.icon-button` and the tab bar's
+  `+` to 0.95, a tab to 0.97, over `--dur-fast`. A row menu grows from the corner nearest what
+  opened it (`--dur-base`). A tab that arrives while its workspace is open grows in. From `769px`
+  the sidebar slides in and out (`--dur-modal` on `--ease-spring`); the pane column takes its new
+  width once. Nothing a shortcut opens or toggles animates (`data-key-action`,
+  `lib/shortcuts.ts`). Rules for new motion: AGENTS.md, UX and motion.
 - The voice recording waveform is the one surface allowed to draw every frame: only while
   recording, driven by the live microphone level, transform-only (`scaleY` on 7 bars). The pill is
   a state change, not a dialog, so the snap rule above does not apply to it.

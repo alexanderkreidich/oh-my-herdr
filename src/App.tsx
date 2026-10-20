@@ -1,5 +1,6 @@
 import { type CSSProperties, type DragEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Bell, Ellipsis, FolderOpen, Link, Menu, MessageSquare, PanelLeft, Search, SquareTerminal, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Menu, PanelLeft, X } from "lucide-react";
 
 import type { AgentStatus, ServerMessage, AccessRefusal, HealthAuth, HerdrPane } from "../shared/protocol.ts";
 import { ApiError, authenticate, createTab, fetchHealth, fetchBridgeHealth, fetchMachines, fetchSession, pairDevice, routeMissing, sendTestPush, signOut, splitPane, zoomPane, type HealthInfo } from "./lib/api.ts";
@@ -12,7 +13,6 @@ import { paneCovered, paneContentKey, paneContentPresented } from "./lib/panePre
 import { PANE_TABPANEL_ID, paneTabPanelLabel } from "./lib/paneRegion.ts";
 import { worktreeRepoName } from "./lib/composerStrip.ts";
 import { AccessGate } from "./components/AccessGate.tsx";
-import { AgentMark } from "./components/AgentMark.tsx";
 import { NewSessionDialog, type NewTabTarget } from "./components/NewSessionDialog.tsx";
 import { passingFolder, recentDirectories } from "./lib/recent-directories.ts";
 import { usePreferencesSync } from "./lib/preferencesSync.ts";
@@ -21,7 +21,6 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { loadedOnSettingsEntry, onSettingsHistory, recordSettings, settingsEntry } from "./lib/settingsHistory.ts";
 import { sheetSteppedOff } from "./lib/sheetHistory.ts";
 import { fileFromLink, isNavigation, linkSearch, linksSomewhere, NAV_KEY, readLink, resolveLink, slugOf, type AppLink, type CreateDraft, type LinkNote } from "./lib/deepLink.ts";
-import { copyText } from "./lib/clipboard.ts";
 import { CommandPalette } from "./components/CommandPalette.tsx";
 import { paletteOpenQuery } from "./lib/paletteSeed.ts";
 import { MachineContext } from "./lib/machineContext.tsx";
@@ -32,9 +31,8 @@ import { FilePanelResizer } from "./components/FilePanelResizer.tsx";
 import { FILE_PANEL_DOCK_QUERY, storedFilePanelWidth } from "./lib/filePanelWidth.ts";
 import { openPresentation, type FilePresentation } from "./lib/filePresentation.ts";
 import { MachineDialog } from "./components/MachineDialog.tsx";
-import { RowMenu, type RowMenuItem } from "./components/RowMenu.tsx";
+import type { RowMenuItem } from "./components/RowMenu.tsx";
 import { focusWorkspaceListToggle } from "./lib/focus.ts";
-import { headerCrumb, showsChat } from "./lib/headerCrumb.ts";
 import { LOCAL_MACHINE, paneStorageId, type Machine, type MachineEvent } from "../shared/machines.ts";
 import { takeAuthTokenFromUrl } from "./lib/authLink.ts";
 import { applyPaneStatus } from "./lib/snapshot.ts";
@@ -42,7 +40,7 @@ import { setAgentRowTokens } from "./lib/agentRowTokens.ts";
 import { rosterPanes } from "./lib/dagPane.ts";
 import { SnapshotRequests } from "./lib/snapshotRequests.ts";
 import { alertPrefs, useSettings } from "./lib/settings.ts";
-import { formatKeys, shortcutDisplayKeys, useShortcuts } from "./lib/shortcuts.ts";
+import { useShortcuts } from "./lib/shortcuts.ts";
 import { useMediaQuery } from "./lib/useMediaQuery.ts";
 import { useAnnouncedText } from "./lib/useAnnouncedText.ts";
 import { PaneLenses } from "./lib/paneLens.ts";
@@ -64,8 +62,6 @@ import { useUpdates } from "./lib/updates.ts";
 import { UpdateNotice } from "./components/UpdateControls.tsx";
 import { LanExposureNotice } from "./components/LanExposureNotice.tsx";
 import { TelemetryNotice } from "./components/TelemetryControls.tsx";
-import { FilesDialog } from "./components/FilesDialog.tsx";
-import { folderQueryFor } from "./lib/paletteFolders.ts";
 import { FileViewer } from "./components/FileViewer.tsx";
 import { WebPanel } from "./components/WebPanel.tsx";
 import { panelUrl, WebPanelContext, wantsPanel } from "./lib/webPanel.ts";
@@ -130,26 +126,16 @@ function storeSelection(machineId: string, paneId: string | null): void {
 }
 
 /**
- * The lens a pane opens in: the one picked for it by hand, remembered per pane, else its default
- * (lib/paneLens.ts), kept for the page once the pane is known so an agent starting or exiting in
- * it does not switch the lens under the user. A PC whose herdr has no terminal attach and no
- * mirror either (an older Windows bridge) always opens its chat: its terminal lens is only a
- * notice, so a remembered choice there is not worth keeping. A mirrored PC counts as having a
- * terminal.
+ * The lens a pane opens in: always its terminal. The chat lens is gone from the fork; what is left
+ * of the lens plumbing goes with the chat code (docs/ROADMAP.md, Phase 2).
  */
-/** `hasAgent`: herdr leaves `agent` out for a shell, so callers compare with `!= null` */
-function storedView(lenses: PaneLenses, picks: ReadonlyMap<string, PaneView>, paneId: string, machineId: string, hasAgent: boolean | null, terminalAttach: boolean): PaneView {
-  if (!terminalAttach) return "chat";
-  const key = paneStorageId(machineId, paneId);
-  const picked = picks.get(key);
-  if (picked !== undefined) return picked;
-  try {
-    const stored = window.localStorage.getItem(`herdr-web-ui:view:${key}`);
-    if (stored === "chat" || stored === "terminal") return stored;
-  } catch {
-    /* private mode */
-  }
-  return lenses.of(key, hasAgent, window.matchMedia?.("(pointer: coarse)").matches === true);
+function storedView(): PaneView {
+  return "terminal";
+}
+
+/** Drawn into `host` when there is one (the header's tab bar), else in place. */
+function portalTo(host: HTMLElement | null, node: ReactNode): ReactNode {
+  return host ? createPortal(node, host) : node;
 }
 
 /** Slot b of the split draws on connections of its own: both halves may attach one tab, and each
@@ -158,19 +144,15 @@ function SlotSessions({ slot, machineIds, children }: { slot: SplitSlot; machine
   return slot === "b" ? <MachineSessionsProvider machineIds={machineIds}>{children}</MachineSessionsProvider> : <>{children}</>;
 }
 
-/** The header's note. Its status is in the header from the header's first render, clipped while empty
-    (never display: none, as the connection chip), and its words land a frame after the box, even the
-    ones a page opens with (lib/useAnnouncedText.ts). Its sentence is cut like the title it stands in
-    for, under its own class: only the pane title carries .context-title-text, which the browser
-    checks measure (scripts/mobile-tabs-regression.ts). */
+/** The header's note, at the bar's end: a link that could not open what it named. Its status is in the
+    header from the header's first render, clipped while empty (never display: none, as the connection
+    chip), and its words land a frame after the box, even the ones a page opens with (lib/useAnnouncedText.ts). */
 function HeaderNote({ note }: { note: string | null }) {
   const shown = useAnnouncedText(note);
   return (
-    <div className={shown === null ? "visually-hidden" : "context"}>
-      <span className={shown === null ? undefined : "pill header-note"} role="status" style={{ minWidth: 0 }}>
-        <span className="header-note-text">{shown}</span>
-      </span>
-    </div>
+    <span className={shown === null ? "visually-hidden" : "pill header-note"} role="status" style={{ minWidth: 0 }}>
+      <span className="header-note-text">{shown}</span>
+    </span>
   );
 }
 
@@ -375,7 +357,7 @@ export function App() {
   const [filePanelWidth, setFilePanelWidth] = useState(storedFilePanelWidth);
   const [lens, setLens] = useState<{ key: string; view: PaneView }>({ key: "", view: "terminal" });
   // Explicit lens choices stay authoritative in this page even when storage cannot be written.
-  const [viewPicks, setViewPicks] = useState<ReadonlyMap<string, PaneView>>(() => new Map());
+  const [, setViewPicks] = useState<ReadonlyMap<string, PaneView>>(() => new Map());
   // two tabs side by side (lib/split.ts): the other half's pane, its side, and the active slot.
   // Only drawn where the sidebar stands beside the pane; a narrower window shows the active half
   const [split, setSplitState] = useState<SplitState | null>(storedSplit);
@@ -421,21 +403,14 @@ export function App() {
   const openPalette = useCallback((query?: unknown) => { setPaletteQuery(paletteOpenQuery(query)); setPaletteOpen(true); }, []);
   const paneControls = useRef<PaneControls | null>(null);
   const [findRequest, setFindRequest] = useState<{ paneId: string | null; serial: number }>({ paneId: null, serial: 0 });
-  // the header's More menu: its button
-  const [more, setMore] = useState<{ anchor: HTMLElement } | null>(null);
-  const closeMore = useCallback(() => setMore(null), []);
   // the pane canvas's actions, for the phone's tab menu (TabStrip)
   const paneActionsRef = useRef<((target: HerdrPane) => RowMenuItem[]) | null>(null);
-  // the Files dialog, and the file open in the viewer (a path as the chat or the dialog gave it)
-  const [filesOpen, setFilesOpen] = useState(false);
+  // the file open in the viewer (a path a terminal link gave)
   const { viewing, openFile, closeFile, setPresentation, releaseFile } = useFileViewer();
-  // a repository diff from the Files dialog's Changes tab, an entry of its own like a file
-  const { viewing: diffViewing, openDiff, closeDiff, releaseDiff } = useRepoDiffViewer();
+  // a repository diff, an entry of its own like a file (only a link opens one now; Phase 2 deletes it)
+  const { viewing: diffViewing, closeDiff, releaseDiff } = useRepoDiffViewer();
   const presentation = viewing?.presentation ?? openPresentation(viewing?.path ?? "", settings.fileOpen);
   const fileDocked = filePanelAvailable && presentation === "panel";
-  useEffect(() => {
-    if (viewing !== null && fileDocked) setFilesOpen(false);
-  }, [viewing, fileDocked]);
   // a page this PC serves, beside the pane in the file panel's place: a file docked there replaces it
   const [webPage, setWebPage] = useState<string | null>(null);
   useEffect(() => {
@@ -481,10 +456,8 @@ export function App() {
     ? () => presentFile(fileDocked ? "popup" : "panel")
     : undefined;
   const viewFile = useCallback((path: string) => {
-    // the Files dialog would cover the docked panel the file opens in
-    if (filePanelAvailable && openPresentation(path, settings.fileOpen) === "panel") setFilesOpen(false);
     openFile({ path, paneId: selectedPaneId, machineId: selectedMachineId });
-  }, [openFile, selectedPaneId, selectedMachineId, filePanelAvailable, settings.fileOpen]);
+  }, [openFile, selectedPaneId, selectedMachineId]);
   // a link to Settings opens it on its page, for that first opening alone
   const [settingsOpen, setSettingsOpen] = useState(() => initialLink?.settings != null);
   const [settingsLinkPage, setSettingsLinkPage] = useState<string | null>(() => initialLink?.settings ?? null);
@@ -988,13 +961,13 @@ export function App() {
   const notificationView = notificationViewForPane(notificationViewTarget, selectedMachineId, selectedPaneId);
   let view = lens.view;
   if (lens.key !== lensKey) {
-    if (selectedPaneId !== null) view = storedView(lenses, viewPicks, selectedPaneId, selectedMachineId, selectedPane ? selectedAgent !== null : null, terminalAttach);
+    if (selectedPaneId !== null) view = storedView();
     setLens({ key: lensKey, view });
   }
   // a tapped alert's lens is drawn over the pane's own, never stored: once it is gone (the pane or
   // its lens picked by hand) the pane is back on the lens it had. A shell has no conversation to
   // show (storedView), so its alert opens its own lens; until the snapshot says, it counts as an agent
-  if (notificationView !== null && !(notificationView === "chat" && selectedPane !== null && selectedAgent === null)) view = notificationView;
+  if (notificationView === "terminal") view = notificationView;
 
   const contentKey = paneContentKey(selectedMachine, selectedPane, view);
   // App-owned coverage, plus dialogs/menus mounted by descendants (rename, worktree, lightbox,
@@ -1013,10 +986,10 @@ export function App() {
   }, [contentKey]);
   const paneInFront = useCallback(() => locked === false && linkLanded && pendingFile.current === null && pendingCreate.current === null
     && !drawerOpen && !settingsOpen && !newSessionOpen
-    && !filesOpen && !machineDialog && !paletteOpen && !diffViewing && !(viewing && !fileDocked)
+    && !machineDialog && !paletteOpen && !diffViewing && !(viewing && !fileDocked)
     && !dialogCover && !paneCovered()
     && contentReady && paneContentPresented(contentKey),
-  [locked, linkLanded, drawerOpen, settingsOpen, newSessionOpen, filesOpen, machineDialog, paletteOpen, diffViewing, viewing, fileDocked, dialogCover, contentReady, contentKey]);
+  [locked, linkLanded, drawerOpen, settingsOpen, newSessionOpen, machineDialog, paletteOpen, diffViewing, viewing, fileDocked, dialogCover, contentReady, contentKey]);
 
   const pickView = useCallback((machineId: string, paneId: string, next: PaneView) => {
     const key = paneStorageId(machineId, paneId);
@@ -1053,7 +1026,6 @@ export function App() {
   splitShownRef.current = splitOn;
   const otherWorkspace = otherPane ? otherMachine?.snapshot?.workspaces.find((workspace) => workspace.workspace_id === otherPane.workspace_id) ?? null : null;
   const otherHerdr = split?.other.machineId === "local" ? health?.herdr : otherMachine?.herdr;
-  const otherAttach = otherHerdr?.terminal_attach !== false || otherHerdr?.terminal_mirror === true;
 
   // the other half's pane closed: another pane of its tab takes its place, else back to one pane.
   // An offline PC's cached roster cannot say so, as for the selection itself
@@ -1324,12 +1296,7 @@ export function App() {
             };
   // hidden only where it could do nothing: no system notifications and in-app alerts off
   const bellVisible = notifications === "default" || notifications === "granted" || settings.alertInApp;
-  // the menu's button carries a dot while alerts are off here: the one state of the menu worth a glance
-  const alertsOffDot = bellVisible && !bell.on;
   const connWord = t(connected ? "live" : outputStopped ? "disconnected" : connectedBefore ? "reconnecting" : "connecting");
-  const crumb = selectedPane && selectedTitle !== null
-    ? headerCrumb({ machine: selectedMachine?.name ?? selectedMachineId, machineCount: machines.length, workspace: selectedWorkspace?.label ?? selectedPane.workspace_id, title: selectedTitle, cwd: selectedPane.cwd })
-    : null;
 
   useEffect(() => {
     document.title = selectedTitle ? `${selectedTitle} · herdr` : APP_TITLE;
@@ -1365,7 +1332,6 @@ export function App() {
         if (next) selectPane(next.pane_id);
       },
       setView,
-      toggleView: () => { setView(view === "chat" ? "terminal" : "chat"); setDrawerOpen(false); },
       focusInput: () => paneControls.current?.focusInput(),
       scrollPage: (direction) => paneControls.current?.scrollPage(direction),
       openNewSession: () => {
@@ -1420,7 +1386,6 @@ export function App() {
       lock: canSignOut ? lock : null,
       enableNotifications: bellVisible && bell.run === enableNotifications ? () => void enableNotifications() : null,
       refresh: () => void load(),
-      openFiles: selectedPaneId !== null ? () => { setDrawerOpen(false); setFilesOpen(true); } : null,
       // herdr's layout calls on the selected pane (components/TabStrip.tsx has the same for the
       // tab's own menu): the new layout reaches every client as session-changed, so only a
       // refusal is left to say, and that is logged as other background failures are
@@ -1442,14 +1407,11 @@ export function App() {
         void zoomPane(paneId, mode, machineId).then(() => void load()).catch((err) => layoutRefused("pane zoom failed", err));
       } : null,
     }),
-    [selectPane, selectedPaneId, selectedMachineId, setView, view, updateSettings, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused, lenses],
+    [selectPane, selectedPaneId, selectedMachineId, setView, updateSettings, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused, lenses],
   );
 
   useShortcuts(actions, locked === false);
 
-  // The header's More menu: what used to be three buttons of its own. Each item is there under
-  // the condition its button had. At phone width the palette's button gives its room to the
-  // pane's title, and the menu's first item opens the palette.
   // a link to a PC this app does not have lands on this PC instead, and says so: the roster lists
   // every configured PC, connected or not, so one missing from it is not set up here. So does a
   // selection of a PC removed since (a reload, a new window), here or on another device. Only a
@@ -1488,23 +1450,9 @@ export function App() {
   }, []);
   const closeNewSession = useCallback(() => { setNewSessionOpen(false); setNewPrefill(null); setNewFields(null); }, []);
 
-  // the palette's shortcut, said beside its item where a hardware keyboard is likely (a fine pointer)
-  const keyboardLikely = useMediaQuery("(hover: hover) and (pointer: fine)");
-  const paletteKeys = keyboardLikely ? formatKeys(shortcutDisplayKeys("palette", settings.shortcutOverrides)).join("+") : "";
-  const moreItems: RowMenuItem[] = [
-    // first at every width: a phone's header has no palette button, and a touch screen no shortcut
-    { id: "palette", label: t("Search panes and actions"), icon: Search, ...(paletteKeys ? { hint: paletteKeys } : {}), run: () => openPalette() },
-    ...(selectedPane && !selectedPane.restore_error ? [{ id: "find", label: t("Find in terminal"), icon: Search, run: actions.openFind }] : []),
-    // from 769px Files has its own button beside the lens switch; a phone keeps it here
-    ...(selectedPane && !wideScreen ? [{ id: "files", label: t("Browse files"), icon: FolderOpen, run: () => setFilesOpen(true) }] : []),
-    // the address says where the app is (lib/deepLink.ts); a phone has no address bar to copy it from
-    { id: "copy-link", label: t("Copy link"), icon: Link, run: () => void copyText(window.location.href).then((ok) => { if (ok) setHeaderNote("copied"); }) },
-    ...(bellVisible ? [{ id: "alerts", label: t("Alerts"), hint: bell.state, checked: bell.on, title: bell.title, icon: Bell, run: () => void bell.run() }] : []),
-  ];
-
-  // the chat's surface is what the pane column shows: the header's pane zone and the tab strip
-  // take it (from 769px). A pane herdr could not restore draws a placeholder, not the chat.
-  const chatShown = showsChat(selectedPane, view);
+  // the tab bar's place in the header: the solo pane's tab strip is drawn there through a portal,
+  // so the header and the strip are one bar. A split view keeps a strip per half.
+  const [tabBarHost, setTabBarHost] = useState<HTMLDivElement | null>(null);
 
   if (locked === null) {
     // the auth state is unknown until /api/health or /api/session answers (ten seconds when
@@ -1537,10 +1485,10 @@ export function App() {
       ...(sidebarWidth === null ? {} : { "--sidebar-user-w": `${sidebarWidth}px` }),
       ...(filePanelWidth === null ? {} : { "--file-panel-user-w": `${filePanelWidth}px` }),
     } as CSSProperties}>
-      <header className={`app-header is-zoned${chatShown ? " is-chat" : ""}`}>
+      <header className="app-header is-zoned">
         {/* is-zoned tells this header from the connecting shell's, which has no zones to draw.
             .header-side is the sidebar's own top row from 769px (styles.css); below that its
-            buttons sit in the bar */}
+            button sits in the bar. The rest of the bar is the tab strip (TabStrip, through a portal) */}
         <div className="header-side">
           <button
             type="button"
@@ -1562,55 +1510,12 @@ export function App() {
           >
             <PanelLeft />
           </button>
-          <button type="button" className="icon-button palette-button" aria-label={t("Command palette")} title={t("Command palette (⌘⇧K)")} onClick={() => openPalette()}>
-            <Search />
-          </button>
         </div>
-        <HeaderNote note={note} />
-        {note !== null ? null : selectedPane && crumb ? (
-          <div className="context" title={crumb.tooltip}>
-            <div className="context-title">
-              {selectedAgent && <AgentMark agent={selectedAgent} size={18} />}
-              <span className="context-title-text">{selectedTitle}</span>
-            </div>
-            <div className="context-sub">
-              {/* one PC needs no name: the sidebar leaves it out too, and More still says it */}
-              {crumb.showMachine && <><span className="machine-context-name">{crumb.machine}</span><span className="context-sep" aria-hidden="true">›</span></>}
-              <span>{crumb.workspace}</span>
-              {crumb.folder !== null && (
-                <>
-                  <span className="context-sep" aria-hidden="true">›</span>
-                  <span>{crumb.folder}</span>
-                </>
-              )}
-            </div>
-          </div>
-        ) : (
-          <><Brand /><span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>
-        )}
-        {selectedPane && (
-          <div className="segmented view-switch" role="group" aria-label="Pane view">
-            <button type="button" aria-pressed={view === "chat"} onClick={() => { setView("chat"); setDrawerOpen(false); }} title={t("Chat transcript (⌘⇧J)")}>
-              <MessageSquare />
-              <span className="header-desktop-only">{t("Chat")}</span>
-            </button>
-            <button type="button" aria-pressed={view === "terminal"} onClick={() => { setView("terminal"); setDrawerOpen(false); }} title={terminalAttach ? t("Live terminal (⌘⇧J)") : t("Live terminal: coming to Windows PCs once herdr can attach there")}>
-              <SquareTerminal />
-              <span className="header-desktop-only">{t("Terminal")}</span>
-              {!terminalAttach && <span className="pill pill-soon">{t("soon")}</span>}
-            </button>
-          </div>
-        )}
-        {selectedPane && wideScreen && (
-          <>
-            {/* opens Files, it is no third lens: set apart from the switch by a hairline */}
-            <span className="header-divider" aria-hidden="true" />
-            <button type="button" className="icon-button header-files-button" aria-label={t("Browse files")} title={t("Browse files")} onClick={() => setFilesOpen(true)}>
-              <FolderOpen />
-            </button>
-          </>
-        )}
+        <div ref={setTabBarHost} className="header-tabs">
+          {!selectedPane && <><Brand /><span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>}
+        </div>
         <div className="header-meta">
+          <HeaderNote note={note} />
           <ConnectionChip
             connected={connected}
             word={connWord}
@@ -1618,38 +1523,7 @@ export function App() {
           />
           {/* the Host's herdr is away: the step to take is on that PC (the sidebar's state line says the same) */}
           {!targetHerdr && <span className="pill pill-offline" title={selectedMachineId === "local" ? t("Start herdr on this PC, or check HERDR_SOCKET.") : undefined}>{t("herdr offline")}</span>}
-          <span className="header-more">
-            <button
-              type="button"
-              className="icon-button header-more-button"
-              aria-label={alertsOffDot ? t("More · alerts are off") : t("More")}
-              title={alertsOffDot ? t("More · alerts are off") : t("More")}
-              aria-haspopup="menu"
-              aria-expanded={more !== null}
-              onClick={(event) => {
-                const anchor = event.currentTarget;
-                setMore((open) => (open ? null : { anchor }));
-              }}
-            >
-              <Ellipsis />
-            </button>
-            {alertsOffDot && <span className="header-more-dot" aria-hidden="true" />}
-          </span>
         </div>
-        {more && (
-          <RowMenu
-            anchor={more.anchor}
-            title={t("More")}
-            header={crumb ? (
-              <div className="header-more-crumb">
-                <span>{crumb.place}</span>
-                {crumb.path !== null && <span className="header-more-path">{crumb.path}</span>}
-              </div>
-            ) : undefined}
-            items={moreItems}
-            onClose={closeMore}
-          />
-        )}
       </header>
 
       <div className="app-body">
@@ -1669,7 +1543,7 @@ export function App() {
         {/* a file path in the chat opens in the viewer, relative to the selected pane's folder */}
         <OpenFileContext.Provider value={selectedPaneId !== null ? viewFile : null}>
         <WebPanelContext.Provider value={filePanelAvailable ? openWebPage : null}>
-        <div className={`pane-column${chatShown ? " is-chat" : ""}`}>
+        <div className="pane-column">
         {/* over the pane only: a bar across the window would cut the sidebar off from its top row in the header */}
         <UpdateNotice updates={updates} onOpen={() => { setSettingsSection("updates"); setSettingsOpen(true); }} />
         <TelemetryNotice enabled={locked === false} onOpen={() => { setSettingsSection("updates"); setSettingsOpen(true); }} />
@@ -1690,19 +1564,14 @@ export function App() {
             const pane = active ? selectedPane : otherPane;
             const workspace = active ? selectedWorkspace : otherWorkspace;
             const slotSnapshot = active ? snapshot : otherMachine?.snapshot ?? null;
-            const attach = active ? terminalAttach : otherAttach;
             const lensOf = (item: HerdrPane): PaneView => active && item.pane_id === selectedPaneId ? view
-              : storedView(lenses, viewPicks, item.pane_id, machineId, item.agent != null, attach);
+              : storedView();
             const slotView = active ? view : pane ? lensOf(pane) : "terminal";
             const onSelect = active ? selectPane : (id: string, focusInput = true) => selectInSlot(slot, machineId, id, focusInput);
             // one pane's panel keeps the page's own id, whichever slot draws it
             const slotPanelId = !splitOn || slot === "a" ? PANE_TABPANEL_ID : `${PANE_TABPANEL_ID}-${slot}`;
             const slotPanelLabel = active ? tabPanelLabel : paneTabPanelLabel(slotSnapshot, pane, t);
-            const toggleSlotView = (): void => {
-              const next = slotView === "chat" ? "terminal" : "chat";
-              if (active) setView(next); else if (pane) pickView(machineId, pane.pane_id, next);
-            };
-            // a half's own lens and close sit at the end of its tab strip. The row's free end is the
+            // a half's own close sits at the end of its tab strip. The row's free end is the
             // half's grip: its pane, dropped on a half of the pane area, opens there too (dockSide)
             const slotEnd = splitOn ? <div className="pane-slot-grip" draggable={paneId !== null}
               onDragStart={(event) => {
@@ -1711,9 +1580,6 @@ export function App() {
                 event.dataTransfer.setData(PANE_DRAG_TYPE, paneDragData({ machineId, paneId }));
               }}>
               {machines.length > 1 && <span className="pane-slot-machine">{machine?.name ?? machineId}</span>}
-              {pane && <button type="button" className="icon-button pane-slot-action" aria-label={t(slotView === "chat" ? "Show the terminal" : "Show the chat")} title={t(slotView === "chat" ? "Show the terminal" : "Show the chat")} onClick={toggleSlotView}>
-                {slotView === "chat" ? <SquareTerminal /> : <MessageSquare />}
-              </button>}
               <button type="button" className="icon-button pane-slot-action" aria-label={t("Close this half")} title={t("Close this half")} onClick={() => closeSlot(slot)}>
                 <X />
               </button>
@@ -1723,11 +1589,11 @@ export function App() {
             return (
               <MachineContext.Provider key={slot} value={machineId}><SlotSessions slot={slot} machineIds={machines.map((item) => item.id)}><PaneFollowContext.Provider value={sameTabs && !active}>
               <div
-                className={`pane-slot${showsChat(pane, slotView) ? " is-chat" : ""}${splitOn ? active ? " is-active" : " is-inactive" : ""}`}
+                className={`pane-slot${splitOn ? active ? " is-active" : " is-inactive" : ""}`}
                 data-slot={slot}
                 data-side={splitOn ? slotSide(split, slot) : undefined}
                 // a press or the focus in the other half makes it the active one, before the press acts;
-                // its own bar's buttons (its lens, its close) act on it as it is
+                // its own bar's button (its close) acts on it as it is
                 onPointerDownCapture={active ? undefined : (event) => {
                   if (event.button === 0 && !paneContextPress(event, apple) && !(event.target as Element).closest(".pane-slot-action")) activateSlot(slot);
                 }}
@@ -1741,7 +1607,7 @@ export function App() {
                 <RenderBoundary resetKey={`${machineId}:${paneId ?? ""}`} fallback={(retry) => <>{slotBar}<RegionCrash message={t("This pane can't be shown.")} retry={retry} onShown={active ? paneLost : undefined} /></>}>
                 <CrashProbe region="pane" />
                 {!(slotSnapshot && pane && workspace) && slotBar}
-                {slotSnapshot && pane && workspace && (
+                {slotSnapshot && pane && workspace && portalTo(splitOn ? null : tabBarHost,
                   <TabStrip snapshot={slotSnapshot} workspace={workspace} selectedPane={pane} panelId={slotPanelId} splitDrag={wideScreen} onSelectPane={onSelect} end={slotEnd}
                     onNewTab={() => actions.openNewTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
                     onNewTerminal={() => actions.openTerminalTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
@@ -1751,7 +1617,7 @@ export function App() {
                       // the strip renders before the canvas, so its items come from the canvas's previous render:
                       // an action runs against the canvas's latest one, where a snapshot change has landed
                       return paneActionsRef.current(target).map((item) => ({ ...item, run: () => (paneActionsRef.current?.(target).find((fresh) => fresh.id === item.id) ?? item).run() }));
-                    } : undefined} />
+                    } : undefined} />,
                 )}
                 {/* the tab strip's panel: its id is what each tab's aria-controls points at, one per half.
                     No tabIndex - the terminal (PaneTerminal) and the composer are the focusable things inside it. */}
@@ -1841,31 +1707,20 @@ export function App() {
       <Droplet onOpen={(machineId, paneId) => {
         // an ended pane's card outlives the pane: the refetch has dropped it, and selecting it attaches nothing
         if (!machinesRef.current.find((m) => m.id === machineId)?.snapshot?.panes.some((p) => p.pane_id === paneId)) return;
-        // Files lists the pane it was opened on, and would open its paths on the new one
-        setFilesOpen(false);
         selectTargetRef.current(machineId, paneId);
       }} />
       <SettingsDialog auth={auth} herdrVersion={health?.herdr?.version ?? null} open={settingsOpen} section={settingsSection} linkPage={settingsLinkPage} linkSection={settingsLinkSection} onPage={onSettingsPage} onClose={closeSettings} onUsageLogin={(paneId) => { closeSettings(); selectTarget("local", paneId, "terminal"); void load(); }} actions={actions} updates={updates} onEnableNotifications={enableNotifications} saveError={settingsSaveError} overPreview={(viewing !== null && !fileDocked) || diffViewing !== null} />
-      {filesOpen && selectedPane && (
-        <FilesDialog start={selectedPane.foreground_cwd ?? selectedPane.cwd ?? ""} paneId={selectedPane.pane_id} viewing={(viewing !== null && !fileDocked) || diffViewing !== null} onOpenFile={viewFile}
-          onOpenDiff={(comparison, file) => openDiff({ machineId: selectedMachineId, paneId: selectedPane.pane_id, directory: selectedPane.foreground_cwd ?? selectedPane.cwd ?? null, ...comparison, path: file.path, oldPath: file.old_path })}
-          onBrowseFolders={(path) => actions.openPalette(folderQueryFor(path, null))}
-          onClose={() => setFilesOpen(false)} />
-      )}
       {diffViewing !== null && <MachineContext.Provider value={diffViewing.machineId}>
         <RepoDiffViewer key={`${diffViewing.scope}:${diffViewing.path}`} target={diffViewing} onClose={closeDiff} onOpenFile={(path) => {
           const docked = filePanelAvailable && openPresentation(path, settings.fileOpen) === "panel";
-          if (docked) {
-            setFilesOpen(false);
-            releaseDiff();
-          }
+          if (docked) releaseDiff();
           openFile({ path, paneId: diffViewing.paneId, machineId: diffViewing.machineId }, docked);
         }} keyboardActive={!settingsOpen && (viewing === null || fileDocked)} />
       </MachineContext.Provider>}
       {viewing !== null && !fileDocked && <MachineContext.Provider value={viewing.machineId}>
         <FileViewer key={viewing.path} path={viewing.path} paneId={viewing.paneId} onClose={closeFile} onOpen={(path) => openFile({ ...viewing, path, presentation })} onKind={reportFileKind} onTogglePresentation={toggleFilePresentation} keyboardActive={!settingsOpen} />
       </MachineContext.Provider>}
-      <CommandPalette key={selectedMachineId} machines={machines} onSelect={selectTarget} open={paletteOpen} initialQuery={paletteQuery} onClose={() => setPaletteOpen(false)} snapshot={snapshot} online={selectedMachine?.state === "connected"} selectedPaneId={selectedPaneId} view={view} actions={actions} />
+      <CommandPalette key={selectedMachineId} machines={machines} onSelect={selectTarget} open={paletteOpen} initialQuery={paletteQuery} onClose={() => setPaletteOpen(false)} snapshot={snapshot} online={selectedMachine?.state === "connected"} selectedPaneId={selectedPaneId} actions={actions} />
     </div></MachineContext.Provider></MachineSessionsProvider>
   );
 }
