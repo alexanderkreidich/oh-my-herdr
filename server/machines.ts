@@ -11,7 +11,7 @@ import { alertStatus } from "../shared/notify-policy.ts";
 import type { BridgeDescriptor } from "./bridge.ts";
 import { HerdrError, sessionSnapshot } from "./herdr/client.ts";
 import { ConnectionDiagnostics, transportFailureCode } from "./connection-diagnostics.ts";
-import { labelOmoPanes } from "./conversation.ts";
+import { labelOmoPanes } from "./pane-processes.ts";
 import type { CompletionTracker } from "./completion.ts";
 import { HerdrProfileState, herdrMachineId } from "./herdr-profile-state.ts";
 import { sameSshSession, type HerdrMachineProfile } from "./herdr-profiles.ts";
@@ -873,14 +873,13 @@ export class MachineManager {
 }
 
 /**
- * A pane after a status frame: a frame that names background tasks or a plan replaces
- * them; one that names neither leaves them. Every frame says whether the pane waits on its turn's work.
+ * A pane after a status frame: a frame that names background tasks replaces them; one that does
+ * not leaves them. Every frame says whether the pane waits on its turn's work.
  */
 export function paneAfterStatus(p: HerdrPane, message: Extract<ServerMessage, { type: "pane-status" }>): HerdrPane {
-  const { background_tasks: before, background_wait: _waited, plan: planBefore, finish_id: _finish, ...pane } = p;
+  const { background_tasks: before, background_wait: _waited, finish_id: _finish, ...pane } = p;
   const tasks = message.background_tasks === undefined ? before : message.background_tasks > 0 ? message.background_tasks : undefined;
-  const plan = message.plan === undefined ? planBefore : message.plan ?? undefined;
-  return { ...pane, agent_status: message.agent_status, ...(message.finish_id === undefined ? {} : { finish_id: message.finish_id }), ...(tasks === undefined ? {} : { background_tasks: tasks }), ...(message.background_wait ? { background_wait: true } : {}), ...(plan === undefined ? {} : { plan }) };
+  return { ...pane, agent_status: message.agent_status, ...(message.finish_id === undefined ? {} : { finish_id: message.finish_id }), ...(tasks === undefined ? {} : { background_tasks: tasks }), ...(message.background_wait ? { background_wait: true } : {}) };
 }
 
 function snapshotAfterStatus(snapshot: SessionSnapshot, message: Extract<ServerMessage, { type: "pane-status" }>): SessionSnapshot {

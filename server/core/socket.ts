@@ -11,7 +11,7 @@ import { OUTPUT_HARD_BYTES } from "../output-window.ts";
 import { type Client, connectionOf, presenceOf, send, type SocketData } from "./connections.ts";
 import { type AttachmentView, validGeometry } from "./terminals.ts";
 
-const SERVER_FEATURES: ServerFeature[] = ["submit", "pending-input", "pending-hold", "secret-input", "input-ready", "take-over", "watch", "conversation-watch", "ping"];
+const SERVER_FEATURES: ServerFeature[] = ["submit", "secret-input", "input-ready", "take-over", "watch", "ping"];
 
 type Frame<K extends ClientMessage["type"]> = Extract<ClientMessage, { type: K }>;
 
@@ -21,7 +21,7 @@ export type FrameHandlers = { [K in Exclude<ClientMessage["type"], "presence">]:
 /** The frames of the connection itself: its liveness, its watches and its role. */
 type ConnectionFrame = "ping" | "watch" | "unwatch" | "role";
 
-export function createSocket({ clients, present, stopped, admit, setRole, watchPane, unwatchPane, end, holdPending, attachments, clientSnapshot, countVisit, drainOutput, frames }: {
+export function createSocket({ clients, present, stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, countVisit, drainOutput, frames }: {
   clients: Set<Client>;
   present: Set<Client>;
   stopped: () => boolean;
@@ -30,7 +30,6 @@ export function createSocket({ clients, present, stopped, admit, setRole, watchP
   watchPane: (client: Client, paneId: string, geometry: { cols: number; rows: number }) => void;
   unwatchPane: (client: Client, paneId: string) => void;
   end: (client: Client, reason: "closed") => void;
-  holdPending: (owner: Client) => void;
   attachments: ReadonlyMap<string, AttachmentView>;
   clientSnapshot: () => Promise<SessionSnapshot>;
   countVisit: (snapshot?: Promise<SessionSnapshot>) => void;
@@ -70,7 +69,6 @@ export function createSocket({ clients, present, stopped, admit, setRole, watchP
         return;
       }
       if (client.data.readOnly) message.mode = "observe";
-      if (message.mode === "observe") holdPending(client);
       setRole(client, message.mode);
       send(client, { type: "role-ack", mode: message.mode });
       if (message.mode === "observe") {

@@ -5,7 +5,9 @@ import { join } from "node:path";
 
 import type { HerdrPane } from "../shared/protocol.ts";
 import { BackgroundWait, WAIT_LIMIT_MS } from "./background-wait.ts";
-import { ClaudeSubagentStatus, claudeSubagentState, claudeSubagents, forgetSubagents, lineNotifications, readLines, remember, subagentDetails, taskNotification, within } from "./claude-subagents.ts";
+import { ClaudeSubagentStatus, claudeSubagentState, forgetSubagents, readLines, remember, taskNotification, within } from "./claude-subagents.ts";
+
+const claudeSubagents = (parentPath: string, live: boolean, now = Date.now(), since: number | null = null) => claudeSubagentState(parentPath, live, now, since).tasks;
 
 const roots: string[] = [];
 afterEach(() => {
@@ -203,15 +205,6 @@ describe("claudeSubagents", () => {
     writeFileSync(join(s.path, "..", "11111111-1111-4111-8111-111111111111", "subagents", "agent-x.meta.json"), "{ torn");
     writeFileSync(join(s.path, "..", "11111111-1111-4111-8111-111111111111", "subagents", "agent-x.jsonl"), "not json\n");
     expect(ids(s.path)).toEqual([]);
-  });
-});
-
-describe("subagentDetails", () => {
-  it("answers for the agents asked about", () => {
-    const s = session();
-    s.agent("a1", { description: "Review the parser", type: "reviewer", steps: [[1, 10], [2, 30]] });
-    s.agent("a2");
-    expect([...subagentDetails(s.path, ["a1", "gone"])]).toEqual([["a1", { title: "Review the parser", agent: "reviewer" }]]);
   });
 });
 
@@ -529,13 +522,9 @@ describe("claudeSubagents reading", () => {
   it("never turns an id from a transcript into a path outside the folder", () => {
     const s = session();
     writeFileSync(join(s.path, "..", "secret.meta.json"), JSON.stringify({ description: "secret", agentType: "x" }));
-    expect([...subagentDetails(s.path, ["x/../../../secret", "..", "a/b"])]).toEqual([]);
+    expect(ids(s.path)).toEqual([]);
     const block = (id: string) => `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Agent "x" finished</summary>\n</task-notification>`;
     expect(taskNotification(block("x/../../../secret"))).toBeNull();
-    // a line that only mentions the tag, in a tool result, is no notification
-    const result = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t", content: block("fine") }] } });
-    expect(lineNotifications(result)).toEqual([]);
-    expect(lineNotifications(JSON.stringify({ type: "user", message: { role: "user", content: block("fine") } }))).toHaveLength(1);
   });
 
   it("sees an agent added to the folder", () => {

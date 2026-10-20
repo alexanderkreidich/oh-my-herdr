@@ -3,34 +3,19 @@
  * the core (server/core) alike, so it lives in neither.
  */
 import type { HerdrPane } from "../shared/protocol.ts";
-import { storeAgentVersion, type VersionSource } from "./agent-version.ts";
-import { type NativeTranscript, paneProcessRoots } from "./conversation.ts";
 import { HerdrError, paneGet } from "./herdr/client.ts";
+import { paneProcessRoots } from "./pane-processes.ts";
 
 /** What paneProcessRoots found in a pane's foreground: `omo` is set when omo itself runs there. */
 export type PaneRoots = { omo: unknown } | null | undefined;
 
 /**
- * The agent a pane runs, and the version of it its own session store records. herdr labels an omo pane
- * `pi` while it waits and `claude` while its claude-sdk child runs, so a pane whose `roots` find omo
- * is omo whatever the label says. Without `roots` the label stands. The version is read from `store`
- * (the transcript the conversation readers resolved for this pane) for the agents that record one, never
- * from a process, and is null for any other agent or an omo pane.
+ * The agent a pane runs. herdr labels an omo pane `pi` while it waits and `claude` while its
+ * claude-sdk child runs, so a pane whose `roots` find omo is omo whatever the label says. Without
+ * `roots` the label stands.
  */
-export function resolveAgent(
-  pane: Pick<HerdrPane, "agent" | "agent_session">,
-  roots?: PaneRoots,
-  store: VersionSource | null = null,
-): { agent: string | null; version: string | null } {
-  const agent = roots?.omo ? "omo" : pane.agent ?? pane.agent_session?.agent ?? null;
-  return { agent, version: storeAgentVersion(agent, store) };
-}
-
-/** The session store of a resolved transcript, for the agents that keep their version in one. */
-export function versionSourceOf(transcript: NativeTranscript): VersionSource | null {
-  if (transcript.source === "opencode-transcript") return { path: transcript.path, sessionId: transcript.session };
-  if (transcript.source === "claude-transcript" || transcript.source === "codex-transcript") return { path: transcript.path };
-  return null;
+export function resolveAgent(pane: Pick<HerdrPane, "agent" | "agent_session">, roots?: PaneRoots): { agent: string | null } {
+  return { agent: roots?.omo ? "omo" : pane.agent ?? pane.agent_session?.agent ?? null };
 }
 
 /**

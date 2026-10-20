@@ -2,7 +2,6 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { appendFileSync, closeSync, mkdtempSync, openSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OmoAskReader } from "./omo-ask.ts";
 import { noTurn, omoTurnAfter } from "./omo-status.ts";
 import { readOmoLines, type OmoLine } from "./omo-records.ts";
 
@@ -18,23 +17,23 @@ const read = (path: string): OmoLine[] => {
   finally { closeSync(fd); }
   return found;
 };
+const asks = (path: string) => read(path).reduce(omoTurnAfter, noTurn()).asks;
 
 describe("OmO question replay", () => {
   test("keeps an old open question across large tool output, append, restart and settlement", () => {
     const path = join(root, "old.jsonl");
     writeFileSync(path, record(assistant(call("old"))) + record({ type: "message", message: { role: "toolResult", toolCallId: "bash", content: [{ type: "text", text: "x".repeat(1_200_000) }] } }) + record(assistant({ type: "text", text: "done" })));
-    const reader = new OmoAskReader();
-    expect(reader.read(path).map((ask) => ask.id)).toEqual(["old"]);
+    expect(asks(path).map((ask) => ask.id)).toEqual(["old"]);
     expect(read(path).reduce(omoTurnAfter, noTurn()).asks.map((ask) => ask.id)).toEqual(["old"]);
-    expect(new OmoAskReader().read(path).map((ask) => ask.id)).toEqual(["old"]);
+    expect(asks(path).map((ask) => ask.id)).toEqual(["old"]);
     // An unfinished final settlement must not close anything yet.
     const settlement = record({ type: "custom", customType: "ask-user:settlement", data: { requestId: "old" } });
     appendFileSync(path, settlement.slice(0, -1));
-    expect(reader.read(path)).toHaveLength(1);
+    expect(asks(path)).toHaveLength(1);
     appendFileSync(path, "\n");
-    expect(reader.read(path)).toEqual([]);
+    expect(asks(path)).toEqual([]);
     writeFileSync(path, record(assistant(call("replacement"))));
-    expect(reader.read(path).map((ask) => ask.id)).toEqual(["replacement"]);
+    expect(asks(path).map((ask) => ask.id)).toEqual(["replacement"]);
   });
 
   test("finds a call between huge strings and ignores incomplete and quoted fake calls", () => {
@@ -48,7 +47,7 @@ describe("OmO question replay", () => {
     const lines = read(path);
     expect(lines).toHaveLength(1);
     expect("record" in lines[0]! && lines[0].record!.length).toBeLessThan(150_000);
-    expect(new OmoAskReader().read(path).map((ask) => ask.id)).toEqual(["real"]);
+    expect(asks(path).map((ask) => ask.id)).toEqual(["real"]);
     expect(lines.reduce(omoTurnAfter, noTurn()).asks.map((ask) => ask.id)).toEqual(["real"]);
   });
 
@@ -57,9 +56,8 @@ describe("OmO question replay", () => {
     const ask = call("waiting");
     ask.arguments.waitForAnswer = true;
     writeFileSync(path, record(assistant(ask)) + record(assistant({ type: "thinking", thinking: "still thinking" })));
-    const reader = new OmoAskReader();
-    expect(reader.read(path)).toHaveLength(1);
+    expect(asks(path)).toHaveLength(1);
     appendFileSync(path, record({ type: "message", message: { role: "toolResult", toolCallId: "waiting", content: [] } }));
-    expect(reader.read(path)).toEqual([]);
+    expect(asks(path)).toEqual([]);
   });
 });

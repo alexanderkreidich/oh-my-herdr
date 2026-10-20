@@ -24,10 +24,10 @@ describe("applyPaneStatus", () => {
     const current = snapshotFixture();
     current.finish_epoch = "old";
     for (const pane of current.panes) { pane.agent_status = "done"; pane.finish_id = 1; }
-    const next = applyPaneStatus(current, "w1:p1", "done", undefined, false, undefined, 2, "old");
+    const next = applyPaneStatus(current, "w1:p1", "done", undefined, false, 2, "old");
     expect(next.panes[0]?.finish_id).toBe(2);
     expect(next.panes[1]?.finish_id).toBe(1);
-    const restarted = applyPaneStatus(next, "w1:p1", "done", undefined, false, undefined, 1, "new");
+    const restarted = applyPaneStatus(next, "w1:p1", "done", undefined, false, 1, "new");
     expect(restarted.finish_epoch).toBe("new");
     expect(restarted.panes[0]?.finish_id).toBe(1);
     expect(restarted.panes[1]?.finish_id).toBeUndefined();
@@ -56,17 +56,6 @@ describe("applyPaneStatus", () => {
     // none left: the field goes, so the badge does
     const none = applyPaneStatus(done, "w1:p1", "done" as AgentStatus, 0);
     expect("background_tasks" in none.panes.find((pane) => pane.pane_id === "w1:p1")!).toBe(false);
-  });
-
-  it("carries a pane's plan, keeps it through frames that say nothing of it, and drops it on null", () => {
-    const current = snapshotFixture();
-    const planned = applyPaneStatus(current, "w1:p1", "working", undefined, false, { done: 1, total: 3, current: "Building" });
-    expect(planned.panes.find((pane) => pane.pane_id === "w1:p1")).toMatchObject({ plan: { done: 1, total: 3, current: "Building" } });
-    const counted = applyPaneStatus(planned, "w1:p1", "working", 2);
-    expect(counted.panes.find((pane) => pane.pane_id === "w1:p1")).toMatchObject({ background_tasks: 2, plan: { done: 1, total: 3 } });
-    expect(applyPaneStatus(counted, "w1:p1", "working", undefined, false, { done: 1, total: 3, current: "Building" })).toBe(counted);
-    const none = applyPaneStatus(counted, "w1:p1", "working", undefined, false, null);
-    expect("plan" in none.panes.find((pane) => pane.pane_id === "w1:p1")!).toBe(false);
   });
 
   it("returns the same snapshot object when the status already matches", () => {

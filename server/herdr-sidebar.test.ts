@@ -133,7 +133,7 @@ describe("the machine events", () => {
     const config = new HerdrSidebarConfig(path, 10);
     const manager = { subscribe: () => () => undefined } as unknown as MachineManager;
     const abort = new AbortController();
-    const response = await handleMachineRequest(new Request("http://127.0.0.1:7317/api/machines/events", { signal: abort.signal }), manager, undefined, undefined, false, config);
+    const response = await handleMachineRequest(new Request("http://127.0.0.1:7317/api/machines/events", { signal: abort.signal }), manager, undefined, undefined, config);
     expect(response.headers.get("content-type")).toBe("text/event-stream");
     const reader = response.body!.getReader();
     const events: MachineEvent[] = [];

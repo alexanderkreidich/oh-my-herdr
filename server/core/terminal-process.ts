@@ -121,7 +121,7 @@ export type PaneAttachment = PtyAttachment | MirrorAttachment;
  * The attach the server's clients share for each pane. `attachments` stays the server's: a callback
  * of an attachment that is no longer the pane's record does nothing.
  */
-export function createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdPendingPane, holdFor, heldRetry, retryFor, relookupFor }: {
+export function createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdFor, heldRetry, retryFor, relookupFor }: {
   attachments: Map<string, PaneAttachment>;
   retiringAttachments: Map<string, Promise<void>>;
   terminalAttach: () => Promise<boolean>;
@@ -131,7 +131,6 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
   broadcast: (paneId: string, message: ServerMessage) => void;
   sendOutput: (client: Client, paneId: string, data: string) => void;
   reconcileOutput: (paneId: string) => void;
-  holdPendingPane: (paneId: string, fault: { code: string; message: string }) => void;
   holdFor: number;
   heldRetry: number;
   retryFor: number;
@@ -324,10 +323,7 @@ export function createSpawnAttachment({ attachments, retiringAttachments, termin
         clearTimeout(holdTimer);
         clearTimeout(tailTimer);
         if (attachments.get(paneId) !== attachment) return;
-        if (attachment.ready) {
-          broadcast(paneId, { type: "input-ready", pane_id: paneId, ready: false });
-          holdPendingPane(paneId, { code: "input_not_ready", message: "The pane's attachment is restarting; review pending messages before sending them" });
-        }
+        if (attachment.ready) broadcast(paneId, { type: "input-ready", pane_id: paneId, ready: false });
         attachment.ready = false;
         const now = Date.now();
         // displaced after attaching (herdr's last words): the read-race words may still be on its screen

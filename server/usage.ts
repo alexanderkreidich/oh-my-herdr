@@ -23,7 +23,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProviderUsage, UsageProblem, UsageProviderId, UsageReport, UsageWindow } from "../shared/protocol.ts";
 import { jsonResponse } from "./http.ts";
-import { opencodeDatabasePath } from "./opencode.ts";
+import { opencodeDatabasePath } from "./opencode-db.ts";
 
 export const FRESH_MS = 5 * 60_000;
 export const MIN_REFRESH_MS = 30_000;

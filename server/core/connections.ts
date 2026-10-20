@@ -10,7 +10,6 @@ import type { DeviceStore } from "../devices.ts";
 import { HerdrError, herdrSocketPath } from "../herdr/client.ts";
 import type { MachineRelay } from "../machine-relay.ts";
 import { OUTPUT_HARD_BYTES, type OutputWindow } from "../output-window.ts";
-import type { PendingInputs } from "../pending-input.ts";
 import { PaneWatch } from "../watch.ts";
 
 export interface SocketData {
@@ -19,7 +18,6 @@ export interface SocketData {
   relay?: MachineRelay;
   /** A fresh claim per attach lifetime; deleting it invalidates queued terminal keys. */
   attached: Map<string, { keepSize: boolean }>;
-  conversationInterests: Set<string>;
   output: Map<string, OutputWindow>;
 }
 
@@ -45,7 +43,7 @@ function stateOf(client: Client): ConnectionState {
 
 /** The data for a connection's upgrade: it starts to interact unless its access is read-only. */
 export function connectionData(fields: { relay?: MachineRelay; deviceId: string | undefined; readOnly: boolean }): SocketData {
-  const data: SocketData = { attached: new Map<string, { keepSize: boolean }>(), conversationInterests: new Set<string>(), output: new Map(), ...fields };
+  const data: SocketData = { attached: new Map<string, { keepSize: boolean }>(), output: new Map(), ...fields };
   states.set(data, { closing: false, revoked: false, mode: fields.readOnly ? "observe" : "interact", roles: 0, watches: new Map<string, PaneWatch>() });
   return data;
 }
@@ -93,10 +91,9 @@ export function send(client: Client, message: ServerMessage): number {
  * What a connection may do, its observe processes, and its end. A connection's panes stay with the
  * terminal code: `detachClaimed` detaches them while the claims still count, `dropClaims` forgets them.
  */
-export function createConnections<Lease>({ clients, present, pending, devices, detachClaimed, dropClaims }: {
+export function createConnections({ clients, present, devices, detachClaimed, dropClaims }: {
   clients: Set<Client>;
   present: Set<Client>;
-  pending: PendingInputs<Client, Lease>;
   devices: DeviceStore;
   detachClaimed: (client: Client) => void;
   dropClaims: (client: Client) => void;
@@ -175,7 +172,6 @@ export function createConnections<Lease>({ clients, present, pending, devices, d
         if (state.closing) return;
         state.closing = true;
         killWatches(client);
-        pending.close(client);
         clients.delete(client);
         detachClaimed(client);
         dropClaims(client);
@@ -200,7 +196,6 @@ export function createConnections<Lease>({ clients, present, pending, devices, d
         present.delete(client);
         if (client.data.relay) { client.data.relay.close(); return; }
         killWatches(client);
-        pending.close(client);
         clients.delete(client);
         detachClaimed(client);
         dropClaims(client);

@@ -56,7 +56,7 @@ export function createDirectory(parent: string, name: string): CreateDirectoryRe
  * Hidden folders (a leading dot) are left out unless asked for. Null when `path` is not
  * a directory this user can read.
  */
-/** `base`: the folder a relative path is read from (a pane's, for a link in its chat); else the server's own. */
+/** `base`: the folder a relative path is read from (a pane's); else the server's own. */
 export function listDirectories(path: string, hidden = false, withFiles = false, base?: string): DirectoryListing | null {
   const home = homedir();
   const target = resolveFolder(path, home, base);

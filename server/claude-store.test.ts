@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, win32 } from "node:path";
-import { AmbiguousClaudeStore, claudeForegroundSession, claudeProcessSession, claudeSessionTempDir, claudeStoreKey, claudeProjectDir, claudeTranscriptFile, configDirInPsLine, forgetClaudeSessions, isClaudeProcess, processClaudeConfigDir } from "./claude-store.ts";
+import { AmbiguousClaudeStore, claudeProcessSession, claudeStoreKey, claudeProjectDir, claudeTranscriptFile, configDirInPsLine, forgetClaudeSessions, isClaudeProcess, processClaudeConfigDir } from "./claude-store.ts";
 import type { ProcessRow } from "./windows-processes.ts";
 
 const NATIVE = process.platform === "linux" || process.platform === "darwin";
@@ -32,18 +32,14 @@ describe("claudeProcessSession", () => {
   });
 
   // the test process stands in for the pane's Claude; its own CLAUDE_CONFIG_DIR would name another store
-  it.skipIf(!NATIVE || Boolean(process.env["CLAUDE_CONFIG_DIR"]))("reads the session a pane's one Claude process records, which /clear rewrites (#540)", async () => {
+
+  it.skipIf(!NATIVE || Boolean(process.env["CLAUDE_CONFIG_DIR"]))("reads the session a Claude process records, which /clear rewrites (#540)", async () => {
     const home = nativeRecord();
-    const claude = { pid: process.pid, name: "claude", argv0: null, argv: null };
-    expect(await claudeForegroundSession([claude], home)).toBe(SESSION);
+    expect(await claudeProcessSession(home, process.pid)).toBe(SESSION);
     const cleared = "1c9e7f0e-8d3f-4c1a-9a53-6c2b7a1d9e43";
     const path = join(home, ".claude", "sessions", `${process.pid}.json`);
     writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), sessionId: cleared }));
-    expect(await claudeForegroundSession([claude], home)).toBe(cleared);
-    // control: no single Claude process, no session
-    expect(await claudeForegroundSession([], home)).toBeNull();
-    expect(await claudeForegroundSession([claude, { ...claude, pid: process.pid + 1 }], home)).toBeNull();
-    expect(await claudeForegroundSession([{ ...claude, name: "bash" }], home)).toBeNull();
+    expect(await claudeProcessSession(home, process.pid)).toBe(cleared);
   });
 
   it.skipIf(process.platform !== "darwin")("reads it on a Mac whose locale puts the day first", async () => {
@@ -516,26 +512,3 @@ describe("a Windows Claude's store", () => {
   });
 });
 
-describe("claudeSessionTempDir", () => {
-  const session = "6b93e6b7-7279-449a-b4ab-66e91f7a21d9";
-  const transcript = `/home/u/.claude/projects/-home-u-project/${session}.jsonl`;
-  const uid = process.getuid?.();
-  let root: string;
-  beforeEach(() => { root = mkdtempSync(join(tmpdir(), "claude-temp-")); });
-  afterEach(() => { rmSync(root, { recursive: true, force: true }); });
-
-  it.skipIf(uid === undefined)("finds the session's folder under the transcript's project", async () => {
-    const dir = join(root, `claude-${uid}`, "-home-u-project", session);
-    mkdirSync(join(dir, "scratchpad"), { recursive: true });
-    expect(await claudeSessionTempDir(transcript, [join(root, "missing"), root], uid)).toBe(dir);
-  });
-
-  it.skipIf(uid === undefined)("is null without the folder, for another user's base, or for a name that is not a session", async () => {
-    expect(await claudeSessionTempDir(transcript, [root], uid)).toBeNull();
-    mkdirSync(join(root, `claude-${uid! + 1}`, "-home-u-project", session), { recursive: true });
-    // the base exists but under another uid's name; and a base this user owns is not that uid's
-    expect(await claudeSessionTempDir(transcript, [root], uid! + 1)).toBeNull();
-    expect(await claudeSessionTempDir("/home/u/.claude/projects/-home-u-project/notes.jsonl", [root], uid)).toBeNull();
-    expect(await claudeSessionTempDir(transcript, [root], undefined)).toBeNull();
-  });
-});

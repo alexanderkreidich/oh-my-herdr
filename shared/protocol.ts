@@ -32,10 +32,9 @@ export type HerdrTab = TabInfo;
 /**
  * `background_tasks`: an OmO pane's `task` children, or a Claude Code pane's subagents and background commands, still running, counted by the server; absent when none.
  * `background_wait`: the pane is at rest while work its turn started still runs, and the turn goes on when it ends (server/background-wait.ts); absent when not.
- * `plan`: how far the pane's agent's task list or checklist has progressed; absent when it keeps none.
  */
 export type HerdrPane = PaneInfo & {
-  background_tasks?: number; background_wait?: true; plan?: PlanSummary;
+  background_tasks?: number; background_wait?: true;
   /** This bridge's counter of transitions into displayed DONE, scoped by finish_epoch. */
   finish_id?: number;
 };
@@ -130,12 +129,6 @@ export type { Machine, MachineEvent, PaneTarget, SetupJob, SetupRequest, SetupAc
  *         -> { text } (pane.selection.read: both cells inclusive, rows from the top of the
  *         history, soft-wrapped lines joined; a terminal selection that outlives one screen)
  *  POST   /api/pane/input  { pane_id, text }   -> { ok: true }
- *  GET    /api/pane/conversation?pane_id=    -> ConversationResponse (structured agent
- *         transcript turns - claude, codex, omp, omo, gjc, pi, devin, OpenCode, hermes, grok or agy;
- *         source:"scrollback" when the pane has no recognized, readable store.
- *         Grok requires exact live process/session evidence, Agy live process/session evidence;
- *         rewinds invalidate cursors.
- *         Grok/Agy optional activity describes the latest native turn, independently of pane status.)
  *  POST   /api/pane/close { pane_id }         -> { ok: true } (pane.close RPC; the collector's
  *         session-changed broadcast removes it from every client's sidebar)
  *  POST   /api/pane/rename { pane_id, label } -> { ok: true } (pane.rename; empty label clears it)
@@ -168,37 +161,6 @@ export type { Machine, MachineEvent, PaneTarget, SetupJob, SetupRequest, SetupAc
  *  POST   /api/pane/image  { pane_id, content_type, data_base64 } -> { ok: true, path }
  *         pasted image -> file under <pane cwd>/.herdr-web-ui/ (under HERDR_WEB_PASTE_DIR when the
  *         server's environment sets it), path for the prompt
- *  GET    /api/pane/commands?pane_id=   -> { commands: SlashCommand[] } (the agent's slash
- *         commands: built-ins per agent kind + the user's and the project's custom commands)
- *  GET    /api/pane/omo-tasks?pane_id=  -> OmoActivity (the background tasks and workflows the
- *         pane's OmO session started, or a Claude Code pane's subagents (no workflows): running ones, then
- *         those that ended in the last day; empty for any other pane or one whose session is not
- *         known yet. server_time: that PC's clock, which the times are on)
- *  GET    /api/pane/plan?pane_id=       -> PanePlan (the plan the pane's Claude Code, Codex or OmO session
- *         keeps: its task list or checklist, read from the transcript; null when it keeps none)
- *  GET    /api/pane/files?pane_id=&q=&limit=  -> { files: string[] } (paths relative to the pane
- *         cwd matching q, for @-mentions; git ls-files when the cwd is a repo, bounded walk otherwise)
- *  GET    /api/workspace/diff/files?pane_id=&directory=&scope=&base=&head= -> RepoDiffFileList
- *         (what changed in the git repository the pane's folder, or `directory`, is inside: read
- *         only, on the PC that owns the pane. `directory` is absolute, `~/…`, or relative to the
- *         pane's folder; one of pane_id and directory is required. scope: workspace (the default:
- *         working tree against the index, plus untracked files), staged (index against HEAD) or
- *         commit (`base` against `head`, HEAD when absent; each one commit). The list is capped
- *         (`limits`), and `truncated` says when it was. 400 invalid_scope / invalid_revision /
- *         invalid_cwd / missing_directory, 404 revision_not_found, 409 not_a_repository,
- *         503 git_unavailable, 504 git_timeout; 403 read_only for a watching device, as a file read)
- *  GET    /api/workspace/diff/file?pane_id=&directory=&scope=&base=&head=&path=&old_path=
- *         -> RepoDiffFilePatch (one file of that comparison as a standard `diff --git` unified
- *         patch; `path` and, for a rename, `old_path` are the list's own, relative to the
- *         repository root. The patch is whole or null: `unavailable` says why it is null, and no
- *         cut hunk is ever sent. 400 invalid_path, 404 not_found when nothing changed there)
- *  GET    /api/pane/prompt?pane_id=     -> PanePromptResponse
- *         (the agent's TUI question/approval menu currently on screen, parsed from the visible pane
- *         text; with no menu, the next prompt Claude Code suggests, grey in its empty input box, and
- *         `restored`: the chat's last message when Claude Code put it back as typed text in that box,
- *         as it does for a send cancelled before any reply; older servers send neither)
- *  POST   /api/pane/prompt/answer { pane_id, prompt_id, option_index?, option_indices?, custom_text? }
- *         -> { ok: true } | 409 prompt_changed (the screen no longer shows that prompt)
  *  POST   /api/workspace/create { cwd?, label?, agent?: { kind, name?, args? } }
  *         -> WorkspaceCreated (workspace.create, then agent.start in the root pane when `agent` is given;
  *         omo and gjc, which herdr cannot start, are typed into the root pane's shell)
@@ -453,81 +415,7 @@ export interface PushKey {
   readonly public_key: string;
 }
 
-/** One turn of a structured agent conversation (the chat lens source). */
-export interface ConversationTurn {
-  role: "user" | "assistant";
-  ts: string | null;
-  /** Last recorded assistant activity, never the next user's timestamp. */
-  end_ts?: string;
-  parts: ConversationPart[];
-}
-
-/** Evidence of skill activity, not a claim that the skill's workflow completed. */
-export interface SkillActivity {
-  name: string;
-  evidence: "invocation" | "instructions";
-  status: "requested" | "loaded" | "failed";
-  path?: string;
-}
-
-export type ConversationPart =
-  | { kind: "text"; text: string; phase?: "commentary" | "final_answer" }
-  /** the agent's reasoning block; the client folds it and shows it only on request */
-  | { kind: "thinking"; text: string }
-  | { kind: "skill"; skill: SkillActivity }
-  /** `error`: the call failed (the agent recorded it so, or its output says a command exited non-zero) */
-  | {
-    kind: "tool"; name: string; summary: string; input: string; output: string; error?: boolean;
-    /** Hermes could not load a tool-call list whose arguments exceeded its page limit. */
-    arguments_omitted?: true;
-    skill?: SkillActivity;
-    /** set when `output` was cut: the call's id, for GET /api/pane/conversation/tool-output, and the whole output's length */
-    output_ref?: string; output_size?: number;
-    /** images the call returned (pi reads a picture into the result); same fetch as a user image */
-    images?: { media_type: string; ref: string }[];
-  }
-  /** A native Claude/Codex user image, addressed by an opaque ref and fetched on demand: GET /api/pane/conversation/image?pane_id=…&ref=… */
-  | { kind: "image"; media_type: string; ref: string }
-  /** the summary a compaction left; the conversation before it is what it sums up */
-  | { kind: "compact"; text: string }
-  /** a message the agent's runtime put in the user's seat (gjc's background-job result): it starts a turn, nobody typed it.
-   * `source`: the runtime's name for it (pi's customType, e.g. "async-result", "irc:incoming", "omo-model-profile:unavailable") */
-  | { kind: "notice"; text: string; source?: string }
-  /** OmO's background tasks that ended, as OmO reported them back to the agent, or a Claude Code subagent that ended (its task notification): it starts a turn, nobody typed it */
-  | { kind: "task_result"; tasks: OmoTaskResult[] };
-
-/** One OmO background task that ended (the `senpi-task.completion` OmO wakes its agent with). */
-export interface OmoTaskResult {
-  id: string;
-  /** the summary the `task` call gave it, else its name, else the agent it ran as, else its id */
-  title: string;
-  /** the agent type or category it ran as */
-  agent: string | null;
-  model: string | null;
-  /** `failed`: OmO reported an error (its `result` says which) */
-  status: "completed" | "failed" | "cancelled";
-  duration_ms: number | null;
-  turns: number | null;
-  tool_calls: number | null;
-  tokens: number | null;
-  /** the task's last answer, or why it failed; at most 16,000 characters, `result_cut` when there was more */
-  result: string;
-  result_cut?: boolean;
-}
-
-/** Latest model settings actually recorded by this agent. */
-export interface ConversationMetadata {
-  model: string | null;
-  /** Recorded reasoning effort / thinking level; null means not reported. */
-  reasoning_effort: string | null;
-  /**
-   * How much of the model's context the last request filled, in tokens; absent until a
-   * response reports its usage. `window` is null when the transcript does not say it.
-   */
-  context?: { used: number; window: number | null };
-}
-
-/** One background task of an OmO session, or one subagent of a Claude Code session (GET /api/pane/omo-tasks), from OmO's task record or the subagent's files. */
+/** One subagent or background command of a Claude Code session, read from its files: what the pane's background count is made of. */
 export interface OmoTask {
   id: string;
   /** the task's summary, else its description or name */
@@ -544,102 +432,11 @@ export interface OmoTask {
   tokens: number | null;
 }
 
-/** One step of an OmO workflow (a DAG node); `error` is why a failed one failed. */
-export interface OmoRunNode {
-  id: string;
-  label: string;
-  state: "pending" | "scheduled" | "running" | "blocked" | "completed" | "failed" | "skipped" | "cancelled";
-  error: string | null;
-}
-
-/** One OmO workflow (a DAG run): its steps by wave, a wave's steps able to run side by side. */
-export interface OmoRun {
-  id: string;
-  name: string;
-  /** `pending` and `paused` have not ended either */
-  status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-  started_at: string | null;
-  ended_at: string | null;
-  waves: OmoRunNode[][];
-}
-
-/** GET /api/pane/omo-tasks */
-export interface OmoActivity {
-  tasks: OmoTask[];
-  runs: OmoRun[];
-  /** the PC's clock, which the times are on */
-  server_time: string;
-}
-
-/**
- * One step of the plan an agent keeps for its session (GET /api/pane/plan): a task of Claude
- * Code's task list (`TaskCreate`/`TaskUpdate`), Codex's `update_plan` checklist, or OmO's `todo` list.
- */
-export interface PlanStep {
-  id: string;
-  label: string;
-  /** what it does now, in the agent's own words (Claude's `activeForm`), when it gave some */
-  active: string | null;
-  status: "pending" | "in_progress" | "completed";
-  /** the steps it waits on: Claude's `blockedBy`, or for Codex the step before it */
-  blocked_by: string[];
-  /** the teammate it was given to, in a Claude Code agent team */
-  owner: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-}
-
-/** GET /api/pane/plan: the plan the pane's agent keeps now, null when it keeps none. */
-export interface PanePlan {
-  plan: { steps: PlanStep[] } | null;
-  /** the PC's clock, which the times are on */
-  server_time: string;
-}
-
 /** How far a pane's plan has got, for the sidebar: `current` names the step in progress. */
 export interface PlanSummary {
   done: number;
   total: number;
   current: string | null;
-}
-
-/** GET /api/pane/conversation: native conversation with settings, or scrollback fallback. */
-export interface ConversationResponse {
-  /** Grok/Agy latest native turn; display feedback only, never input-delivery authority. */
-  activity?: "thinking" | "working" | "idle";
-  /** Stable across appends; changes on transcript replacement or native context clear. */
-  history_id?: string;
-  source: "grok-transcript" | "agy-transcript" | "claude-transcript" | "omp-transcript" | "omo-transcript" | "gjc-transcript" | "pi-transcript" | "cmd-transcript" | "codex-transcript" | "devin-transcript" | "opencode-transcript" | "hermes-transcript" | "scrollback";
-  turns: ConversationTurn[];
-  metadata?: ConversationMetadata;
-  /**
-   * `metadata` was read off the agent's own screen: a conversation not begun, or a Codex that has
-   * reported no session (whose scrollback answer carries `metadata` only so). No file records it
-   * and the pane's output can change it, so the chat re-reads on terminal output.
-   */
-  screen?: true;
-  /**
-   * Where the first turn sits in the transcript: pass it as `before` for the page
-   * of turns before these (with `since`, never reaching back past that cursor), or
-   * as `from` to keep polling from it. A `from` answer starts later than `from` when
-   * the newest page has moved past it: the turns in between come from `before` +
-   * `since`. null at the conversation's beginning; absent for scrollback and from
-   * bridges without pages. A cursor the transcript no longer knows answers 409
-   * `history_changed`.
-   */
-  cursor?: string | null;
-  /**
-   * Turns the transcript holds on paths a `/tree` walked away from, which no page of this
-   * conversation can reach. pi moves its leaf pointer without writing an entry, so those turns
-   * would otherwise leave the chat with no sign they were ever there. `summary` is pi's own account
-   * of the abandoned path, kept when the user answered `/tree`'s "Summarize branch?" with one.
-   * `branches` is how many separate paths were left behind — the places a live entry was given a
-   * child that is not live — because the count alone reads the same for one abandoned path of four
-   * turns and two of two, and the reader pluralizes on it. A session no `/tree` touched answers
-   * zeroes — drawn as nothing — since zero and "unknown" are different answers. Absent for every
-   * agent that keeps no entry tree.
-   */
-  abandoned?: { count: number; branches: number; summary: string | null };
 }
 
 /** Where a plugin manifest says an action applies. herdr may add more, so it stays open. */
@@ -726,106 +523,6 @@ export interface CreateDirectoryRequest {
 export interface DirectoryCreated {
   /** the folder made, absolute */
   path: string;
-}
-
-/** How the file viewer shows a file. */
-export type FileKind = "image" | "video" | "audio" | "pdf" | "text" | "binary";
-
-/**
- * GET /api/fs/stat: a file the viewer can open (GET /api/fs/file streams it). An HTML page is
- * `text` with `mime` "text/html": `/api/fs/file` serves it as plain text, and as the page itself
- * only with `render=1`, in a sandbox with no origin and no network of its own.
- */
-export interface FileInfo {
-  path: string;
-  name: string;
-  size: number;
-  /** ISO time of the last change */
-  modified: string;
-  mime: string;
-  kind: FileKind;
-}
-
-/**
- * GET /api/fs/favicon?root=: the icon the project in folder `root` keeps, or null. The PC looks
- * through every place a project keeps one (`FAVICON_CANDIDATES` in server/project-favicon.ts),
- * best first, each read as /api/fs/stat reads `<root>/<place>`, and answers once: a folder with
- * no icon is `{ icon: null }`, never a 404. 400 missing_root; the access rules of /api/fs/stat
- * (no watching device, no other site's page).
- */
-export interface ProjectFavicon {
-  /** the image found; `path` opens it through /api/fs/file */
-  icon: FileInfo | null;
-}
-
-/** Which two states of a repository are compared. */
-export type RepoDiffScope = "workspace" | "staged" | "commit";
-
-/** How one file changed. `untracked` exists only in the `workspace` scope. */
-export type RepoDiffStatus = "added" | "deleted" | "modified" | "renamed" | "copied" | "type_changed" | "unmerged" | "untracked";
-
-/** The repository a comparison was read from, on the PC that owns it. */
-export interface RepoDiffRepository {
-  /** the working tree's top folder, absolute */
-  root: string;
-  /** the checked-out branch; null on a detached HEAD */
-  branch: string | null;
-  /** HEAD's commit hash; null before the first commit */
-  head: string | null;
-  detached: boolean;
-  /** no commit yet: `staged` then lists everything added so far */
-  unborn: boolean;
-}
-
-export interface RepoDiffFile {
-  /** relative to the repository root, forward slashes, as git names it (never quoted) */
-  path: string;
-  /** where a renamed or copied file came from; null otherwise */
-  old_path: string | null;
-  status: RepoDiffStatus;
-  /** lines added and removed; null for a binary file, an untracked one, and past the list's byte cap */
-  additions: number | null;
-  deletions: number | null;
-  /** null when not determined: an untracked file in a list is not opened to find out */
-  binary: boolean | null;
-}
-
-/** GET /api/workspace/diff/files */
-export interface RepoDiffFileList {
-  repository: RepoDiffRepository;
-  scope: RepoDiffScope;
-  /** the commits compared, as full hashes, in the `commit` scope; null in the others */
-  base: string | null;
-  head: string | null;
-  /** sorted by path, at most `limits.max_files` */
-  files: RepoDiffFile[];
-  /** how many files changed in all; null when git printed more than `limits.max_list_bytes` */
-  total: number | null;
-  /** `files` is not the whole list */
-  truncated: boolean;
-  limits: { max_files: number; max_list_bytes: number };
-}
-
-/**
- * GET /api/workspace/diff/file. `patch` is git's own output for that one file, from its
- * `diff --git` line on, and is either complete or null.
- */
-export interface RepoDiffFilePatch {
-  repository: RepoDiffRepository;
-  scope: RepoDiffScope;
-  base: string | null;
-  head: string | null;
-  file: RepoDiffFile;
-  patch: string | null;
-  /**
-   * Why there is no patch: `binary` (no text to show), `too_large` (past `limits.max_patch_bytes`),
-   * `unmerged` (a conflict: git prints a combined diff, which is not a unified patch) or
-   * `unsupported` (an untracked path that is not a regular file). Null when `patch` is set.
-   */
-  unavailable: "binary" | "too_large" | "unmerged" | "unsupported" | null;
-  /** the patch exists and was left out for its size */
-  truncated: boolean;
-  limits: { max_patch_bytes: number; context_lines: number };
 }
 
 export interface AgentKind {
@@ -1039,168 +736,6 @@ export interface SetSplitRatioRequest {
   ratio: number;
 }
 
-/** GET /api/pane/commands: one slash command the pane's agent understands. */
-export interface SlashCommand {
-  /** without the leading slash (or `$`) */
-  name: string;
-  description: string;
-  source: "builtin" | "user" | "project" | "skill" | "plugin";
-  /** `$`: typed as `$name` (Codex skills); `@`: typed as `@name`; otherwise `/name` */
-  trigger?: "$" | "@";
-  /**
-   * where a skill comes from, for every agent: `user` is the person's own (the agent's own
-   * directory or ~/.agents/skills), `project` the checkout's, `bundled` ships with the agent,
-   * `plugin` comes with one of its plugins
-   */
-  origin?: "user" | "project" | "bundled" | "plugin";
-  /** how the command behaves per typed form (bare, with a subcommand, anything else) */
-  forms?: CommandForm[];
-  /** `terminal`: only works in the terminal; `agent-hidden`: the agent's own menu hides it, it still sends when typed */
-  visibility?: "offered" | "terminal" | "agent-hidden";
-  /** where this row came from, and whether it was checked against the running agent version */
-  provenance?: {
-    /** how the row was found: `scan` read from disk, `static` shipped with the bridge, `native` asked of the agent */
-    transport: "scan" | "static" | "native";
-    /** whether the row was checked against the running agent's version */
-    verified: boolean;
-  };
-  /** a skill or custom command that has the same name as a builtin */
-  shadows?: "builtin";
-  /** stable identity: the canonical path for a skill or custom command file, the qualified name otherwise */
-  id?: string;
-}
-
-/** One way a command can be typed and what it needs from the user. */
-export interface CommandForm {
-  /** `bare`: no argument; `{ sub }`: that subcommand; `other`: any other argument */
-  match: "bare" | {
-    /** the subcommand this form applies to */
-    sub: string;
-  } | "other";
-  /** what the form needs from the user: `none` means its effect is persisted where the bridge reads it, `terminal` also covers output the agent never persists */
-  interaction: "none" | "dialog" | "terminal" | "unknown";
-  /** the dialog this form opens, when `interaction` is `dialog` */
-  dialog?: string;
-}
-
-/** What the bridge knows about a command a user sent: accepted is never the same as done. */
-export interface CommandOutcome {
-  /** the outcome's own id, referenced by PendingMessage.outcome_id */
-  id: string;
-  /** the pane the command was sent to */
-  pane_id: string;
-  /** the command text as sent */
-  text: string;
-  /** how far the command is known to have got; `accepted` only means the bridge sent it */
-  state: "accepted" | "interaction-required" | "result-observed" | "terminal-required" | "unknown";
-  /** what showed the state, and when (ISO time) */
-  evidence: {
-    /** where the evidence was read from */
-    kind: "transcript" | "dialog" | "recognized-result" | "native" | "side-store";
-    /** when it was seen (ISO time) */
-    at: string;
-  }[];
-  /** a passing view of the result, never merged into history */
-  preview?: string;
-  /** the command changed the agent's command list: refetch it */
-  catalog_changed?: true;
-  /** when the outcome was created (ISO time) */
-  created_at: string;
-  /** when the outcome last changed (ISO time) */
-  updated_at: string;
-}
-
-/** GET /api/pane/prompt response; `suggestion` and `restored` are absent from older servers. */
-export interface PanePromptResponse {
-  /** the waiting TUI menu, or null when none is on screen */
-  prompt: InteractivePrompt | null;
-  /** the next prompt the agent suggests when no menu waits */
-  suggestion?: string | null;
-  /** the chat's last message, when the agent put it back as typed text in its input box */
-  restored?: string | null;
-  /** the pane's tracked command outcomes */
-  outcomes?: CommandOutcome[];
-}
-
-/**
- * GET /api/pane/prompt: an agent's interactive TUI menu currently on the pane's screen
- * (Claude/omp/codex question, approval or plan prompts), parsed server-side from the
- * visible text. `id` names what the prompt says and which asking of it this is: an answer
- * names it, and one whose prompt changed between the read and the click is refused (409
- * prompt_changed) instead of misfired. The same question asked again has another id only where
- * the server saw the first asking end (a read without it, an answer through this route, the
- * agent back at work); a prompt answered outside the app and asked again unseen keeps its id.
- * The client tells one prompt from the next by the id alone.
- */
-export interface InteractivePrompt {
-  id: string;
-  agent: string;
-  kind: "question" | "approval" | "plan" | "menu";
-  title: string;
-  question: string;
-  body: string | null;
-  options: InteractivePromptOption[];
-  multi_select: boolean;
-  /** Native OpenCode question explicitly marked required: false; an empty answer skips it. */
-  optional?: true;
-  /** index of the "type your own answer" option, when the menu has one */
-  custom_option_index: number | null;
-  /** a question in Codex's queue while Codex keeps working: only the card answers it. Collapsed,
-   * a message typed in the chat still goes to Codex; open in the terminal, the queue holds the
-   * input, so the chat sends nothing until it is answered or closed */
-  queued?: "collapsed" | "open";
-  /** the questions of a form that asks several at once (omo), in order: which are answered and
-   * which one the card asks now (none while the answers are reviewed). Absent for one question */
-  steps?: InteractivePromptStep[];
-  /** the answers a review asks to submit (Claude, omp), each question with what was picked for it,
-   * read whole where the terminal wrapped them. A question cut off above the pane's top is null */
-  answers?: InteractivePromptAnswer[];
-  /** whether the prompt can step back to a previous question in a multi-step form */
-  can_step_back?: boolean;
-  /** previously selected option index for a single-select step, if any */
-  default_option_index?: number | null;
-  /** previously selected option indices for a multi-select step, if any */
-  default_option_indices?: number[];
-  /** previously entered custom text for a step, if any */
-  default_custom_text?: string;
-  /** the last-resort card for a blocked pane no reader knows: answered with its own buttons only,
-   * so a message typed in the chat still goes to the agent as typed */
-  fallback?: true;
-  /** Claude's plan file behind a plan card, whose whole text is then the body: opened in the file viewer */
-  plan_file?: string;
-}
-
-export interface InteractivePromptStep {
-  label: string;
-  answered: boolean;
-  current: boolean;
-}
-
-export interface InteractivePromptAnswer {
-  question: string | null;
-  answer: string | null;
-  /** the note typed with the answer (omp) */
-  note?: string;
-}
-
-export interface InteractivePromptOption {
-  label: string;
-  description: string | null;
-}
-
-/** POST /api/pane/prompt/answer body. One answer or navigation action; native OpenCode multiselect may combine option_indices and custom_text. */
-export interface PromptAnswer {
-  pane_id: string;
-  prompt_id: string;
-  option_index?: number;
-  option_indices?: number[];
-  custom_text?: string;
-  step_back?: boolean;
-  step_index?: number;
-  /** Unsent edits for the current OpenCode step, saved only when navigating back. */
-  draft?: { option_indices: number[]; custom_text: string };
-}
-
 /**
  * The JSON inside every web push, decrypted by the device's service worker (public/sw.js)
  * and shown as a notification. `pane_id` is null for the enable-confirmation push; `tag`
@@ -1222,9 +757,9 @@ export interface PushPayload {
  *  Client -> server frames: attach {pane_id, cols, rows} | detach {pane_id} | input {pane_id, text}
  *    | keys {pane_id, keys} | resize {pane_id, cols, rows} | release-size {pane_id} | role {mode}
  *    | pty-ack {pane_id, stream_id, offset} | secret {id, pane_id, prompt, secret}
- *    | watch {pane_id, cols, rows} | unwatch {pane_id} | conversation-watch {pane_id, enabled}
+ *    | watch {pane_id, cols, rows} | unwatch {pane_id} | submit {id, pane_id, text, payload, typed?}
  *  Server -> client frames: snapshot | pty-data | pty-exit | pane-geometry | role-ack
- *    | pane-status | pane-exited | session-changed | conversation-changed | secret-result
+ *    | pane-status | pane-exited | session-changed | secret-result | submit-result
  *    | watch-data | watch-end | error
  *
  *  attach {flow_control:"ack"} opts into per-subscription output credit.
@@ -1250,63 +785,24 @@ export interface PushPayload {
 /** A connection's authority over the shared ptys: `interact` types and resizes, `observe` only watches. */
 export type ClientRole = "interact" | "observe";
 
-/** A follow-up accepted by this bridge, scoped to the connection that submitted it. */
-export interface PendingMessage {
-  id: string;
-  request_id: number;
-  text: string;
-  state: "queued" | "sending" | "held" | "uncertain";
-  created_at: string;
-  error?: { code: string; message: string };
-  /** the CommandOutcome this message's command is tracked by */
-  outcome_id?: string;
-}
-
 export type ClientMessage =
-  /** keep_size: the grid is covered (the chat lens), so the attach leaves the shared pty's size as it is */
+  /** keep_size: the grid is not shown here (a hidden pane, a tab out of use), so the attach leaves the shared pty's size as it is */
   | { type: "attach"; pane_id: string; cols: number; rows: number; flow_control?: "ack"; keep_size?: boolean }
   | { type: "detach"; pane_id: string }
-  /** Native invalidations require "conversation-watch" and an attachment; observers may subscribe.
-   * Detaching clears interest, so reconnect/reattach must enable it again. REST remains authoritative. */
-  | { type: "conversation-watch"; pane_id: string; enabled: boolean }
   /** a pane another web bridge holds (`attach_held`): take herdr's attach slot from it, here, now */
   | { type: "take-over"; pane_id: string }
-  /** `stop`: the composer's Stop (text a lone ESC). The bridge sends it in the pane's turn, after typing
-   * still on its way, and a message sent next waits for it; an older bridge types it like any key. */
-  | { type: "input"; pane_id: string; text: string; stop?: true }
+  | { type: "input"; pane_id: string; text: string }
   | { type: "keys"; pane_id: string; keys: string[] }
-  /** a composer message, sent to servers whose snapshot lists "submit": the server types it and
-   * its own Enter after a short gap, and answers with a submit-result of the same id. `text` is
-   * the message as written (agent.prompt pastes it itself), `payload` the same shaped for the
-   * pane's bracketed-paste mode, typed when no agent is in front. `typed`: the terminal's own
-   * input line, which types `payload` like the keyboard would even into an agent's open menu.
-   * `delivery:queue` requires "pending-input" and a live interact attachment: while the agent
-   * works the bridge keeps the message until its next turn, or the owner explicitly steers it.
-   * `delivery:hold` (feature "pending-hold") is the same, except the message is kept as held, also
-   * when it arrives after the turn ended: it never goes on its own, only when the owner steers it.
-   * Omission keeps the legacy immediate submission. Queued messages never resume after lease loss.
-   * Queue request ids increase monotonically per connection; recent duplicates replay their
-   * receipt, and retired ids are rejected rather than executed after history eviction.
-   * `clear_draft`: an immediate chat message only, sent again over the `draft` its input_draft
-   * refusal named: the server clears Claude's input box first while it still holds exactly that,
-   * and refuses again (input_draft) when it holds anything else or does not read empty after.
-   * `send_anyway`: an immediate chat message only, sent again after an input_draft refusal that
-   * named no draft and showed the box (`box`): the server sends once over that box, only into the same
-   * Claude terminal and session that refusal was for (else pending_target_changed), and only while the
-   * box still shows that `box` or reads empty (else input_draft again, with the new box). Not with
-   * `clear_draft`.
-   * `resend_id`: stable held-copy ID for immediate chat resends across connections; the bridge
-   * shares the first outcome for 60 seconds after settlement. `resend_generation` defaults to 0;
-   * only a definitive no-input refusal permits the next attempt generation. Not with `send_anyway`:
-   * that combination returns invalid_delivery before reserving or replaying an ID. No `clear_draft`.
-   * Older peers ignore it. */
-  | { type: "submit"; id: number; pane_id: string; text: string; payload: string; typed?: boolean; delivery?: "immediate" | "queue" | "hold"; clear_draft?: string; send_anyway?: true; resend_id?: string; resend_generation?: number }
-  | { type: "pending-action"; id: number; pane_id: string; pending_id: string; action: "steer" | "discard"; resend_generation?: number }
+  /** the terminal's input line, sent to servers whose snapshot lists "submit": the server types
+   * `payload` (the line shaped for the pane's bracketed-paste mode) like the keyboard would, then its
+   * own Enter after a short gap, and answers with a submit-result of the same id. `text` is the line
+   * as written. `typed` is what an older client says of every line it sends; the server types each. */
+  | { type: "submit"; id: number; pane_id: string; text: string; payload: string; typed?: boolean }
   /** Masked input: revalidate the visible prompt, type literal bytes + Enter immediately.
    * Never queued, retried, sent through agent.prompt, or echoed in a result. */
   | { type: "secret"; id: number; pane_id: string; prompt: string; secret: string }
   | { type: "resize"; pane_id: string; cols: number; rows: number }
-  /** this client's terminal is covered again (the chat lens): if the pty has its grid, the server sizes
+  /** this client's terminal is no longer shown: if the pty has its grid, the server sizes
    * the pty for the latest grid of another interact client still showing the terminal, or leaves it.
    * Never answered; an older server ignores it, so it needs no feature. */
   | { type: "release-size"; pane_id: string }
@@ -1354,7 +850,7 @@ export interface ClientConnectionTrace {
 }
 
 /** What a server supports beyond the base protocol, listed in its first snapshot; older bridges list nothing. */
-export type ServerFeature = "submit" | "pending-input" | "pending-hold" | "secret-input" | "input-ready" | "take-over" | "watch" | "conversation-watch" | "ping";
+export type ServerFeature = "submit" | "secret-input" | "input-ready" | "take-over" | "watch" | "ping";
 
 export type ServerMessage =
   | { type: "snapshot"; snapshot: SessionSnapshot; features?: ServerFeature[] }
@@ -1368,23 +864,11 @@ export type ServerMessage =
   /** the shared pty's grid changed: observe clients adopt it, interact clients drive it. `fixed`: the grid is the pane's own in herdr (a mirrored pane), so every client adopts it and none resizes */
   | { type: "pane-geometry"; pane_id: string; cols: number; rows: number; fixed?: boolean }
   | { type: "role-ack"; mode: ClientRole }
-  /** ok after Enter delivery, or bridge acceptance (`pending`); never an agent execution acknowledgement.
-   * `draft`: on an immediate send's input_draft, the one-row draft in Claude's input box that a send
-   * with `clear_draft` may clear (absent when the box is not one the server clears).
-   * `box`: on an immediate send's input_draft that names no draft, what the server read in Claude's
-   * input box (plain rows, cut at 200 characters; empty when no whole box could be read). Present
-   * only when a send with `send_anyway` may follow; an older server never sends it.
-   * `submit_partial`: the explicitly confirmed terminal draft was cleared, but the send's
-   * deadline then expired before the message was sent; never a nothing-typed receipt. */
-  | { type: "submit-result"; id: number; pane_id: string; ok: boolean; pending?: PendingMessage; code?: string; message?: string; draft?: string; box?: string }
-  | { type: "pending-result"; id: number; pane_id: string; pending_id: string; ok: boolean; code?: string; message?: string }
-  /** Owner-only receipt and state; only an explicit removed outcome permits deleting a retained client message. */
-  | { type: "pending-messages"; pane_id: string; messages: PendingMessage[]; removed?: Array<{ id: string; outcome: "sent" | "discarded" }> }
+  /** ok after Enter delivery; never an agent execution acknowledgement */
+  | { type: "submit-result"; id: number; pane_id: string; ok: boolean; code?: string; message?: string }
   | { type: "secret-result"; id: number; pane_id: string; ok: boolean; code?: string }
   /** agent-status push for ANY pane, attached or not (server-side status collector) */
-  | { type: "pane-status"; pane_id: string; agent_status: AgentStatus; finish_id?: number; finish_epoch?: string; /** a pane's running background tasks (OmO's, or a Claude Code pane's subagents and commands), when the frame is about them: it changes no status */ background_tasks?: number; /** every frame says it: absent, the pane does not wait on its turn's background work */ background_wait?: true; /** a pane's plan, when the frame is about it (null: it keeps none now); it changes no status */ plan?: PlanSummary | null }
-  /** Native transcript invalidation for an interested attached pane; signature is opaque, not a REST ETag. Refetch the existing conversation endpoint. */
-  | { type: "conversation-changed"; pane_id: string; signature: string }
+  | { type: "pane-status"; pane_id: string; agent_status: AgentStatus; finish_id?: number; finish_epoch?: string; /** a pane's running background tasks (OmO's, or a Claude Code pane's subagents and commands), when the frame is about them: it changes no status */ background_tasks?: number; /** every frame says it: absent, the pane does not wait on its turn's background work */ background_wait?: true }
   /** a pane's process exited (pushed even when nobody is attached to it) */
   | { type: "pane-exited"; pane_id: string }
   /** session structure changed (pane created/closed): refetch /api/session */

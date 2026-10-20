@@ -5,7 +5,6 @@ import { createServer as createSocketServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "./index.ts";
-import { forgetTranscriptState } from "./conversation.ts";
 import { socketAddress } from "./herdr/client.ts";
 
 /** One HTTP attempt. Some fetch implementations retry a socket Bun closed before its response. */
@@ -80,17 +79,12 @@ it("returns results and bounded RPC errors after sequential reads exceed HTTP in
   try {
     await new Promise<void>((resolve, reject) => { daemon.once("error", reject); daemon.listen(socketAddress(socketPath), resolve); });
     process.env.HERDR_SOCKET = socketPath;
-    forgetTranscriptState();
     app = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), herdrProfiles: async () => [], registerBridge: false, tailscaleOwner: null });
     const base = `http://127.0.0.1:${app.port}`;
-    const [commands, aliasCommands, failure, aliasFailure] = await Promise.all([
-      request(base, "/api/pane/commands?pane_id=fixture"),
-      request(base, "/api/machines/local/pane/commands?pane_id=fixture"),
+    const [failure, aliasFailure] = await Promise.all([
       request(base, "/api/worktree/open", { workspace_id: "fixture-source", branch: "fixture" }),
       request(base, "/api/machines/local/worktree/open", { workspace_id: "fixture-source", branch: "fixture" }),
     ]);
-    expect(commands).toEqual({ status: 200, body: { commands: [] } });
-    expect(aliasCommands).toEqual(commands);
     expect(failure.status).toBe(502);
     expect(failure.body.error.code).toBe("timeout");
     expect(aliasFailure.status).toBe(502);
@@ -104,7 +98,6 @@ it("returns results and bounded RPC errors after sequential reads exceed HTTP in
     for (const timer of timers) clearTimeout(timer);
     for (const socket of sockets) socket.destroy();
     await new Promise<void>((resolve) => daemon.close(() => resolve()));
-    forgetTranscriptState();
     if (previousSocket === undefined) delete process.env.HERDR_SOCKET;
     else process.env.HERDR_SOCKET = previousSocket;
     rmSync(root, { recursive: true, force: true });

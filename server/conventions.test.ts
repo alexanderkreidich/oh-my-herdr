@@ -189,9 +189,8 @@ describe("herdr socket", () => {
   // type, so this guard is what keeps server code off it. These files still call herdrRpc because
   // open PRs change them; a follow-up PR moves them to the wrappers once those PRs land.
   const HERDR_RPC_ALLOWED: Record<string, string> = {
-    "server/conversation.ts": "open PRs #869 #912 #923 change it",
+    "server/pane-processes.ts": "moved out of server/conversation.ts, which open PRs #869 #912 #923 change",
     "server/gjc-runtime.ts": "open PR #912 changes it",
-    "server/hermes.ts": "open PR #910 changes it",
     "server/omo.ts": "open PR #923 changes it",
     "server/shell-agent.ts": "open PRs #885 #923 change it",
   };

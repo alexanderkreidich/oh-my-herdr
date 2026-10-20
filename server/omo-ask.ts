@@ -1,5 +1,3 @@
-import { closeSync, fstatSync, openSync } from "node:fs";
-import { readOmoLines } from "./omo-records.ts";
 
 /**
  * The questions an OmO session has open, as its session file records them: ask_user_question
@@ -77,30 +75,3 @@ export function omoAsksAfter(open: OmoAsks, entry: Entry): OmoAsks {
 }
 
 
-/** Incremental question replay shared with the status reader's JSONL projection. */
-export class OmoAskReader {
-  private files = new Map<string, { id: string; size: number; mtime: number; offset: number; asks: OmoAsks }>();
-
-  read(path: string): OmoAsks {
-    const fd = openSync(path, "r");
-    try {
-      const stat = fstatSync(fd);
-      const id = `${stat.dev}:${stat.ino}`;
-      let state = this.files.get(path);
-      if (!state || state.id !== id || stat.size < state.size || (stat.size === state.size && stat.mtimeMs !== state.mtime)) {
-        state = { id, size: 0, mtime: 0, offset: 0, asks: [] };
-      }
-      state.offset = readOmoLines(fd, state.offset, stat.size, (line) => {
-        const text = "text" in line ? line.text : line.record;
-        if (text === undefined) return;
-        try { state!.asks = omoAsksAfter(state!.asks, JSON.parse(text)); } catch { /* partial or invalid record */ }
-      });
-      state.size = stat.size;
-      state.mtime = stat.mtimeMs;
-      this.files.delete(path);
-      this.files.set(path, state);
-      if (this.files.size > 64) this.files.delete(this.files.keys().next().value!);
-      return state.asks;
-    } finally { closeSync(fd); }
-  }
-}

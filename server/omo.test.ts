@@ -1,11 +1,10 @@
 import { expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HerdrPane } from "../shared/protocol.ts";
 import { heldRuntime, heldSessionIds, isOmoProcess, omoAgentDir, omoProcessIdentity, omoSessionFolder, omoCandidates, omoTranscriptsOfCwd, selectOmoTranscript, withOmoDescendants, type OmoRuntime, type ProcessInfo } from "./omo.ts";
 import { processStartedAt } from "./process-start.ts";
-import { parseOmpTranscript } from "./transcript-records.ts";
 import type { ProcessRow } from "./windows-processes.ts";
 
 const runtime = (paneId: string, startedAt: number | null = 10_000, paths: string[] = [], ids: string[] = []): OmoRuntime => ({ paneId, startedAt, paths, ids });
@@ -165,8 +164,8 @@ it("falls back to the pane cwd when the OS process cwd is unavailable", () => {
 
 it("binds an omo pane whose launcher moved its agent directory out of ~/.omo", () => {
   // A launcher profile (OMO_CODING_AGENT_DIR=<state>/.omo/agent) wrote the session and its
-  // holder record there, and ~/.omo/agent/sessions had no folder for the cwd: the chat lens
-  // answered { source: "scrollback", turns: [] } and showed nothing.
+  // holder record there, and ~/.omo/agent/sessions had no folder for the cwd: the pane was
+  // bound to no session.
   const root = realpathSync(mkdtempSync(join(tmpdir(), "herdr-omo-agent-dir-")));
   try {
     const home = join(root, "home");
@@ -197,7 +196,6 @@ it("binds an omo pane whose launcher moved its agent directory out of ~/.omo", (
     expect(omoTranscriptsOfCwd(cwd, [pane], infos, home, () => ["HOME=" + home]).get(pane.pane_id)?.path).toBeNull();
     const bound = omoTranscriptsOfCwd(cwd, [pane], infos, home, moved).get(pane.pane_id)?.path;
     expect(bound).toBe(path);
-    expect(parseOmpTranscript(readFileSync(bound!, "utf8")).map((turn) => turn.role)).toEqual(["user", "assistant"]);
     // a store the environment names is the only other place a session may come from
     expect(omoCandidates(cwd, home)).toEqual([]);
     expect(omoCandidates(cwd, home, [], [join(home, ".omo", "agent"), agentDir]).map((file) => file.path)).toEqual([path]);

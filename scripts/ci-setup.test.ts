@@ -89,12 +89,6 @@ describe("CI cache contract", () => {
     expect(restore.if).toContain("inputs.cache == 'restore'");
     expect(restore.uses).toBe("actions/cache/restore@v4");
     expect(restore.with).toEqual(save.with);
-    const canary = Bun.YAML.parse(readFileSync(join(root, ".github/workflows/omp-question-compat.yml"), "utf8")) as {
-      jobs: Record<string, { steps: Array<{ uses?: string; with?: Record<string, string> }> }>;
-    };
-    for (const job of Object.values(canary.jobs)) {
-      expect(job.steps.find((step) => step.uses === "./.github/actions/setup-ci")!.with!.cache).toBe("restore");
-    }
   });
 
   it("keeps dependency caches inside the workspace and separates runner environments", () => {

@@ -48,10 +48,8 @@ function cacheControlFor(pathname: string): string {
 }
 
 /**
- * The app's own Content-Security-Policy, sent with the shell and every static file. The file
- * viewer's own answers (`/api/fs/*`, a PDF in a frame, images in an <img>) do not pass through
- * here: `fileResponse` (file-view.ts) sends them its own, stricter `sandbox; default-src 'none'`.
- * Every directive is here for a reason, and none of them is a guess:
+ * The app's own Content-Security-Policy, sent with the shell and every static file. Every
+ * directive is here for a reason, and none of them is a guess:
  *
  * - `default-src 'self'`: the fallback for anything not named below. Nothing is fetched
  *   from another host: the API, the terminal socket, the machines event stream, the
@@ -68,7 +66,7 @@ function cacheControlFor(pathname: string): string {
  *   xterm.js builds its layers by appending a <style> element to the DOM, and a
  *   DOM-inserted <style> is subject to style-src, so without 'unsafe-inline' the pane
  *   loses its cursor and its layers. The unsafe part is styles, not script.
- * - `img-src 'self' data: blob:`: same-origin icons, pane images and file-viewer images;
+ * - `img-src 'self' data: blob:`: same-origin icons and pane images;
  *   `blob:` for a pasted image previewed before it is uploaded; `data:` for the inline
  *   agent marks.
  * - `font-src 'self' data:`: every face is bundled (the app's own and KaTeX's, both
@@ -82,11 +80,7 @@ function cacheControlFor(pathname: string): string {
  *   window.location.host over ws:/wss: (which 'self' matches — confirmed in Chromium:
  *   an explicit `new WebSocket("ws://<same host>/ws")` and the machines event stream both
  *   connect under the enforcing header).
- * - `media-src 'self'`: the file viewer's <video>/<audio>, same-origin.
- * - `frame-src 'self'`: the PDF viewer frames /api/fs/file, same-origin. With the request's
- *   origin known, also any port of the host the browser used for the app: the web panel
- *   (src/lib/webPanel.ts) frames a page served by this PC, a dev server's localhost:5173 named
- *   under that host. No other host is framed.
+ * - `media-src 'none'` and `frame-src 'none'`: the app plays no media and frames no page.
  * - `worker-src 'self'`: the service worker is /sw.js, same-origin.
  * - `object-src 'none'`: no <object>/<embed> in the app, and none may appear.
  * - `base-uri 'self'`: no <base>, and a tag that adds one changes what every relative URL
@@ -102,8 +96,8 @@ const CSP_DIRECTIVES = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
-  "media-src 'self'",
-  "frame-src 'self'",
+  "media-src 'none'",
+  "frame-src 'none'",
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -117,32 +111,15 @@ const CSP_DIRECTIVES = [
  */
 export const CONTENT_SECURITY_POLICY = CSP_DIRECTIVES.join("; ");
 
-/** A host name or bracketed IPv6 address, nothing that could end or add a directive. */
-const FRAMEABLE_HOST = /^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])$/i;
-
-/** The policy for a request from `origin` (requestOrigin): its host's other ports may be framed. */
-export function contentSecurityPolicy(origin?: string): string {
-  let host: string | null = null;
-  try {
-    host = origin === undefined ? null : new URL(origin).hostname;
-  } catch {
-    host = null;
-  }
-  if (host === null || !FRAMEABLE_HOST.test(host)) return CONTENT_SECURITY_POLICY;
-  return CSP_DIRECTIVES.map((directive) => directive === "frame-src 'self'" ? `frame-src 'self' http://${host}:* https://${host}:*` : directive).join("; ");
-}
-
 /**
  * HERDR_WEB_CSP=report-only measures the policy above without enforcing it: the browser
  *   logs what the policy would have blocked and the app keeps working. `report-only` is the
  *   measurement mode; anything else enforces.
  */
-function cspHeader(origin?: string): Record<string, string> {
-  const mode = process.env["HERDR_WEB_CSP"];
-  const policy = contentSecurityPolicy(origin);
-  return mode === "report-only"
-    ? { "content-security-policy-report-only": policy }
-    : { "content-security-policy": policy };
+function cspHeader(): Record<string, string> {
+  return process.env["HERDR_WEB_CSP"] === "report-only"
+    ? { "content-security-policy-report-only": CONTENT_SECURITY_POLICY }
+    : { "content-security-policy": CONTENT_SECURITY_POLICY };
 }
 
 /**
@@ -245,7 +222,7 @@ export async function serveStatic(pathname: string, acceptEncoding?: string | nu
       }
       const kind = pathname === "/manifest.webmanifest" ? "manifest" : candidate === indexPath ? "shell" : null;
       return new Response(await body(file, kind, origin), {
-        headers: { "content-type": contentTypeFor(candidate), "cache-control": cacheControlFor(pathname), ...cspHeader(origin) },
+        headers: { "content-type": contentTypeFor(candidate), "cache-control": cacheControlFor(pathname), ...cspHeader() },
       });
     }
   }
@@ -255,6 +232,6 @@ export async function serveStatic(pathname: string, acceptEncoding?: string | nu
     return new Response(null, { status: 404, headers: { "cache-control": REVALIDATE, ...cspHeader() } });
   }
   return new Response(await body(Bun.file(indexPath), "shell"), {
-    headers: { "content-type": "text/html; charset=utf-8", "cache-control": REVALIDATE, ...cspHeader(origin) },
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": REVALIDATE, ...cspHeader() },
   });
 }

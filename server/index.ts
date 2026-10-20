@@ -2,15 +2,14 @@ import { handleWorkspaceRequest } from "./workspace-routes.ts";
 import { connectionData, createCore, type SocketData } from "./core/index.ts";
 import { ClientConnectionLog } from "./client-connection-log.ts";
 import { handlePaneRequest } from "./pane-routes.ts";
-import { paneContext, resolveAgent } from "./pane-context.ts";
 import { randomBytes } from "node:crypto";
 import { readHerdrProfiles, type HerdrMachineProfile } from "./herdr-profiles.ts";
 import { accessSync, constants, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import type { AgentKind, HealthAuth, HerdrPane, IntegrationsResponse, PanePlan, PluginActionsResponse, ProjectFavicon } from "../shared/protocol.ts";
+import type { AgentKind, HealthAuth, IntegrationsResponse, PluginActionsResponse } from "../shared/protocol.ts";
 import { DEFAULT_PORT } from "../shared/protocol.ts";
-import { DEVICE_COOKIE, authClient, bearerMatches, handleAuthRequest, isAuthenticated, isSecureRequest, parseCookies, presentedToken, presentedTokenHeld, recordPresentedTokenFailure, requiresAuth, unauthorizedJson } from "./auth.ts";
+import { DEVICE_COOKIE, authClient, bearerMatches, handleAuthRequest, isAuthenticated, parseCookies, presentedToken, presentedTokenHeld, recordPresentedTokenFailure, requiresAuth, unauthorizedJson } from "./auth.ts";
 import { cameThroughProxy, decideAccess, isLoopbackAddress, isLoopbackBind, isServeOwnerRequest, lanExposed } from "./access.ts";
 import { DeviceStore, handleDeviceRequest, type DeviceMatch } from "./devices.ts";
 import { handlePreferencesRequest, PreferenceStore } from "./preferences.ts";
@@ -18,30 +17,9 @@ import { remoteAccess, TailnetIdentitySource } from "./tailscale.ts";
 import { badRequest, errorResponse, jsonResponse, readJsonObject } from "./http.ts";
 import { requestOrigin, serveStatic } from "./static.ts";
 import { compressResponse } from "./compress.ts";
-import { claudePaneSession } from "./conversation.ts";
-import { processAlive } from "./omo-status.ts";
-import { omoRuns, omoTasks } from "./omo-tasks.ts";
-import { claudeSubagents, within } from "./claude-subagents.ts";
 import { SHELL_AGENTS, shellAgentExecutable } from "./shell-agent.ts";
-import { claudeSessionTempDir } from "./claude-store.ts";
-import { fileResponse, findFile, crossSiteFileRead, forgetPageMedia, pageMediaResponse, pageMediaSource, PAGE_MEDIA_PATH } from "./file-view.ts";
-import { findProjectFavicon } from "./project-favicon.ts";
-import {
-  agentManifests,
-  HerdrError,
-  herdrSocketPath,
-  integrationList,
-  paneGet,
-  ping,
-  pluginActionInvoke,
-  pluginActionList,
-  pluginList,
-  pluginLogList,
-  type PluginInvocationContext,
-  sessionSnapshot,
-} from "./herdr/client.ts";
+import { agentManifests, HerdrError, herdrSocketPath, integrationList, ping, pluginActionInvoke, pluginActionList, pluginList, pluginLogList, type PluginInvocationContext, sessionSnapshot } from "./herdr/client.ts";
 import { type AlertTiming, defaultStateDir, handlePushRequest } from "./push.ts";
-import { handlePromptRequest, OpenCodePromptState } from "./prompt.ts";
 import { attachableIdentity } from "./pty/sidecar.ts";
 import { connectUpdater, handleUpdateRequest, type UpdateService } from "./update-api.ts";
 import { handleHerdrUpdateRequest, HerdrUpdater } from "./herdr-update.ts";
@@ -66,12 +44,12 @@ const PLUGIN_PLATFORM = process.platform === "win32" ? "windows" : process.platf
 /** How long POST /api/plugin/action waits for the command herdr started to end before it answers `running`. */
 const PLUGIN_ACTION_WAIT_MS = 5_000;
 const livePaneIds = async (timeoutMs?: number): Promise<string[]> => (await sessionSnapshot(undefined, timeoutMs)).panes.map((pane) => pane.pane_id);
-/** The gap between a composer message's text and its Enter (see submitText). */
+/** The gap between an input line's text and its Enter (see submitText). */
 export const SUBMIT_DELAY_MS = 120;
 /**
  * herdr holds a lone ESC typed through the attach pty ~150ms (measured) to tell it from
- * an Alt+key: a composer message waits this long after the pane's last keystroke, so a
- * Stop tapped just before Send still reaches the pane first.
+ * an Alt+key: an input line waits this long after the pane's last keystroke, so an Escape
+ * typed just before it still reaches the pane first.
  */
 const TYPED_SETTLE_MS = 300;
 /**
@@ -82,16 +60,12 @@ const TYPED_SETTLE_MS = 300;
  */
 const KEY_SETTLE_MS = 40;
 /**
- * Nothing of a composer message is typed once this long has passed since it reached the
- * server (it can wait behind a stalled one in the pane's queue): it answers submit_timeout
- * instead. A send that starts in time ends within two more 10s RPCs, before the client
- * stops waiting (SUBMIT_TIMEOUT_MS in src/lib/ws.ts), so a message it gave up on never
- * reaches the pane later.
+ * Nothing of an input line is typed once this long has passed since it reached the server
+ * (it can wait behind a stalled one in the pane's lane): it answers submit_timeout instead.
+ * A send that starts in time ends within two more 10s RPCs, before the client stops waiting
+ * (SUBMIT_TIMEOUT_MS in src/lib/ws.ts), so a line it gave up on never reaches the pane later.
  */
 export const SUBMIT_DEADLINE_MS = 45_000;
-/** How long a cleared Claude input box may take to read empty before the send is refused after all. */
-const DRAFT_CLEAR_WAIT_MS = 1_500;
-const DRAFT_CLEAR_POLL_MS = 50;
 
 
 const AGENT_LABELS: Record<string, string> = {
@@ -108,16 +82,6 @@ const AGENT_LABELS: Record<string, string> = {
   kimi: "Kimi",
   amp: "Amp",
 };
-
-/** The temp folder of the Claude Code session in a pane, or null when the pane runs none or it has none. */
-async function claudeTempFolder(paneId: string): Promise<string | null> {
-  try {
-    const pane = await paneGet(paneId);
-    if (resolveAgent(pane).agent !== "claude") return null;
-    const session = await claudePaneSession(pane);
-    return session === null ? null : await claudeSessionTempDir(session.path);
-  } catch { return null; /* herdr busy or the pane gone: the path stays not found */ }
-}
 
 /**
  * What Bun.serve admits before a route runs (64 MiB). The ~55.9 MB body of a 40 MiB file is under it,
@@ -148,17 +112,6 @@ export function createServer(
     tailscaleServeOnly?: boolean;
     /** the tailnet identity behind the access check; unset, the tailscale CLI says. Tests pass one with their own status reader. */
     tailnet?: TailnetIdentitySource;
-    /** Native Codex store; defaults to CODEX_HOME. Tests use an isolated store. */
-    codexHome?: string;
-    grokHome?: string;
-    /** OpenCode's database; defaults to where OpenCode finds it (OPENCODE_DB, XDG_DATA_HOME). Tests use an isolated store. */
-    opencodeDb?: string;
-    /** OpenCode state dir where service.json lives; tests use an isolated directory. */
-    openCodeStateDir?: string;
-    /** Native Devin store; tests pass an isolated SQLite database. */
-    devinDbPath?: string;
-    /** Native Hermes store; pane process HERMES_HOME wins when this is unset. Tests use an isolated store. */
-    hermesHome?: string;
     updates?: UpdateService;
     /** updates herdr itself (server/herdr-update.ts); unset, the app offers no herdr update. Tests pass one that runs a stand-in herdr. */
     herdrUpdate?: HerdrUpdater;
@@ -231,11 +184,8 @@ export function createServer(
   };
   const serveOnly = options.tailscaleServeOnly ?? process.env["HERDR_WEB_TAILSCALE_SERVE_ONLY"] === "1";
 
-  const openCodeState = new OpenCodePromptState();
-  const draftTimer = setInterval(() => openCodeState.prune(), 60_000);
-  draftTimer.unref();
-  const core = createCore({ options: { ...options, openCodeState }, devices, usage, usageLogin, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS, DRAFT_CLEAR_WAIT_MS, DRAFT_CLEAR_POLL_MS });
-  const { sidecar, serialize, push, logPushError, omo, claudeAgents, plans, clientSnapshot, machines, broadcastAll, collector } = core;
+  const core = createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS });
+  const { sidecar, push, logPushError, clientSnapshot, machines, broadcastAll, collector } = core;
   // started after createCore's Node probe (server/pty/sidecar.ts), which can hold the thread up to 3 s: that wait
   // would count against the read's own 2.5 s limit, and a read cut short leaves the owner unknown for 5 minutes
   identityOf(false, null);
@@ -316,13 +266,11 @@ export function createServer(
         return jsonResponse({ error: { code: "invalid_origin", message: "Use controls from this app" } }, 403);
       }
       // An empty segment ("//") reads as another route to the checks below, while the PC proxy
-      // drops it before forwarding: `/api/machines/<id>//fs/file` would pass as not a file read.
+      // drops it before forwarding: `/api/machines/<id>//workspace/directories` would pass as no listing.
       if (pathname.startsWith("/api/") && pathname.includes("//")) return jsonResponse({ error: { code: "not_found", message: "not found" } }, 404);
       // What a watching device must not reach, spelled out rather than inferred from the
-      // method: file contents (those files include credentials) and a directory listing
-      // (names and sizes are the shape of a repository the terminals never print), plus
-      // every mutation except the two below.
-      const fileRead = /^\/api\/(?:machines\/[^/]+\/)?fs\//.test(pathname);
+      // method: a directory listing (names and sizes are the shape of a repository the
+      // terminals never print), plus every mutation except the two below.
       const directoryListing = /^\/api\/(?:machines\/[^/]+\/)?workspace\/directories$/.test(pathname);
       // Signing a device's own alerts in is a preference of that device, so `watch` keeps
       // it. The endpoint it registers is https-only (server/push.ts), and that is the
@@ -330,9 +278,7 @@ export function createServer(
       // /api/push/test stays with a session that can drive only because it is a mutation.
       // A watch device may report its own connection metadata, never terminal input or file data.
       const ownPreferences = pathname === "/api/auth" || pathname === "/api/push/subscribe" || pathname === "/api/connection-diagnostics";
-      // a repository's changes are file contents too: the patch of a credential file is that file
-      const repositoryDiff = /^\/api\/(?:machines\/[^/]+\/)?workspace\/diff\//.test(pathname);
-      if (readOnly && (fileRead || directoryListing || repositoryDiff || mutating && !ownPreferences)) {
+      if (readOnly && (directoryListing || mutating && !ownPreferences)) {
         return jsonResponse({ error: { code: "read_only", message: "this device can only watch" } }, 403);
       }
 
@@ -360,7 +306,7 @@ export function createServer(
           // a worktree made with an agent waits on git and then agent.start, up to 150 s on the PC
           bunServer.timeout(request, pathname === "/api/machines/events" ? 0 : pathname.endsWith("/worktree/create") ? 180 : 80);
           const deviceId = access.level === "full" ? access.device?.id : undefined;
-          const response = await handleMachineRequest(request, machines, deviceId ? (close) => devices.onRevoke(deviceId, close) : undefined, preferences, readOnly, herdrSidebar);
+          const response = await handleMachineRequest(request, machines, deviceId ? (close) => devices.onRevoke(deviceId, close) : undefined, preferences, herdrSidebar);
           response.headers.set("cache-control", "no-store");
           return response;
         }
@@ -387,24 +333,13 @@ export function createServer(
         return new Response("websocket upgrade required", { status: 426 });
       }
 
-      if (pathname === "/api/auth") {
-        // signing out also ends the page media this browser was given (by its device, else by its address)
-        // a browser can hold the token and a device cookie at once, and its renders are then the
-        // client's: signing out ends both kinds
-        if (request.method === "DELETE" && authenticated) {
-          if (pairedDevice !== null) forgetPageMedia({ device: pairedDevice.id });
-          forgetPageMedia({ client });
-        }
-        return handleAuthRequest(request, token, client);
-      }
+      if (pathname === "/api/auth") return handleAuthRequest(request, token, client);
       if (pathname === "/api/devices" || pathname.startsWith("/api/devices/")) {
         try {
           const response = await handleDeviceRequest(request, pathname, devices, access);
           if (request.method === "DELETE" && response.status === 204) {
             // The device registry is the delivery authority even if cleaning the push file fails.
             try { push.revokeDevice(pathname.slice("/api/devices/".length)); } catch (error) { logPushError(error); }
-            // and every page media address its renders were given
-            forgetPageMedia({ device: pathname.slice("/api/devices/".length) });
           }
           return response;
         } catch (error) { return errorResponse(error); }
@@ -503,40 +438,6 @@ export function createServer(
         }
       }
 
-      if (pathname === "/api/fs/stat" || pathname === "/api/fs/file" || pathname === "/api/fs/favicon") {
-        if (request.method !== "GET" && request.method !== "HEAD") return badRequest("method_not_allowed", "use GET");
-        if (crossSiteFileRead(request)) return jsonResponse({ error: { code: "cross_site", message: "A file is read from this app or opened in a tab, not loaded by another page" } }, 403);
-        // a folder's project icon: every place it may be kept, in one answer that a miss is part of
-        if (pathname === "/api/fs/favicon") {
-          const root = url.searchParams.get("root") ?? "";
-          if (root.trim() === "") return badRequest("missing_root", "root is required");
-          return jsonResponse({ icon: await findProjectFavicon(root) } satisfies ProjectFavicon);
-        }
-        const paneId = url.searchParams.get("pane_id");
-        let cwd: string | null = null;
-        if (paneId) {
-          try { cwd = (await paneContext(paneId)).cwd; } catch { /* an absolute path still opens */ }
-        }
-        const path = url.searchParams.get("path") ?? "";
-        const found = await findFile(path, cwd, () => paneId ? claudeTempFolder(paneId) : Promise.resolve(null));
-        if (found === null) return jsonResponse({ error: { code: "not_found", message: "no readable file at that path" } }, 404);
-        // several files end in that name: the viewer lists them to choose from
-        if ("candidates" in found) return jsonResponse({ error: { code: "ambiguous_path", message: "several files have that name", candidates: found.candidates } }, 409);
-        // a page another PC's server asks for through its bridge is played from that server's address, which this one cannot name: it is drawn as before
-        const mediaSource = bridgeAuthorized ? null : pageMediaSource(requestHost, isSecureRequest(request), forwarded ? request.headers.get("x-forwarded-host") : null);
-        // its media plays only for the client address that rendered it, and ends with that device (file-view.ts)
-        const media = mediaSource === null ? null : { source: mediaSource, client, device: access.level === "full" ? access.device?.id ?? null : null };
-        return pathname === "/api/fs/stat" ? jsonResponse(found.info) : fileResponse(found.info, url.searchParams.get("download") === "1", url.searchParams.get("render") === "1", media);
-      }
-
-      // a rendered page's own video, by the address its render gave it: the page has no origin and
-      // no cookie, so the address is all it holds (requiresAuth lets this path through)
-      if (pathname.startsWith(PAGE_MEDIA_PATH)) {
-        if (request.method !== "GET" && request.method !== "HEAD") return badRequest("method_not_allowed", "use GET");
-        const media = pageMediaResponse(pathname.slice(PAGE_MEDIA_PATH.length), client);
-        return media ?? jsonResponse({ error: { code: "not_found", message: "no such page media" } }, 404);
-      }
-
       const workspaceResponse = await handleWorkspaceRequest(request, url, pathname, bunServer, broadcastAll);
       if (workspaceResponse) return workspaceResponse;
 
@@ -605,61 +506,8 @@ export function createServer(
         }
       }
 
-      const paneResponse = await handlePaneRequest(request, url, pathname, options);
+      const paneResponse = await handlePaneRequest(request, url, pathname);
       if (paneResponse) return paneResponse;
-
-      if (pathname === "/api/pane/omo-tasks") {
-        if (request.method !== "GET") return badRequest("method_not_allowed", "use GET");
-        const paneId = url.searchParams.get("pane_id");
-        if (!paneId) return badRequest("missing_pane_id", "pane_id query parameter is required");
-        const session = omo.sessionOf(paneId);
-        // server_time: the browser's clock can differ from this PC's, and the list says how long tasks ran
-        const server_time = new Date().toISOString();
-        if (session === null) {
-          // a Claude pane's subagents, read from its session's files; nothing for any other pane.
-          // Its transcript is found here if the background lookup has not got to it yet
-          // (for a second at most: a slow herdr answers with what is known, and the next ask has the rest)
-          // An unknown pane costs a fresh herdr lookup too; the client bounds its discovery retries.
-          if (claudeAgents.sessionOf(paneId) === null) {
-            await within(1000, (async () => {
-              await claudeAgents.ensure(await paneGet(paneId));
-            })());
-          }
-          const claude = claudeAgents.sessionOf(paneId);
-          return jsonResponse({ tasks: claude === null ? [] : claudeSubagents(claude.path, claude.live, Date.now(), claude.startedAt), runs: [], server_time });
-        }
-        return jsonResponse({ tasks: omoTasks(session.cwd, session.sessionId, processAlive), runs: omoRuns(session.cwd, session.sessionId), server_time });
-      }
-
-      if (pathname === "/api/pane/plan") {
-        if (request.method !== "GET") return badRequest("method_not_allowed", "use GET");
-        const paneId = url.searchParams.get("pane_id");
-        if (!paneId) return badRequest("missing_pane_id", "pane_id query parameter is required");
-        // the pane as herdr has it now, for a second at most: one the background lookup has not got to yet is looked
-        // up here, and so is one that runs another session than the one its transcript was found for.
-        // Herdr may name an OmO pane `claude`: use its resolved identity before looking up a plan.
-        const seen: { pane?: HerdrPane } = {};
-        await within(1000, (async () => {
-          const pane = seen.pane = omo.apply(await sessionSnapshot()).panes.find((candidate) => candidate.pane_id === paneId);
-          if (pane === undefined || plans.known(pane)) return;
-          if (pane.agent === "claude") await claudeAgents.ensure(pane);
-          await plans.ensure(pane, true);
-        })());
-        // only the pane as herdr has it now is told its plan: one herdr did not answer for in time, no longer has, or has
-        // in a session not looked up yet is told none, never the plan read before (session-plan.ts planOf)
-        const steps = plans.planOf(seen.pane);
-        const answer: PanePlan = { plan: steps === null ? null : { steps }, server_time: new Date().toISOString() };
-        return jsonResponse(answer);
-      }
-
-      if (pathname.startsWith("/api/pane/prompt")) {
-        try {
-          const response = await handlePromptRequest(request, url, { serialize, codexHome: options.codexHome, claudeTranscript: (paneId) => claudeAgents.sessionOf(paneId)?.path ?? null, readOnly, openCodeStateDir: options.openCodeStateDir, openCodeState });
-          if (response) return response;
-        } catch (error) {
-          return errorResponse(error);
-        }
-      }
 
       if (pathname.startsWith("/api/")) {
         return jsonResponse({ error: { code: "not_found", message: `unknown endpoint ${pathname}` } }, 404);
@@ -700,8 +548,6 @@ export function createServer(
     stop: () => {
       settlePortalStartup({ ok: false, error: new Error("Server stopped before Portal startup cleanup completed") });
       core.stop(() => {
-        clearInterval(draftTimer);
-        openCodeState.clear();
         void options.portal?.shutdown();
         registration?.close();
       });

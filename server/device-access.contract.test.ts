@@ -182,25 +182,15 @@ it("watch credentials cannot mutate HTTP state, read credential files, or elevat
     // the shared settings: a watching device reads them, and cannot change them for every browser
     expect((await fetch(`${base}/api/preferences`, { headers })).status).toBe(200);
     expect((await fetch(`${base}/api/preferences`, { method: "PUT", headers, body: JSON.stringify({ settings: { theme: "light" }, pins: [] }) })).status).toBe(403);
-    expect((await fetch(`${base}/api/fs/file?path=${encodeURIComponent(join(root, "devices.json"))}`, { headers })).status).toBe(403);
-    // a PC's file is read without the origin check (#448, Android's Open button): the watch refusal still comes first, for GET and HEAD alike
-    for (const method of ["GET", "HEAD"]) {
-      const response = await fetch(`${base}/api/machines/pc1/fs/file?path=%2Fetc%2Fhostname`, { method, headers: { ...headers, "sec-fetch-site": "cross-site" } });
-      expect(response.status).toBe(403);
-      if (method === "GET") expect(await response.json()).toMatchObject({ error: { code: "read_only" } });
-    }
-    // a repository's changes are file contents: refused like a file read, on this PC and through a PC's route
-    for (const path of ["workspace/diff/files", "workspace/diff/file", "machines/pc1/workspace/diff/files", "machines/pc1/workspace/diff/file", "machines/local/workspace/diff/file"]) {
-      const response = await fetch(`${base}/api/${path}?directory=${encodeURIComponent(root)}&path=devices.json`, { headers });
+    // a folder's listing is the shape of a repository: refused, on this PC and through a PC's route
+    for (const path of ["workspace/directories", "machines/pc1/workspace/directories", "machines/local/workspace/directories"]) {
+      const response = await fetch(`${base}/api/${path}?path=${encodeURIComponent(root)}`, { headers });
       expect([path, response.status]).toEqual([path, 403]);
       expect(await response.json()).toMatchObject({ error: { code: "read_only" } });
     }
-    for (const path of ["api//workspace/diff/file", "api/workspace//diff/file", "api/machines/pc1//workspace/diff/file"]) {
-      expect((await fetch(`${base}/${path}?directory=${encodeURIComponent(root)}&path=devices.json`, { headers })).status).toBe(404);
-    }
-    // an empty segment must not turn a file read into "some other route" (the PC proxy drops it)
-    for (const path of ["api//fs/file", "api/machines/pc1//fs/file", "api/machines/pc1/fs//file"]) {
-      expect((await fetch(`${base}/${path}?path=${encodeURIComponent(join(root, "devices.json"))}`, { headers })).status).toBe(404);
+    // an empty segment must not turn a listing into "some other route" (the PC proxy drops it)
+    for (const path of ["api//workspace/directories", "api/machines/pc1//workspace/directories", "api/machines/pc1/workspace//directories"]) {
+      expect((await fetch(`${base}/${path}?path=${encodeURIComponent(root)}`, { headers })).status).toBe(404);
     }
     for (const origin of [base, `http://127.0.0.1:${proxy.port}`]) {
       const client = await connect(`${origin.replace("http:", "ws:")}/ws`, cookie); sockets.push(client.socket);

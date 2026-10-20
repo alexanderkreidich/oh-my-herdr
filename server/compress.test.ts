@@ -3,7 +3,7 @@ import { gunzipSync } from "node:zlib";
 
 import { compressResponse } from "./compress.ts";
 
-const asks = (path = "/api/pane/conversation", encoding = "gzip, deflate, br") => new Request(`http://local${path}`, { headers: { "accept-encoding": encoding } });
+const asks = (path = "/api/pane/read", encoding = "gzip, deflate, br") => new Request(`http://local${path}`, { headers: { "accept-encoding": encoding } });
 const json = (size: number) => new Response(JSON.stringify({ turns: "x".repeat(size) }), { headers: { "content-type": "application/json; charset=utf-8", etag: '"v1"' } });
 
 test("gzips a large JSON answer for a browser that takes it, keeping its headers", async () => {
@@ -18,7 +18,7 @@ test("gzips a large JSON answer for a browser that takes it, keeping its headers
 });
 
 test("reads Accept-Encoding qualities: q=0 refuses gzip, * takes it unless gzip is refused by name", async () => {
-  const encoding = async (accept: string) => (await compressResponse(asks("/api/pane/conversation", accept), json(50_000)))!.headers.get("content-encoding");
+  const encoding = async (accept: string) => (await compressResponse(asks("/api/pane/read", accept), json(50_000)))!.headers.get("content-encoding");
   expect(await encoding("gzip;q=0")).toBeNull();
   expect(await encoding("br, gzip; q=0.0")).toBeNull();
   expect(await encoding("*;q=1, gzip;q=0")).toBeNull();
@@ -32,7 +32,7 @@ test("says Vary: accept-encoding on the plain answer and a 304 too, not only on 
   expect(plain.headers.get("content-encoding")).toBeNull();
   expect(plain.headers.get("vary")).toContain("accept-encoding");
   expect(await plain.text()).toContain("xxx");
-  const head = (await compressResponse(new Request("http://local/api/pane/conversation", { method: "HEAD", headers: { "accept-encoding": "gzip" } }), json(50_000)))!;
+  const head = (await compressResponse(new Request("http://local/api/pane/read", { method: "HEAD", headers: { "accept-encoding": "gzip" } }), json(50_000)))!;
   expect(head.headers.get("vary")).toContain("accept-encoding");
   const notModified = (await compressResponse(asks(), new Response(null, { status: 304, headers: { etag: 'W/"v1"' } })))!;
   expect(notModified.status).toBe(304);
@@ -75,7 +75,7 @@ test("leaves alone what it must not touch", async () => {
   expect(await compressResponse(asks("/api/machines/events"), stream)).toBe(stream);
   const image = new Response(new Uint8Array(5000), { headers: { "content-type": "image/png" } });
   expect(await compressResponse(asks(), image)).toBe(image);
-  const file = new Response("y".repeat(50_000), { headers: { "content-type": "text/plain" } });
-  expect(await compressResponse(asks("/api/fs/file"), file)).toBe(file);
+  const download = new Response("y".repeat(50_000), { headers: { "content-type": "text/plain", "content-disposition": "attachment" } });
+  expect(await compressResponse(asks(), download)).toBe(download);
   expect(await compressResponse(asks(), undefined)).toBeUndefined();
 });
