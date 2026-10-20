@@ -109,15 +109,15 @@ See [ssp.md](ssp.md).
       the current one; the client applies it and acknowledges. Latest state wins: a slow or
       backgrounded client skips intermediate frames instead of replaying them, and a reconnect
       resumes from its last acknowledged state. Frame rate follows the measured round-trip time.
-- [ ] **Predictive local echo.** As Mosh: predict printable characters, backspace and cursor
+- [x] **Predictive local echo.** As Mosh: predict printable characters, backspace and cursor
       moves on the current line; group predictions in epochs and show them only once an epoch is
       confirmed by the server's state; underline unconfirmed predictions when the link is slow;
       roll back on mismatch; never predict while the terminal does not echo (passwords).
-- [ ] **Measure.** A harness with simulated latency and loss; typing at 200ms round trip feels
-      local, and the screen converges to the bridge's state after loss. (Convergence under loss,
-      reordering and reconnect: `src/lib/ssp/convergence.test.ts`.)
+- [x] **Measure.** A harness with simulated latency and loss; typing at 200ms round trip feels
+      local, and the screen converges to the bridge's state after loss.
 - [ ] Follow-ups: a tab out of use still draws herdr's read-only view (`watch-data`) from its raw
-      stream, and a mirrored pane's screen is synced but polled as before.
+      stream, and a mirrored pane's screen is synced but polled as before; a Settings choice for
+      local echo (adaptive, always, never) if adaptive turns out wrong for someone.
 
 Done when: correctness tests (convergence under loss, reordering and reconnect) and the latency
 harness pass, and the old flow-control path is gone.

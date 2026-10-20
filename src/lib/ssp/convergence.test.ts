@@ -62,6 +62,7 @@ async function run(seed: number, link: Link, steps: number, reconnectAt: number 
     write: (data) => { renderer.write(data); },
     ack: (stream, num) => { toBridge.send({ stream, num }); },
   });
+  view.setPredicting(false);
   view.setSize(cols, rows);
   const connect = (resume?: SyncResume, num?: number): void => {
     toClient = channel<FrameDiff>(link, next, (diff) => view.receive(diff));

@@ -3,7 +3,8 @@
 The bridge and the browser keep a pane's screen in step the way Mosh does (Winstein and
 Balakrishnan, "Mosh: An Interactive Remote Shell for Mobile Clients", USENIX ATC 2012): the bridge
 sends screens, not bytes. A browser on a slow or lossy link skips the screens it fell behind on
-instead of replaying them. The model is Mosh's; the code is new (Mosh is GPL-3.0).
+instead of replaying them, and typing shows at once through predictive local echo. The model is
+Mosh's; the code is new (Mosh is GPL-3.0).
 
 ## The pieces
 
@@ -14,15 +15,15 @@ instead of replaying them. The model is Mosh's; the code is new (Mosh is GPL-3.0
 | `server/ssp/modes.ts` | What the screen does not hold: the modes the browser's input encoding follows (mouse, DECCKM, bracketed paste, keypad, focus, modifyOtherKeys) and clipboard writes (OSC 52). |
 | `server/ssp/sync.ts` | One client's sender: differences, pacing by round trip, acknowledgements, retransmission, resume; and the echo clock. |
 | `shared/ssp-display.ts` | The VT output that takes a terminal from what it shows to a screen (Mosh's display). The browser draws with it; the bridge draws a screen whole with it for an older page. |
-| `src/lib/ssp/view.ts` | The browser's side: the screens it was sent, drawn into the renderer. |
+| `src/lib/ssp/view.ts` | The browser's side: the screens it was sent, local echo on top, drawn into the renderer. |
+| `src/lib/ssp/predict.ts` | Predictive local echo. |
 
 ## On the wire
 
 A client attaches with `sync: "ssp"` (the bridge lists the `ssp` feature). Each `ssp` frame is a
 `FrameDiff`: the difference from screen `base` (0: a blank screen) to screen `num` of a stream, the
 rows that changed (after a `scroll`, when the screen scrolled), the styles those rows use, the
-cursor, the modes, a clipboard write if one is new, and for local echo `echo` (the newest `seq`
-of this client's `input` and `keys` the program has had 50 ms to echo) and `rtt`. The client applies it to the
+cursor, the modes, a clipboard write if one is new, `echo` and `rtt`. The client applies it to the
 screen it names, keeps the screens from `throwaway` on, draws the newest, and answers
 `ssp-ack {stream, num}`.
 
@@ -64,17 +65,49 @@ herdr gives a whole emoji sequence two cells; the screen runs in grapheme mode (
 display positions every cell after a non-ASCII or wide one explicitly, so a renderer whose width
 tables differ draws each cell where the bridge has it.
 
+## Local echo
+
+What the user types is drawn at once as a guess of the program's echo, and checked against the
+bridge's screen once the bridge says the program has had time to echo it: each `input` and `keys`
+frame carries a per-pane `seq`, and `echo` is the newest `seq` applied at least 50 ms before the
+screen. A screen that does not show a guess yet gets 200 ms more (herdr draws the pane at its own
+pace) before the guess counts as wrong.
+
+- Printable single-width characters, Backspace and Left/Right are guessed; typing inserts.
+  Anything else (Enter, control keys, a paste, a wide character, the last column, a hidden cursor)
+  starts a new epoch.
+- A new epoch is tentative: its guesses show only once one of them came true. A password prompt
+  never echoes, so its first guess fails and nothing ever shows. The masked-prompt detection
+  (`shared/secret-prompt.ts`) turns guessing off as well, as do observing and input not being ready.
+- One wrong guess that was shown takes every guess back.
+- Guesses show while the round trip is over 30 ms (until it drops to 20 ms) or while an echo is late
+  (250 ms), and are underlined until confirmed over 80 ms (until 50 ms). Only the newest cursor
+  guess is judged: the screen that echoes an older one may already show newer input.
+
 ## Verification
 
 ```sh
-bun test shared/ssp-display.test.ts server/ssp src/lib/ssp   # model, display, sender, convergence
+bun test shared/ssp-display.test.ts server/ssp src/lib/ssp   # model, display, sender, local echo, convergence
 bun test server/output.contract.test.ts                      # real herdr: sync, joiners, a silent observer, echo, resume, raw pages
+bun run build && bun run check run bun scripts/ssp-latency.ts # a real browser through a 100 ms each-way proxy
 ```
 
 `src/lib/ssp/convergence.test.ts` runs the whole path, bridge screen to sender to a link that delays,
 reorders and drops frames and acknowledgements (up to 40%), across a reconnect, into the browser's
 view and its display, drawn into a second headless terminal: once the program stops drawing, that
 terminal shows exactly the bridge's screen, styles, cursor and modes.
+
+`scripts/ssp-latency.ts` types `echo local-echo-works` a key at a time and times each key from the
+press to its glyph on screen. Measured on an M-series Mac, herdr 0.9.3, Chrome:
+
+| Link | First key of the line | Every key after it |
+|---|---:|---:|
+| 200 ms round trip, raw stream (before) | 226 ms | 232 ms |
+| 200 ms round trip, SSP with local echo | 226 ms | 32 ms (median; the second key waits for the first's confirmation) |
+| no delay, raw stream (before) | 37 ms | 49 ms |
+| no delay, SSP | 50 ms | 32–49 ms |
+
+Without delay the time is herdr's own: it draws the pane at its own pace, about 40 ms after the echo.
 
 ## The PTY sidecar
 
