@@ -34,7 +34,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
   mayType: (client: Client) => boolean;
   authorizeSocket: (client: Client) => void;
 }) {
-  /** each pane's input while a composer message is in flight, one step after another */
+  /** each pane's input while a submitted line is in flight, one step after another */
   const paneQueues = new Map<string, Promise<unknown>>();
   /** when each pane last got keystrokes through its attach pty */
   const lastTyped = new Map<string, number>();
@@ -44,9 +44,9 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
   const waitingKeys = new Map<string, { keys: string[]; client: unknown; origin: unknown; pty: unknown; claim: unknown; roles: number; run: Promise<unknown> | null; sent: boolean }>();
 
   /**
-   * Runs `task` after everything queued for the pane. While a composer message is in
-   * flight, the pane's other input (keystrokes, keys, prompt answers) waits behind it:
-   * a Stop tapped right after Send must not land between the text and its Enter.
+   * Runs `task` after everything queued for the pane. While a submitted line is in
+   * flight, the pane's other input (keystrokes, keys) waits behind it: an ESC tapped
+   * right after Send must not land between the text and its Enter.
    */
   function serialize<T>(paneId: string, task: () => T | Promise<T>): Promise<T> {
     const run = (paneQueues.get(paneId) ?? Promise.resolve()).catch(() => {}).then(task);
@@ -74,9 +74,9 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
         send(client, { type: "error", code: "read_only", message: "this connection is in observe mode" });
         return;
       }
-      // typing goes straight through the pty, unless a composer message is still in
-      // flight: then it waits its turn and goes the message's own way (send_text), since
-      // the pty holds a lone ESC ~150ms and a Stop would overtake nothing
+      // typing goes straight through the pty, unless a submitted line is still in
+      // flight: then it waits its turn and goes the line's own way (send_text), since
+      // the pty holds a lone ESC ~150ms and would overtake nothing
       // typing reaches an attached pane only, queued or not
       const sighting = sight(client, message.pane_id);
       const seen = sighting.facts();
@@ -91,7 +91,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
         // an attach this client is not a member of owns this pane's screen, and typing
         // here would reach past it — the same refusal the pty branch below makes. A
         // pane with no attachment at all is left as it was: that is the key bar, and
-        // an older bridge's composer send, neither of which attaches first.
+        // an older bridge's send, neither of which attaches first.
         if (seen.attached && !seen.member) {
           send(client, { type: "error", code: "input_not_ready", message: "Terminal input is not ready. Nothing was sent.", pane_id: message.pane_id });
           return;
@@ -129,11 +129,8 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
           for (const [pane, at] of lastTyped) if (Date.now() - at > TYPED_SETTLE_MS) { lastTyped.delete(pane); typedEscape.delete(pane); }
         }
       };
-      // the composer's Stop: a message sent right after it must not reach the agent first, and a
-      // pty write only queues the ESC in the sidecar, so it goes the message's own way (send_text)
-      // in the pane's turn. Plain typing, a terminal ESC included, keeps the pty's FIFO order.
-      const stop = message.stop === true && message.text === "\u001b";
-      if (paneQueues.has(message.pane_id) || stop) {
+      // typing keeps the pty's FIFO order: behind a lane of keys still on their way, it waits its turn
+      if (paneQueues.has(message.pane_id)) {
         const text = message.text;
         // a click or a wheel (a click replayed behind a held arrow) is the attach's own mouse:
         // herdr encodes it for the program's mouse mode, send_text would type its bytes (#667)
@@ -142,8 +139,6 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
         const roles = connectionOf(client).roles;
         const allowed = () => mayType(client) && connectionOf(client).roles === roles && typingGuards.queuedTyping(sighting.facts());
         void serialize(message.pane_id, async () => {
-          // behind typing still in the sidecar, as a terminal key waits for it
-          if (stop) await settleAfterTyping(message.pane_id);
           // held while this waited its turn: it goes nowhere, as unqueued typing would
           if (!typingGuards.queuedTyping(sighting.facts())) { inputFailed(); return; }
           // nothing typed outlives its connection
@@ -155,9 +150,6 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
             return;
           }
           await paneSendText(message.pane_id, text, undefined, allowed);
-          // herdr still holds a lone ESC a moment: a message after the Stop waits out the same
-          // settling gap as after a typed one, and checks again for a question before pasting
-          if (stop) typedIntoPty(text);
         }).catch(inputFailed);
       } else {
         if (!sighting.write(message.text)) { inputFailed(); return; }
@@ -205,7 +197,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
       const batch = { keys: [...message.keys], client: client as unknown, origin: sighting.origin, pty: sighting.pty, claim: sighting.claim, roles, run: null as Promise<unknown> | null, sent: false };
       const run = serialize(message.pane_id, async () => { try {
         // A key goes through herdr's RPC, around the attach pty that typing just went into: it
-        // waits for that typing as a composer message does, or it overtakes it (a lone ESC is
+        // waits for that typing as a submitted line does, or it overtakes it (a lone ESC is
         // held there ~150ms). The checks below run after the wait.
         if (seen.origin && !seen.mirror) await settleAfterTyping(message.pane_id);
         // the attach this chord was pressed in is gone (left, replaced, or left and joined again).
@@ -316,6 +308,6 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
     },
   };
 
-  // `lastTyped` stays the server's to read: a composer message and a pending one wait out the last keystroke too
+  // `lastTyped` stays the server's to read: an input line waits out the last keystroke too
   return { serialize, lastTyped, inputFrames };
 }

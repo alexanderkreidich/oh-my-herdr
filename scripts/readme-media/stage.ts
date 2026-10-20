@@ -1,8 +1,7 @@
 /**
  * A staged, fictional herdr session for the README media (capture.ts): its own named herdr
  * session (never the one you work in), the demo's two repositories under /tmp/herdr-demo with
- * their agent worktrees and the release shell tab, and curated chats served in place of real
- * transcripts. The real hostname never reaches the page.
+ * their agent worktrees and the release shell tab. The real hostname never reaches the page.
  */
 process.env["HERDR_TEST_SESSION"] = "herdr-web-ui-demo";
 await import("../test-herdr.ts");
@@ -17,8 +16,7 @@ const REAL_HOST = hostname();
 const HOST = "workstation";
 const ROOT = "/tmp/herdr-demo";
 
-import { SPECS, CHATS, PROMPT, type DemoSpec } from "../../site/demo/fixtures.ts";
-export { CHATS, PROMPT };
+import { SPECS, type DemoSpec } from "../../site/demo/fixtures.ts";
 
 export interface DemoPane extends DemoSpec { pane: string; workspace: string }
 
@@ -91,8 +89,6 @@ export async function stage() {
   const stateDir = mkdtempSync(join(tmpdir(), "herdr-demo-state-"));
   const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir });
   const base = `http://127.0.0.1:${server.port}`;
-  const byPane = new Map(panes.map((p) => [p.pane, p]));
-  let promptAnswered = false;
 
   async function routes(page: any) {
     const scrub = (text: string) => text.split(REAL_HOST).join(HOST);
@@ -104,22 +100,6 @@ export async function stage() {
         await route.fulfill({ response, body: scrub(await response.text()) });
       } catch { /* the page closed mid-request */ }
     });
-    await page.route("**/api/pane/conversation?*", async (route: any) => {
-      const id = new URL(route.request().url()).searchParams.get("pane_id") ?? "";
-      const chat = CHATS[byPane.get(id)?.key ?? ""];
-      if (!chat) return route.fallback();
-      await route.fulfill({ json: { source: "claude-transcript", turns: chat.turns, metadata: chat.metadata, cursor: null, version: "demo-1" } });
-    });
-    await page.route("**/api/pane/prompt?*", async (route: any) => {
-      const id = new URL(route.request().url()).searchParams.get("pane_id") ?? "";
-      await route.fulfill({ json: { prompt: byPane.get(id)?.key === "web" && !promptAnswered ? PROMPT : null } });
-    });
-    await page.route("**/api/pane/prompt/answer", async (route: any) => {
-      promptAnswered = true;
-      const web = panes.find((p) => p.key === "web")!;
-      await herdrRpc("pane.report_agent", { pane_id: web.pane, source: "manual", agent: "codex", state: "working" });
-      await route.fulfill({ json: { ok: true } });
-    });
   }
 
   async function teardown() {
@@ -127,9 +107,8 @@ export async function stage() {
     for (const workspace of new Set(panes.map((p) => p.workspace))) await workspaceClose(workspace).catch(() => {});
     rmSync(stateDir, { recursive: true, force: true });
   }
-  /** Codex asks again: each capture starts from the same state. */
+  /** Codex is blocked again: each capture starts from the same state. */
   async function reset() {
-    promptAnswered = false;
     const web = panes.find((p) => p.key === "web")!;
     await herdrRpc("pane.report_agent", { pane_id: web.pane, source: "manual", agent: "codex", state: "blocked" });
   }

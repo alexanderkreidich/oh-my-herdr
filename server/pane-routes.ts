@@ -1,23 +1,13 @@
 /**
- * The pane routes: what the browser reads from a pane (its screen, scroll, selection, commands,
- * files and native conversation) and what it does to one (type, rename, close, split, zoom, swap,
- * resize, clear, focus, paste an image). Each answers from herdr alone, so none needs the
- * server's own state. The dispatcher in index.ts runs the access gate first.
+ * The pane routes: what the browser reads from a pane (its screen, scroll, selection) and what
+ * it does to one (type, rename, close, split, zoom, swap, resize, clear, focus, paste an image).
+ * Each answers from herdr alone, so none needs the server's own state. The dispatcher in index.ts
+ * runs the access gate first.
  */
 import type { AgentRenameRequest, PaneDirection, PaneResized, PaneSplit, PaneSwapped, PaneZoomed, ReadFormat, ReadSource } from "../shared/protocol.ts";
-import { paneCommands } from "./commands.ts";
-import { paneFiles } from "./files.ts";
 import { badRequest, conflictResponse, errorResponse, isCount, isJsonObject, jsonResponse, readJsonObject } from "./http.ts";
-import { conversationImage, ConversationUnavailable, forgetPaneTranscriptState, HistoryChanged, paneConversation, paneProcessRoots, paneTranscript, toolOutput } from "./conversation.ts";
-import { OPENCODE_TOOL_REF } from "./opencode.ts";
-import { DevinHistoryChanged } from "./devin.ts";
-import { GjcSdkLookupError } from "./gjc-sdk.ts";
 import { agentRename, HerdrError, layoutSetSplitRatio, paneClear, paneClose, paneFind, paneFocus, paneRead, paneRename, paneResize, paneScroll, paneScrollInfo, paneSelectionRead, paneSendKeys, paneSendText, paneSplit, paneSwap, paneSwapWith, paneZoom } from "./herdr/client.ts";
-import { paneContext, resolveAgent, versionSourceOf } from "./pane-context.ts";
 import { PasteImageError, readImageBody, savePaneImage } from "./paste.ts";
-
-/** the native stores createServer was given; unset, each reader finds its own */
-export type PaneStores = { codexHome?: string; grokHome?: string; opencodeDb?: string; devinDbPath?: string; hermesHome?: string };
 
 /** the sides herdr's pane.swap and pane.resize take; anything else is refused before the RPC, which would answer invalid_request */
 const isPaneDirection = (value: unknown): value is PaneDirection => value === "left" || value === "right" || value === "up" || value === "down";
@@ -26,7 +16,7 @@ const READ_SOURCES = new Set<ReadSource>(["detection", "recent", "recent_unwrapp
 const READ_FORMATS = new Set<ReadFormat>(["ansi", "text"]);
 
 /** The answer for a pane route, or null when the path is not one. */
-export async function handlePaneRequest(request: Request, url: URL, pathname: string, options: PaneStores): Promise<Response | null> {
+export async function handlePaneRequest(request: Request, url: URL, pathname: string): Promise<Response | null> {
   if (pathname === "/api/pane/rename") {
     if (request.method !== "POST") return badRequest("method_not_allowed", "use POST");
     const payload = await readJsonObject<{ pane_id?: unknown; label?: unknown }>(request);
@@ -51,31 +41,6 @@ export async function handlePaneRequest(request: Request, url: URL, pathname: st
     try {
       await agentRename(payload.pane_id, payload.name);
       return jsonResponse({ ok: true });
-    } catch (error) {
-      return errorResponse(error);
-    }
-  }
-
-  if (pathname === "/api/pane/commands" || pathname === "/api/pane/files") {
-    if (request.method !== "GET") return badRequest("method_not_allowed", "use GET");
-    const paneId = url.searchParams.get("pane_id");
-    if (!paneId) return badRequest("missing_pane_id", "pane_id query parameter is required");
-    try {
-      const context = await paneContext(paneId);
-      if (pathname === "/api/pane/commands") {
-        const roots = await paneProcessRoots(paneId, context.agent);
-        const { agent } = resolveAgent(context.pane, roots);
-        // the version comes from the store this pane's own transcript names; none resolved leaves it unverified
-        const store = agent === "claude" || agent === "codex" || agent === "opencode"
-          ? await paneTranscript(paneId, options.codexHome, undefined, options.devinDbPath, options.opencodeDb, options.hermesHome, options.grokHome).then(versionSourceOf, () => null)
-          : null;
-        const { version } = resolveAgent(context.pane, roots, store);
-        return jsonResponse({ commands: paneCommands(agent, context.cwd, undefined, { ...roots.omo, environ: roots.environ }, version) });
-      }
-      const limitRaw = url.searchParams.get("limit");
-      const limit = limitRaw === null ? 20 : Number(limitRaw);
-      if (!Number.isInteger(limit) || limit < 1) return badRequest("invalid_limit", "limit must be a positive integer");
-      return jsonResponse({ files: await paneFiles(context.cwd, url.searchParams.get("q") ?? "", Math.min(limit, 100)) });
     } catch (error) {
       return errorResponse(error);
     }
@@ -170,65 +135,6 @@ export async function handlePaneRequest(request: Request, url: URL, pathname: st
     }
   }
 
-  if (pathname === "/api/pane/conversation/tool-output") {
-    const paneId = url.searchParams.get("pane_id");
-    const ref = url.searchParams.get("ref");
-    if (!paneId || !ref) return badRequest("missing_parameter", "pane_id and ref query parameters are required");
-    try {
-      const output = await toolOutput(paneId, ref, options.codexHome, options.opencodeDb, options.hermesHome, options.grokHome);
-      if (output === null) return jsonResponse({ error: { code: "output_not_found", message: "no such tool call in this pane's conversation" } }, 404);
-      // a tool call's id names its output for good; OpenCode's ref names a place in a row it rewrites in place
-      const cacheControl = (OPENCODE_TOOL_REF.test(ref) || /^grok:/.test(ref)) ? "private, no-store" : "private, max-age=86400, immutable";
-      return new Response(output, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": cacheControl, "x-content-type-options": "nosniff" } });
-    } catch (error) {
-      return errorResponse(error);
-    }
-  }
-
-  if (pathname === "/api/pane/conversation/image") {
-    const paneId = url.searchParams.get("pane_id");
-    const ref = url.searchParams.get("ref");
-    if (!paneId || !ref) return badRequest("missing_parameter", "pane_id and ref query parameters are required");
-    try {
-      const image = await conversationImage(paneId, ref, options.codexHome, options.opencodeDb);
-      if (image === null) return jsonResponse({ error: { code: "image_not_found", message: "no such image in this pane's conversation" } }, 404);
-      // Claude embeds immutable bytes; Codex files and OpenCode tool-image ordinals can change.
-      const cacheControl = ref.startsWith("codex-") || ref.startsWith("opencode:") ? "private, no-store" : "private, max-age=86400, immutable";
-      return new Response(image.bytes, { headers: { "content-type": image.mediaType, "cache-control": cacheControl, "x-content-type-options": "nosniff" } });
-    } catch (error) {
-      return errorResponse(error);
-    }
-  }
-
-  if (pathname === "/api/pane/conversation") {
-    const paneId = url.searchParams.get("pane_id");
-    if (!paneId) return badRequest("missing_pane_id", "pane_id query parameter is required");
-    const page = {
-      before: url.searchParams.get("before") ?? undefined,
-      since: url.searchParams.get("since") ?? undefined,
-      from: url.searchParams.get("from") ?? undefined,
-    };
-    try {
-      const { version, ...conversation } = await paneConversation(paneId, options.codexHome, page, options.devinDbPath, options.opencodeDb, options.hermesHome, options.grokHome);
-      // no-store keeps the browser's own cache out of it, so the chat sees the 304.
-      // weak: the same answer goes out gzipped or plain (compress.ts), which are not the same bytes
-      const etag = `W/"${version}"`;
-      const headers = { etag, "cache-control": "no-store" };
-      if (request.headers.get("if-none-match")?.replace(/^W\//, "") === etag.slice(2)) return new Response(null, { status: 304, headers });
-      return jsonResponse(conversation, 200, headers);
-    } catch (error) {
-      if (error instanceof HistoryChanged || error instanceof DevinHistoryChanged) return jsonResponse({ error: { code: "history_changed", message: error.message } }, 409);
-      if (error instanceof GjcSdkLookupError) {
-        return jsonResponse({ error: { code: `gjc_sdk_${error.reason}`, message: error.message } }, error.reason === "timeout" ? 504 : 503, { "cache-control": "no-store" });
-      }
-      // an unrecognized pane is not an error: the client falls back to the
-      // scrollback transcript, exactly like chatmux's terminal fallback. Its metadata is only
-      // ever what the agent's own status line states
-      if (error instanceof ConversationUnavailable) return jsonResponse({ source: "scrollback", turns: [], ...(error.screen ? { metadata: error.screen, screen: true } : {}) });
-      return errorResponse(error);
-    }
-  }
-
   if (pathname === "/api/pane/input" || pathname === "/api/pane/keys") {
     if (request.method !== "POST") return badRequest("method_not_allowed", "use POST");
     const payload = await readJsonObject<{ pane_id?: string; text?: string; keys?: string[] }>(request);
@@ -257,8 +163,6 @@ export async function handlePaneRequest(request: Request, url: URL, pathname: st
       // herdr emits pane.closed -> the collector broadcasts session-changed, so
       // every client refetches and the pane leaves sidebars on its own
       await paneClose(payload.pane_id);
-      // the pane is gone: whatever its chat parsed is released with it (server/conversation.ts)
-      forgetPaneTranscriptState(payload.pane_id);
       return jsonResponse({ ok: true });
     } catch (error) {
       return errorResponse(error);

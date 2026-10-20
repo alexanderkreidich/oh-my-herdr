@@ -3,8 +3,7 @@
  * process to its exact saved session. Shared terminal/store helpers below are also used by omp.
  */
 
-import { execFileSync } from "node:child_process";
-import { closeSync, fstatSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync, realpathSync } from "node:fs";
 import nodePath, { join, type PlatformPath } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
@@ -13,8 +12,6 @@ import { captureGjcIndex, gjcIndexUnchanged, type GjcIndexStamp } from "./gjc-in
 import { herdrRpc } from "./herdr/client.ts";
 import { processStartedAt } from "./process-start.ts";
 import { descendantArgv, windowsProcessTable, type ProcessRow } from "./windows-processes.ts";
-
-export interface GjcTerminal { id: string; startedAt: number }
 
 /**
  * An agent run natively or as a bun/node script, as process_info names either: `executable`
@@ -35,9 +32,8 @@ const PROCESS_TABLE_MS = 5000;
 let processTable: { at: number; rows: Promise<ProcessRow[]> } | null = null;
 
 /**
- * The Windows process table, read at most once per PROCESS_TABLE_MS. The chat polls a pane
- * every 2 s and each read starts a PowerShell (about 1.3 s on a real PC), so the polls of a
- * few seconds share one; a gjc that left its pane can still count as running for that long.
+ * The Windows process table, read at most once per PROCESS_TABLE_MS. Each read starts a
+ * PowerShell (about 1.3 s on a real PC), so the status reads of a few seconds share one; a gjc that left its pane can still count as running for that long.
  */
 export function recentProcessTable(read: () => Promise<ProcessRow[]> = windowsProcessTable, now = Date.now()): Promise<ProcessRow[]> {
   if (processTable && now - processTable.at < PROCESS_TABLE_MS) return processTable.rows;
@@ -95,136 +91,6 @@ export function storeRelative(root: string, file: string, paths: PlatformPath = 
   if (relative === "" || paths.isAbsolute(relative)) return null;
   const parts = relative.split(paths.sep);
   return parts[0] === ".." ? null : parts;
-}
-
-/**
- * GJC's native terminal-sessions key, not the most recently written cwd session. `environ`, when
- * given (null: unreadable), stands in for /proc/<pid>/environ, which is then never read here.
- */
-export function gjcTerminal(pid: number, environ?: readonly string[] | null): GjcTerminal | null {
-  if (!Number.isSafeInteger(pid) || pid <= 0) return null;
-  try {
-    if (process.platform === "linux") {
-      const startedAt = processStartedAt(pid);
-      if (startedAt === null) return null;
-      const env = environ === undefined ? readFileSync(`/proc/${pid}/environ`, "utf8").split("\0") : environ ?? [];
-      const tmux = env.find((word) => word.startsWith("TMUX="))?.slice(5);
-      const pane = env.find((word) => word.startsWith("TMUX_PANE="))?.slice(10);
-      if (tmux && pane && /^%\d+$/.test(pane)) return { id: `tmux-${pane}`, startedAt };
-      const tty = readlinkSync(`/proc/${pid}/fd/0`);
-      if (!/^\/dev\/(?:pts\/\d+|tty[\w-]+)$/.test(tty)) return null;
-      return { id: tty.slice(5).replaceAll("/", "-"), startedAt };
-    }
-    if (process.platform === "darwin") {
-      // lstart is local time without a zone: print it in the zone Date.parse reads it in,
-      // which is not always $TZ (bun test runs in UTC without setting it)
-      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const output = execFileSync("ps", ["-p", String(pid), "-o", "tty=", "-o", "lstart="], {
-        encoding: "utf8", timeout: 1500, maxBuffer: 4096, env: { ...process.env, LC_ALL: "C", TZ: zone }, stdio: ["ignore", "pipe", "ignore"],
-      });
-      return parseGjcPs(output);
-    }
-  } catch { /* process exited or its terminal metadata is unavailable */ }
-  return null;
-}
-
-export function parseGjcPs(output: string): GjcTerminal | null {
-  const match = output.trim().match(/^(?:\/dev\/)?(ttys\d+)\s+(.+)$/);
-  if (!match) return null;
-  const startedAt = Date.parse(match[2]!);
-  return Number.isFinite(startedAt) ? { id: match[1]!, startedAt } : null;
-}
-
-/**
- * The cwd a gjc or omp transcript names in its header (`{"type":"session",...}`), or null when
- * the file is not one. omp writes a title record before the header. Read bounded: only the
- * header decides, and a rejected candidate can be megabytes.
- */
-function transcriptCwd(path: string): string | null {
-  let fd: number;
-  try {
-    fd = openSync(path, "r");
-  } catch {
-    return null; // the file vanished between the listing and this read
-  }
-  try {
-    const buffer = Buffer.alloc(4096);
-    const size = readSync(fd, buffer, 0, buffer.length, 0);
-    const lines = buffer.subarray(0, size).toString("utf8").split("\n");
-    let header = JSON.parse(lines[0] ?? "") as { type?: string; cwd?: unknown };
-    if (header.type === "title") header = JSON.parse(lines[1] ?? "") as { type?: string; cwd?: unknown };
-    return header.type === "session" && typeof header.cwd === "string" ? header.cwd : null;
-  } catch {
-    return null; // not a gjc transcript, or a header longer than the read
-  } finally {
-    closeSync(fd);
-  }
-}
-
-/**
- * Shared breadcrumb/descriptor lookup: GJC and omp subagents live beside their session file, so
- * this helper maps such a path to its parent. The SDK-based GJC pane resolver does not use it.
- */
-export function gjcSessionFile(root: string, path: string, paths: PlatformPath = nodePath): string | null {
-  const parts = path.endsWith(".jsonl") ? storeRelative(root, path, paths) : null;
-  if (!parts) return null;
-  if (parts.length === 2) return path;
-  if (parts.length !== 3) return null;
-  const session = paths.join(root, parts[0]!, `${parts[1]!}.jsonl`);
-  try { return statSync(session).isFile() ? session : null; } catch { return null; }
-}
-
-/** Validate the shared native breadcrumb under `agentDir/terminal-sessions` and reject stale leftovers. */
-export function terminalBreadcrumb(agentDir: string, cwd: string, terminalId: string, startedAt: number): string | null {
-  if (!/^(?:pts-\d+|tty[\w-]+|tmux-%\d+)$/.test(terminalId) || !Number.isFinite(startedAt)) return null;
-  try {
-    const marker = join(agentDir, "terminal-sessions", terminalId);
-    const stat = statSync(marker);
-    if (!stat.isFile() || stat.size > 8192 || stat.mtimeMs < startedAt - 1000) return null;
-    const [savedCwd, savedPath] = readFileSync(marker, "utf8").split("\n");
-    if (!savedCwd || !savedPath || realpathSync(savedCwd) !== realpathSync(cwd)) return null;
-    const root = realpathSync(join(agentDir, "sessions"));
-    const saved = realpathSync(savedPath);
-    if (!statSync(saved).isFile()) return null;
-    const path = gjcSessionFile(root, saved);
-    if (!path) return null;
-    const headerCwd = transcriptCwd(path);
-    return headerCwd && realpathSync(headerCwd) === realpathSync(cwd) ? path : null;
-  } catch { return null; }
-}
-
-/**
- * The transcript an agent's processes show, from its store under `agentDir` (GJC and omp lay
- * theirs out alike): an exact open transcript first, then the terminal-scoped breadcrumb written
- * during the process's lifetime. A directory descriptor or cwd proves only the store, not the
- * active session; never infer ownership from cwd or session recency. `path` is null unless
- * exactly one transcript qualifies; `found` says how many did. `environOf` supplies a process's
- * environment already read elsewhere, so none is read here; undefined for a pid reads it.
- */
-export function heldTranscript(agentDir: string, cwd: string, pids: readonly number[], environOf?: (pid: number) => readonly string[] | null | undefined): { path: string | null; found: number } {
-  let root: string;
-  try { root = realpathSync(join(agentDir, "sessions")); }
-  catch { return { path: null, found: 0 }; }
-  const open = new Set<string>();
-  const breadcrumbs = new Set<string>();
-  for (const pid of pids) {
-    const terminal = gjcTerminal(pid, environOf?.(pid));
-    if (terminal) {
-      const path = terminalBreadcrumb(agentDir, cwd, terminal.id, terminal.startedAt);
-      if (path) breadcrumbs.add(path);
-    }
-    let fds: string[] = [];
-    try { fds = readdirSync(`/proc/${pid}/fd`); } catch { /* macOS uses the native breadcrumb */ }
-    for (const fd of fds) {
-      try {
-        const file = realpathSync(readlinkSync(`/proc/${pid}/fd/${fd}`));
-        const target = statSync(file).isFile() ? gjcSessionFile(root, file) : null;
-        if (target && transcriptCwd(target) === cwd) open.add(target);
-      } catch { /* closed, deleted or unreadable descriptor */ }
-    }
-  }
-  const candidates = open.size > 0 ? open : breadcrumbs;
-  return { path: candidates.size === 1 ? [...candidates][0]! : null, found: candidates.size };
 }
 
 const GJC_HEADER_BYTES = 64 * 1024;

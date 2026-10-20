@@ -1,9 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "bun:test";
-import { Database } from "bun:sqlite";
-import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, existsSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { ConversationMonitor } from "./conversation-monitor.ts";
 import { createServer } from "./index.ts";
 import type { AgentKind, AgentStatus, ApiError, HealthAuth, IntegrationsResponse, LanExposure, PortalStatus, PushKey, RemoteAccess, SessionSnapshot, TabMoved, PaneFindResponse, PaneReadResult, UsageReport, WorkspaceCreated, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../shared/protocol.ts";
 import { HerdrUpdater } from "./herdr-update.ts";
@@ -21,8 +19,6 @@ import { descriptorPath, type BridgeDescriptor } from "./bridge.ts";
 import { handleMachineRequest } from "./machine-api.ts";
 import type { MachineManager } from "./machines.ts";
 import { TailnetIdentitySource } from "./tailscale.ts";
-import { forgetTranscriptState } from "./conversation.ts";
-import type { RepoDiffFileList, RepoDiffFilePatch } from "../shared/protocol.ts";
 
 /**
  * Contract test for herdr-web-ui's HTTP + WS surface.
@@ -46,227 +42,7 @@ afterAll(() => {
 
 const base = () => `http://localhost:${server.port}`;
 
-describe("Grok conversation API", () => {
-  it.skipIf(process.platform !== "linux")("uses exact process/session evidence, validators and revision-bound output refs", async () => {
-    const root = mkdtempSync(join(tmpdir(), "herdr-web-ui-grok-contract-"));
-    const id = "00000000-0000-4000-8000-000000000001";
-    const directory = join(root, "sessions", "%2Ffictional", id);
-    mkdirSync(directory, { recursive: true });
-    const path = join(directory, "updates.jsonl");
-    const event = (update: object, extension = false) => JSON.stringify({ timestamp: 1700000000, method: extension ? "_x.ai/session/update" : "session/update", params: { sessionId: id, update } }) + "\n";
-    const user = event({ sessionUpdate: "user_message_chunk", content: { type: "text", text: "fictional prompt" }, _meta: { promptIndex: 0 } });
-    const call = event({ sessionUpdate: "tool_call", toolCallId: "fictional-call", title: "Read", rawInput: { path: "fiction.txt" } });
-    const output = (text: string) => event({ sessionUpdate: "tool_call_update", toolCallId: "fictional-call", content: [{ type: "content", content: { type: "text", text } }] });
-    writeFileSync(path, user + call + output("x".repeat(5000)));
-    const events = join(directory, "events.jsonl");
-    writeFileSync(events, "");
-    // An older session kept open beside the reported one. It must not hide the reported file.
-    const retained = join(root, "sessions", "%2Ffictional", "00000000-0000-4000-8000-000000000003", "events.jsonl");
-    mkdirSync(join(retained, ".."), { recursive: true });
-    writeFileSync(retained, "");
-    utimesSync(retained, 100, 100);
-    utimesSync(events, 200, 200);
-    // A native stand-in owns the fd evidence and only sleeps; no model or user's store.
-    const executable = join(root, "grok");
-    const nativeExecutable = join(root, "grok-1.0.52-linux-x86_64");
-    copyFileSync("/bin/sleep", nativeExecutable); symlinkSync("grok-1.0.52-linux-x86_64", executable); chmodSync(executable, 0o755);
-    const created = await workspaceCreate({ cwd: root, label: "herdr-web-ui-test-grok-api" });
-    let app: ReturnType<typeof createServer> | undefined;
-    try {
-      const paneId = created.root_pane.pane_id;
-      await herdrRpc("pane.send_text", { pane_id: paneId, text: `${executable} 600 3<${events} 4<${retained}\n` });
-      for (const deadline = Date.now() + 10_000;;) {
-        if ((await sessionSnapshot()).panes.find((pane) => pane.pane_id === paneId)?.agent === "grok") break;
-        if (Date.now() > deadline) throw new Error("fixture Grok process did not start");
-        await Bun.sleep(50);
-      }
-      let reportSequence = 0;
-      // Stands in for the SessionStart report Grok's herdr integration makes: Herdr 0.9.3
-      // replaces a Grok ID only for a newer "new" report.
-      const report = (session: string, source = "new") => herdrRpc("pane.report_agent_session", { pane_id: paneId, agent: "grok", source: "herdr:grok", seq: ++reportSequence, agent_session_id: session, session_start_source: source });
-      await report(id);
-      app = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), grokHome: root });
-      const url = `http://127.0.0.1:${app.port}/api/pane/conversation?pane_id=${encodeURIComponent(paneId)}`;
-      const first = await fetch(url);
-      const body = await first.json();
-      expect(body.source).toBe("grok-transcript");
-      expect(body.activity).toBe("working");
-      expect(body.turns[0].parts[0].text).toBe("fictional prompt");
-      // An update can unlink the running binary: /proc/<pid>/exe gains " (deleted)".
-      unlinkSync(nativeExecutable);
-      expect((await (await fetch(url)).json()).source).toBe("grok-transcript");
-      expect((await fetch(url, { headers: { "if-none-match": first.headers.get("etag")! } })).status).toBe(304);
-      const ref = body.turns[1].parts[0].output_ref;
-      const outputUrl = `http://127.0.0.1:${app.port}/api/pane/conversation/tool-output?${new URLSearchParams({ pane_id: paneId, ref })}`;
-      const whole = await fetch(outputUrl);
-      expect(whole.headers.get("cache-control")).toBe("private, no-store");
-      expect(await whole.text()).toBe("x".repeat(5000));
-      appendFileSync(path, output("y".repeat(5000)));
-      expect((await fetch(outputUrl)).status).toBe(404);
-      const next = await fetch(url);
-      expect(next.headers.get("etag")).not.toBe(first.headers.get("etag"));
-      appendFileSync(path, event({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "fictional thought" } }));
-      const thinking = await fetch(url);
-      expect((await thinking.json()).activity).toBe("thinking");
-      expect(thinking.headers.get("etag")).not.toBe(next.headers.get("etag"));
-      appendFileSync(path, event({ sessionUpdate: "turn_completed" }));
-      expect((await (await fetch(url)).json()).activity).toBe("idle");
-      appendFileSync(path, event({ sessionUpdate: "rewind_marker", target_prompt_index: 0 }, true));
-      expect((await fetch(`${url}&from=${encodeURIComponent(`${body.history_id}:0`)}`)).status).toBe(409);
-      const local = await fetch(url.replace("/api/pane/", "/api/machines/local/pane/"));
-      expect((await local.json()).turns).toEqual([]);
-      const missing = "00000000-0000-4000-8000-000000000002";
-      await report(missing, "resume");
-      expect((await sessionSnapshot()).panes.find((pane) => pane.pane_id === paneId)?.agent_session?.value).toBe(id);
-      await report(missing);
-      for (const deadline = Date.now() + 5000;;) {
-        if ((await sessionSnapshot()).panes.find((pane) => pane.pane_id === paneId)?.agent_session?.value === missing) break;
-        if (Date.now() > deadline) throw new Error("Herdr did not apply the second session report");
-        await Bun.sleep(50);
-      }
-      expect(await (await fetch(url)).json()).toEqual({ source: "scrollback", turns: [] });
-    } finally {
-      app?.stop(); await workspaceClose(created.workspace.workspace_id);
-      forgetTranscriptState(); rmSync(root, { recursive: true, force: true });
-    }
-  }, 20_000);
-});
 
-describe("Agy conversation API", () => {
-  it.skipIf(process.platform !== "linux")("binds the selected held lock, honors saved rewinds and recovers from an unwritten store", async () => {
-    const root = mkdtempSync(join(tmpdir(), "herdr-web-ui-agy-contract-"));
-    const id = "00000000-0000-4000-8000-000000000031";
-    const path = join(root, "brain", id, ".system_generated", "logs", "transcript_full.jsonl");
-    mkdirSync(join(path, ".."), { recursive: true });
-    mkdirSync(join(root, "conversations")); mkdirSync(join(root, "presence"));
-    const lock = join(root, "presence", `${id}.lock`);
-    writeFileSync(lock, "");
-    // Another unheld lock in the same store must never select a conversation.
-    writeFileSync(join(root, "presence", "00000000-0000-4000-8000-000000000032.lock"), "");
-    const executable = join(root, "agy");
-    copyFileSync("/bin/sleep", executable); chmodSync(executable, 0o755);
-    const created = await workspaceCreate({ cwd: root, label: "herdr-web-ui-test-agy-api" });
-    let app: ReturnType<typeof createServer> | undefined, db: Database | undefined;
-    let monitor: ConversationMonitor | undefined;
-    try {
-      const paneId = created.root_pane.pane_id;
-      await herdrRpc("pane.send_text", { pane_id: paneId, text: `${executable} 600 3<${lock}\n` });
-      for (const deadline = Date.now() + 10_000;;) {
-        if ((await sessionSnapshot()).panes.find((pane) => pane.pane_id === paneId)?.agent === "agy") break;
-        if (Date.now() > deadline) throw new Error("fixture Agy process did not start");
-        await Bun.sleep(50);
-      }
-      app = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state") });
-      const url = `http://127.0.0.1:${app.port}/api/pane/conversation?pane_id=${encodeURIComponent(paneId)}`;
-      expect(await (await fetch(url)).json()).toEqual({ source: "scrollback", turns: [] });
-      db = new Database(join(root, "conversations", `${id}.db`));
-      db.exec("PRAGMA journal_mode=WAL; CREATE TABLE steps(idx INTEGER PRIMARY KEY)");
-      const empty = await (await fetch(url)).json();
-      expect(empty.source).toBe("agy-transcript"); expect(empty.turns).toEqual([]);
-      const row = (step_index: number, type: string, content: string) => JSON.stringify({ step_index, type, status: "DONE", content }) + "\n";
-      db.exec("INSERT INTO steps VALUES (0), (1)");
-      writeFileSync(path, row(0, "USER_INPUT", "fictional prompt") + row(1, "GENERIC", "x".repeat(5000)));
-      const first = await fetch(url), body = await first.json();
-      expect(body.source).toBe("agy-transcript");
-      expect(body.activity).toBe("working");
-      expect(body.turns[0].parts[0].text).toBe("fictional prompt");
-      expect((await fetch(url, { headers: { "if-none-match": first.headers.get("etag")! } })).status).toBe(304);
-      const ref = body.turns[1].parts[0].output_ref;
-      const outputUrl = `http://127.0.0.1:${app.port}/api/pane/conversation/tool-output?${new URLSearchParams({ pane_id: paneId, ref })}`;
-      expect(await (await fetch(outputUrl)).text()).toBe("x".repeat(5000));
-      db.exec("INSERT INTO steps VALUES (2)");
-      appendFileSync(path, row(2, "PLANNER_RESPONSE", "Finished"));
-      const completed = await fetch(url, { headers: { "if-none-match": first.headers.get("etag")! } });
-      expect(completed.status).toBe(200);
-      expect((await completed.json()).activity).toBe("idle");
-      expect(completed.headers.get("etag")).not.toBe(first.headers.get("etag"));
-      db.exec("INSERT INTO steps VALUES (3)");
-      appendFileSync(path, row(3, "USER_INPUT", "New work"));
-      expect((await (await fetch(url)).json()).activity).toBe("working");
-      const changes: string[] = [];
-      monitor = new ConversationMonitor((_pane, signature) => changes.push(signature));
-      monitor.watch(paneId);
-      const changed = async (count: number) => {
-        for (const deadline = Date.now() + 5000; changes.length <= count;) {
-          if (Date.now() > deadline) throw new Error("Agy catalog change was not pushed");
-          await Bun.sleep(20);
-        }
-      };
-      await changed(0);
-      const beforeCut = changes.length;
-      db.exec("DELETE FROM steps WHERE idx >= 1");
-      await changed(beforeCut);
-      expect((await (await fetch(url)).json()).turns).toHaveLength(1);
-      expect((await fetch(`${url}&from=${encodeURIComponent(`${body.history_id}:0`)}`)).status).toBe(409);
-      expect((await fetch(outputUrl)).status).toBe(404);
-      forgetTranscriptState();
-      const local = await fetch(url.replace("/api/pane/", "/api/machines/local/pane/"));
-      expect((await local.json()).turns).toHaveLength(1);
-      db.exec("DROP TABLE steps");
-      expect(await (await fetch(url)).json()).toEqual({ source: "scrollback", turns: [] });
-    } finally {
-      monitor?.stop(); app?.stop(); db?.close(); await workspaceClose(created.workspace.workspace_id);
-      forgetTranscriptState(); rmSync(root, { recursive: true, force: true });
-    }
-  }, 20_000);
-});
-
-describe("single-pane context lookup", () => {
-  for (const route of ["commands", "files"] as const) {
-    it(`rejects an unknown pane on /api/pane/${route} with the shared error envelope`, async () => {
-      const response = await fetch(`${base()}/api/pane/${route}?pane_id=w9999:p9999`);
-      expect(response.status).toBe(404);
-      const body: ApiError = await response.json();
-      expect(body.error.code).toBe("pane_not_found");
-      expect(typeof body.error.message).toBe("string");
-    });
-  }
-});
-
-describe("GET /api/pane/plan", () => {
-  it("requires GET and a pane id with the shared error envelope", async () => {
-    for (const [url, method, code] of [
-      [`${base()}/api/pane/plan`, "GET", "missing_pane_id"],
-      [`${base()}/api/pane/plan?pane_id=w9999:p9999`, "POST", "method_not_allowed"],
-    ] as const) {
-      const response = await fetch(url, { method });
-      expect(response.status).toBe(400);
-      const body: ApiError = await response.json();
-      expect(body.error.code).toBe(code);
-      expect(typeof body.error.message).toBe("string");
-    }
-  });
-});
-
-describe("Devin conversation API", () => {
-  it("keeps the terminal fallback rather than guessing a shell pane's session", async () => {
-    const state = mkdtempSync(join(tmpdir(), "herdr-web-ui-devin-contract-"));
-    const created = await workspaceCreate({ cwd: state, label: "herdr-web-ui-test-devin-identity" });
-    const dbPath = join(state, "sessions.db");
-    let bridge: ReturnType<typeof createServer> | undefined;
-    try {
-      const paneId = created.root_pane.pane_id;
-      const snapshot = await sessionSnapshot();
-      const pane = snapshot.panes.find((entry) => entry.pane_id === paneId)!;
-      const cwd = pane.foreground_cwd || pane.cwd;
-      if (!cwd) throw new Error("test pane has no working directory");
-      const db = new Database(dbPath);
-      try {
-        db.exec("CREATE TABLE sessions(id TEXT, working_directory TEXT, main_chain_id INTEGER, hidden INTEGER, model TEXT)");
-        db.query("INSERT INTO sessions VALUES ('synthetic', ?, NULL, 0, NULL)").run(cwd);
-      } finally { db.close(); }
-      await herdrRpc("pane.report_agent", { pane_id: paneId, source: "manual", agent: "devin", state: "idle" });
-      bridge = createServer({ port: 0, stateDir: state, devinDbPath: dbPath });
-      const response = await fetch(`http://localhost:${bridge.port}/api/pane/conversation?pane_id=${encodeURIComponent(paneId)}`);
-      expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ source: "scrollback", turns: [] });
-    } finally {
-      bridge?.stop();
-      await workspaceClose(created.workspace.workspace_id);
-      rmSync(state, { recursive: true, force: true });
-    }
-  });
-});
 
 describe("usage API", () => {
   it("returns OpenCode Go windows without exposing its credential", async () => {
@@ -1226,8 +1002,7 @@ describe("workspace and discovery endpoints", () => {
     expect(((await res.json()) as ApiError).error.code).toBe("invalid_cwd");
   });
 
-  it("creates, edits, searches, inspects, and closes an owned workspace", async () => {
-    writeFileSync(filePath, "mention fixture");
+  it("creates, edits and closes an owned workspace", async () => {
     // the dialog sends null for "not given" (agent: null = shell only): nulls must read as absent
     const create = await fetch(`${base()}/api/workspace/create`, {
       method: "POST",
@@ -1239,18 +1014,6 @@ describe("workspace and discovery endpoints", () => {
     workspaceId = created.workspace_id;
     paneId = created.pane_id;
     expect(created.agent_started).toBeFalse();
-
-    const commands = await fetch(`${base()}/api/pane/commands?pane_id=${encodeURIComponent(paneId)}`);
-    expect(commands.status).toBe(200);
-    expect(await commands.json()).toEqual({ commands: [] });
-
-    const files = await fetch(`${base()}/api/pane/files?pane_id=${encodeURIComponent(paneId)}&q=${encodeURIComponent(fileName)}&limit=5`);
-    expect(files.status).toBe(200);
-    expect(((await files.json()) as { files: string[] }).files).toContain(fileName);
-
-    const prompt = await fetch(`${base()}/api/pane/prompt?pane_id=${encodeURIComponent(paneId)}`);
-    expect(prompt.status).toBe(200);
-    expect(await prompt.json()).toEqual({ prompt: null, suggestion: null, restored: null });
 
     for (const [path, body] of [
       ["/api/workspace/rename", { workspace_id: workspaceId, label: `${label}-renamed` }],
@@ -1516,19 +1279,6 @@ describe("workspace and discovery endpoints", () => {
   });
 });
 
-describe("GET /api/pane/omo-tasks", () => {
-  it("answers 400 without a pane, and no tasks for a pane that runs no OmO", async () => {
-    const missing = await fetch(`${base()}/api/pane/omo-tasks`);
-    expect(missing.status).toBe(400);
-    expect(((await missing.json()) as ApiError).error.code).toBe("missing_pane_id");
-    const unknown = await fetch(`${base()}/api/pane/omo-tasks?pane_id=w0:p0`);
-    expect(unknown.status).toBe(200);
-    const body = await unknown.json() as { tasks: unknown[]; runs: unknown[]; server_time: string };
-    expect(body.tasks).toEqual([]);
-    expect(body.runs).toEqual([]);
-    expect(Number.isFinite(Date.parse(body.server_time))).toBe(true);
-  });
-});
 
 describe("GET /api/session", () => {
   it("returns the live herdr snapshot with at least one real workspace", async () => {
@@ -3466,7 +3216,7 @@ describe("PC management API", () => {
   });
 });
 
-describe("terminal lens of a bridge without the PTY sidecar", () => {
+describe("terminal of a bridge without the PTY sidecar", () => {
   const TOKEN = "sidecar-test-secret";
   /** what /api/health and /api/bridge tell of herdr, from a bridge whose runtime has the sidecar or lacks it */
   const told = async (sidecar: boolean) => {
@@ -3515,57 +3265,3 @@ it("refuses cross-origin changes while allowing same-origin and CLI requests", a
   } finally { instance.stop(); await workspaceClose(created.workspace.workspace_id); rmSync(root, { recursive: true, force: true }); }
 });
 
-describe("repository diff of a pane's folder", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "herdr-web-ui-test-repo-diff-")));
-  let workspaceId: string | null = null;
-  afterAll(async () => {
-    if (workspaceId) await workspaceClose(workspaceId).catch(() => undefined);
-    rmSync(root, { recursive: true, force: true });
-  });
-
-  it("reads the repository the pane sits in, a folder named from it, and a named folder once the pane is gone", async () => {
-    const git = (...args: string[]) => {
-      const result = Bun.spawnSync(["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-C", root, ...args], { stdout: "ignore", stderr: "pipe" });
-      if (result.exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.toString()}`);
-    };
-    git("init", "-q", "-b", "main");
-    mkdirSync(join(root, "sub"));
-    writeFileSync(join(root, "a.txt"), "one\n");
-    git("add", ".");
-    git("commit", "-q", "-m", "first");
-    writeFileSync(join(root, "a.txt"), "two\n");
-    // the pane sits below the repository's top, and in no repository of its own
-    const created = await workspaceCreate({ cwd: join(root, "sub"), label: "herdr-web-ui-test-repo-diff" });
-    workspaceId = created.workspace.workspace_id;
-    const pane = `pane_id=${encodeURIComponent(created.root_pane.pane_id)}`;
-    const expected: RepoDiffFileList["files"] = [{ path: "a.txt", old_path: null, status: "modified", additions: 1, deletions: 1, binary: false }];
-    for (const url of [
-      `${base()}/api/workspace/diff/files?${pane}`,
-      `${base()}/api/machines/local/workspace/diff/files?${pane}`,
-      `${base()}/api/workspace/diff/files?${pane}&directory=..`,
-      `${base()}/api/workspace/diff/files?pane_id=no-such-pane&directory=${encodeURIComponent(root)}`,
-    ]) {
-      const response = await fetch(url);
-      expect([url, response.status]).toEqual([url, 200]);
-      const list = (await response.json()) as RepoDiffFileList;
-      expect(list.repository).toMatchObject({ root, branch: "main", detached: false, unborn: false });
-      expect(list.files).toEqual(expected);
-    }
-    const file = await fetch(`${base()}/api/workspace/diff/file?${pane}&path=a.txt`);
-    expect(file.status).toBe(200);
-    const answer = (await file.json()) as RepoDiffFilePatch;
-    expect(answer).toMatchObject({ file: expected[0], unavailable: null, truncated: false });
-    expect(answer.patch).toStartWith("diff --git a/a.txt b/a.txt\n");
-    expect(answer.patch).toEndWith("-one\n+two\n");
-
-    const gone = await fetch(`${base()}/api/workspace/diff/files?pane_id=no-such-pane`);
-    expect(gone.status).toBe(404);
-    expect(typeof ((await gone.json()) as ApiError).error.code).toBe("string");
-    const relative = await fetch(`${base()}/api/workspace/diff/files?pane_id=no-such-pane&directory=sub`);
-    expect(relative.status).toBe(400);
-    expect(((await relative.json()) as ApiError).error.code).toBe("invalid_cwd");
-    const posted = await fetch(`${base()}/api/workspace/diff/files?${pane}`, { method: "POST", headers: { "x-herdr-machine": "1" } });
-    expect(posted.status).toBe(400);
-    expect(((await posted.json()) as ApiError).error.code).toBe("method_not_allowed");
-  });
-});

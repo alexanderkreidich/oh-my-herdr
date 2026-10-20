@@ -130,18 +130,6 @@ test("each typing guard answers every state as the check it replaced", () => {
       verdicts["mirrorSecret"] = [typingGuards.mirrorSecret(facts), attachments.get(message.pane_id) === attachment
         && attachment.process === pty && client.data.attached.get(message.pane_id) === claim && attachment.clients.has(client)];
     }
-    // a pending lease is taken on any attachment; one that is held fails before the rest is asked
-    if (s.attachment) {
-      const lease = { attachment: s.attachment, pty: s.attachmentPty };
-      const owner = client;
-      const paneId = message.pane_id;
-      const attachment = attachments.get(paneId);
-      verdicts["pendingHeld"] = [facts.currentHeld, !!attachment?.held];
-      if (!attachment?.held) {
-        verdicts["pendingLease"] = [typingGuards.pendingLease(facts), !(attachment !== lease.attachment || attachment.process !== lease.pty
-          || !owner.data.attached.has(paneId) || !attachment.clients.has(owner) || !attachment.ready)];
-      }
-    }
     for (const [check, [guard, oracle]] of Object.entries(verdicts)) {
       if (guard !== oracle) throw new Error(`${check} differs for ${s.label}: guard ${guard}, original ${oracle}`);
       checked += 1;

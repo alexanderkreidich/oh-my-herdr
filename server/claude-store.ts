@@ -15,9 +15,8 @@
 
 import { constants } from "node:fs";
 import { open, readFile, readdir, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import nodePath, { basename, dirname, isAbsolute, join, type PlatformPath } from "node:path";
-import { directoryKey, withoutVerbatimPrefix } from "./codex.ts";
+import nodePath, { dirname, isAbsolute, join, type PlatformPath } from "node:path";
+import { directoryKey, withoutVerbatimPrefix } from "./windows-paths.ts";
 import { recentProcessTable } from "./gjc-runtime.ts";
 import type { ProcessRow } from "./windows-processes.ts";
 
@@ -284,11 +283,6 @@ async function darwinProcessStart(pid: number): Promise<string | null> {
   } finally { clearTimeout(timer); }
 }
 
-/** Drops what a project scan remembered about one transcript file: the scan runs again if it is ever asked for. */
-export function forgetClaudeSessionFile(path: string): void {
-  for (const [key, value] of found) if (value === path) found.delete(key);
-}
-
 /** Windows: Claude records the start as FILETIME (100 ns since 1601), the process table in ms since 1970. */
 function fileTimeMs(text: string): number | null {
   return /^\d+$/.test(text) ? Number(BigInt(text) / 10_000n - 11_644_473_600_000n) : null;
@@ -353,27 +347,6 @@ export async function claudeProcessSession(
 }
 
 /**
- * The session a pane's one Claude process names in its own PID record, which Claude rewrites when
- * /clear or /resume switches it to another session in the same process; null when the pane has no
- * single Claude process or the record cannot be trusted (claudeProcessSession).
- */
-export async function claudeForegroundSession(
-  processes: readonly { pid: number; name?: string | null; argv0?: string | null; argv?: readonly string[] | null }[],
-  home = process.env["HOME"] ?? "",
-): Promise<string | null> {
-  const claude = processes.filter((entry) => isClaudeProcess({ name: entry.name ?? undefined, argv0: entry.argv0 ?? undefined, argv: entry.argv ?? undefined }));
-  if (claude.length !== 1) return null;
-  const only = claude[0]!;
-  try {
-    const dir = await processClaudeConfigDir(only.pid, only.argv ?? [only.argv0 ?? only.name ?? ""], home);
-    return await claudeProcessSession(home, only.pid, dir || defaultClaudeConfigDir(home));
-  } catch {
-    // two stores claim the process, or one cannot be read: no session to pin
-    return null;
-  }
-}
-
-/**
  * The transcript of `session` (a UUID, validated by the caller): under the project of each cwd
  * in turn, else in whichever project holds it. Null when no project does (a session that has not
  * written its first message yet). Such a session is scanned again on every poll, so the scan
@@ -422,29 +395,3 @@ export async function claudeTranscriptFile(home: string, session: string, cwds: 
   return null;
 }
 
-/**
- * The folder Claude Code keeps for a session's own files outside the project, such as the
- * `scratchpad/` it names in prose by a relative path: `<tmp>/claude-<uid>/<project>/<session>/`,
- * <project> and <session> being the transcript's folder and name. Only a `claude-<uid>` folder
- * this user owns is read (another user could make it first in a shared /tmp). Null when there is
- * none, and on Windows, which has no uid.
- */
-export async function claudeSessionTempDir(
-  transcript: string,
-  roots: readonly string[] = [...new Set([tmpdir(), "/tmp"])],
-  uid: number | undefined = process.getuid?.(),
-): Promise<string | null> {
-  if (uid === undefined || !transcript.endsWith(".jsonl")) return null;
-  const session = basename(transcript, ".jsonl");
-  if (!SESSION_ID.test(session)) return null;
-  const project = basename(dirname(transcript));
-  for (const root of roots) {
-    const base = join(root, `claude-${uid}`);
-    try {
-      if ((await stat(base)).uid !== uid) continue;
-      const dir = join(base, project, session);
-      if ((await stat(dir)).isDirectory()) return dir;
-    } catch { /* absent or unreadable: not in this root */ }
-  }
-  return null;
-}

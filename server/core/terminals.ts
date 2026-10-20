@@ -1,10 +1,9 @@
 /**
  * Each pane's terminal and who shows it: the attachment every client of a pane shares, the one
  * still being created, the one whose process is still exiting, and the output each client is
- * sent. The pane's agent conversation is watched while a client that shows the pane asks for it.
+ * sent.
  */
 import type { ClientMessage, ServerMessage } from "../../shared/protocol.ts";
-import { ConversationMonitor } from "../conversation-monitor.ts";
 import { type SightingFacts, sightingFacts } from "../input-guard.ts";
 import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS, OutputWindow, wireBytes } from "../output-window.ts";
 import { type Client, connectionOf, send } from "./connections.ts";
@@ -54,8 +53,8 @@ export function validGeometry(cols: unknown, rows: unknown): { cols: number; row
  * The server's terminals. `stopped` is read through a getter, as `stop()` sets it later, and `end`
  * is called through one, as the connections are built after the terminals.
  */
-export function createTerminalRegistry({ options, clients, stopped, terminalAttach, holdFor, heldRetry, retryFor, relookupFor, holdPending, holdPendingPane, end }: {
-  options: { codexHome?: string; devinDbPath?: string; opencodeDb?: string; hermesHome?: string; grokHome?: string };
+export function createTerminalRegistry({ clients, stopped, terminalAttach, holdFor, heldRetry, retryFor, relookupFor, end }: {
+  options: object;
   clients: Set<Client>;
   stopped: () => boolean;
   terminalAttach: () => Promise<boolean>;
@@ -63,8 +62,6 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
   heldRetry: number;
   retryFor: number;
   relookupFor: number;
-  holdPending: (owner: Client, paneId?: string) => void;
-  holdPendingPane: (paneId: string, fault: { code: string; message: string }) => void;
   end: (client: Client, reason: "stalled" | "revoked" | "closed") => void;
 }) {
   const attachments = new Map<string, PaneAttachment>();
@@ -73,21 +70,6 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
   const pendingAttachments = new Map<string, Promise<PaneAttachment>>();
   // herdr releases its exclusive attach slot only after the old process exits.
   const retiringAttachments = new Map<string, Promise<void>>();
-
-  const conversations = new ConversationMonitor((paneId, signature) => {
-    for (const client of clients) {
-      if (!connectionOf(client).closing && client.readyState === WebSocket.OPEN && client.data.attached.has(paneId) && client.data.conversationInterests.has(paneId)) {
-        send(client, { type: "conversation-changed", pane_id: paneId, signature });
-      }
-    }
-  }, options.codexHome, options.devinDbPath, options.opencodeDb, options.hermesHome, options.grokHome);
-
-  function releaseConversation(paneId: string): void {
-    for (const client of clients) {
-      if (!connectionOf(client).closing && client.readyState === WebSocket.OPEN && client.data.attached.has(paneId) && client.data.conversationInterests.has(paneId)) return;
-    }
-    conversations.unwatch(paneId);
-  }
 
   function reconcileOutput(paneId: string): void {
     const attachment = attachments.get(paneId);
@@ -141,12 +123,11 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
     for (const client of attachment.clients) send(client, message);
   }
 
-  const { spawnAttachment } = createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped: stopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdPendingPane, holdFor, heldRetry, retryFor, relookupFor });
+  const { spawnAttachment } = createSpawnAttachment({ attachments, retiringAttachments, terminalAttach, isStopped: stopped, closeAttachment, broadcast, sendOutput, reconcileOutput, holdFor, heldRetry, retryFor, relookupFor });
 
   function closeAttachment(paneId: string): void {
     const attachment = attachments.get(paneId);
     if (!attachment) return;
-    for (const member of attachment.clients) holdPending(member, paneId);
     attachments.delete(paneId);
     clearTimeout(attachment.retry);
     clearTimeout(attachment.relookup);
@@ -155,9 +136,7 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
     // the "terminal ended" screen): a stale entry would read as a live claim in
     // releaseUnclaimed and keep a later, empty pty on this pane running
     for (const member of attachment.clients) member.data.attached.delete(paneId);
-    for (const member of attachment.clients) member.data.conversationInterests.delete(paneId);
     for (const member of attachment.clients) member.data.output.delete(paneId);
-    releaseConversation(paneId);
     const retired = attachment.process.exited.finally(() => {
       if (retiringAttachments.get(paneId) === retired) retiringAttachments.delete(paneId);
     });
@@ -225,10 +204,7 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
   }
 
   function detach(paneId: string, client: Client): void {
-    holdPending(client, paneId);
-    client.data.conversationInterests.delete(paneId);
     client.data.output.delete(paneId);
-    releaseConversation(paneId);
     const attachment = attachments.get(paneId);
     if (!attachment) return;
     attachment.clients.delete(client);
@@ -246,7 +222,6 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
 
   function dropClaims(client: Client): void {
     client.data.attached.clear();
-    client.data.conversationInterests.clear();
     client.data.output.clear();
   }
 
@@ -312,22 +287,16 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
         // a covered grid (keep_size) creates the pty at the pane's own size, as an observer does
         attachment = await ensureAttachment(message.pane_id, geometry.cols, geometry.rows, connectionOf(client).mode === "observe" || message.keep_size === true);
       } catch (error) {
-        if (client.data.attached.get(message.pane_id) === claim) {
-          client.data.attached.delete(message.pane_id);
-          client.data.conversationInterests.delete(message.pane_id);
-          releaseConversation(message.pane_id);
-        }
+        if (client.data.attached.get(message.pane_id) === claim) client.data.attached.delete(message.pane_id);
         throw error;
       }
       if (stopped() || connectionOf(client).closing || client.data.attached.get(message.pane_id) !== claim) {
         releaseUnclaimed(message.pane_id, attachment);
         return;
       }
-      // A pane that ended during creation must not gain clients or revive interest.
+      // A pane that ended during creation must not gain clients.
       if (attachments.get(message.pane_id) !== attachment) {
         client.data.attached.delete(message.pane_id);
-        client.data.conversationInterests.delete(message.pane_id);
-        releaseConversation(message.pane_id);
         send(client, { type: "pty-exit", pane_id: message.pane_id, code: null });
         return;
       }
@@ -359,7 +328,7 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
       } else {
         // a covered grid is not a terminal showing: a release never hands the pty to it
         attachment.grids.delete(client);
-        // an observer, or a grid the chat lens covers, adopts the grid the operators left behind
+        // an observer, or a client that keeps its size, adopts the grid the operators left behind
         send(client, {
           type: "pane-geometry",
           pane_id: message.pane_id,
@@ -383,24 +352,6 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
       detach(message.pane_id, client);
       return;
     },
-    "conversation-watch"(client: Client, message: Frame<"conversation-watch">): void {
-      if (typeof message.pane_id !== "string" || message.pane_id.trim() === "" || typeof message.enabled !== "boolean") {
-        send(client, { type: "error", code: "invalid_conversation_watch", message: "pane_id must be a nonempty string and enabled must be a boolean" });
-        return;
-      }
-      if (message.enabled) {
-        if (!client.data.attached.has(message.pane_id)) {
-          send(client, { type: "error", code: "not_attached", message: "conversation interest requires an attached pane", pane_id: message.pane_id });
-          return;
-        }
-        client.data.conversationInterests.add(message.pane_id);
-        conversations.watch(message.pane_id);
-      } else {
-        client.data.conversationInterests.delete(message.pane_id);
-        releaseConversation(message.pane_id);
-      }
-      return;
-    },
     "pty-ack"(client: Client, message: Frame<"pty-ack">): void {
       // Observers may acknowledge output, but never input or resize it.
       const window = client.data.output.get(message.pane_id);
@@ -421,8 +372,8 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
         send(client, { type: "error", code: "invalid_geometry", message: "cols and rows must be integers in 1..1000" });
         return;
       }
-      // the pty is still being created (an attach from the chat lens, then the switch to the
-      // terminal lens before the terminal was looked up): the resize waits for it. Dropped,
+      // the pty is still being created (an attach that kept its size, then a resize before
+      // the terminal was looked up): the resize waits for it. Dropped,
       // it would leave the pty at the pane's own grid under a terminal fitted to another.
       const claim = client.data.attached.get(message.pane_id);
       if (claim) claim.keepSize = false;
@@ -435,7 +386,7 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
       return;
     },
     "release-size"(client: Client, message: Frame<"release-size">): void {
-      // this client's terminal is hidden, out of use or covered by Chat: if its grid is the pty's, the pty
+      // this client's terminal is hidden or out of use: if its grid is the pty's, the pty
       // goes back to the latest grid of another interact client still showing the terminal (#472).
       // Nothing to hand it to, or another client drove since: the size stays. Never an error, as
       // an older server ignores the frame.
@@ -460,5 +411,5 @@ export function createTerminalRegistry({ options, clients, stopped, terminalAtta
   // the same live records, read through their grid and held state only: the server outside reaches a
   // pane's terminal through `sight`, `poke` and the frames
   const views: ReadonlyMap<string, AttachmentView> = attachments;
-  return { attachments: views, conversations, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, terminalFrames };
+  return { attachments: views, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, terminalFrames };
 }

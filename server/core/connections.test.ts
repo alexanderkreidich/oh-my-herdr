@@ -2,7 +2,6 @@ import { expect, it } from "bun:test";
 import { OUTPUT_STALLED_CLOSE_CODE } from "../../shared/terminal-flow.ts";
 import type { DeviceStore } from "../devices.ts";
 import type { MachineRelay } from "../machine-relay.ts";
-import type { PendingInputs } from "../pending-input.ts";
 import { type Client, connectionData, connectionOf, createConnections, send } from "./connections.ts";
 
 function harness({ deviceId, readOnly = false, relay, revokedAlready = false }: { deviceId?: string; readOnly?: boolean; relay?: MachineRelay; revokedAlready?: boolean } = {}) {
@@ -14,7 +13,6 @@ function harness({ deviceId, readOnly = false, relay, revokedAlready = false }: 
       return () => log.push("unwatch device");
     },
   } as unknown as DeviceStore;
-  const pending = { close: () => log.push("pending closed") } as unknown as PendingInputs<Client, never>;
   const client = {
     data: connectionData({ deviceId, readOnly, ...(relay ? { relay } : {}) }),
     close: (code: number, reason: string) => log.push(`closed ${code} ${reason}`),
@@ -24,7 +22,7 @@ function harness({ deviceId, readOnly = false, relay, revokedAlready = false }: 
   const clients = new Set<Client>([client]);
   const present = new Set<Client>([client]);
   const connections = createConnections({
-    clients, present, pending, devices,
+    clients, present, devices,
     detachClaimed: () => log.push("detach claimed"),
     dropClaims: () => log.push("drop claims"),
   });
@@ -35,7 +33,7 @@ it("a stall ends the connection once and leaves its presence to the socket's clo
   const { client, clients, present, log, end } = harness();
   end(client, "stalled");
   end(client, "stalled");
-  expect(log).toEqual(["pending closed", "detach claimed", "drop claims", `closed ${OUTPUT_STALLED_CLOSE_CODE} terminal output consumer stalled`]);
+  expect(log).toEqual(["detach claimed", "drop claims", `closed ${OUTPUT_STALLED_CLOSE_CODE} terminal output consumer stalled`]);
   expect(clients.has(client)).toBe(false);
   expect(present.has(client)).toBe(true);
   expect(send(client, { type: "session-changed" })).toBe(0);
@@ -53,7 +51,7 @@ it("a revoke ends the connection with 1008 and leaves its pending input to the s
   expect(mayType(client)).toBe(false);
   expect(() => authorizeSocket(client)).toThrow("this device's access was revoked");
   end(client, "closed");
-  expect(log.slice(3)).toEqual(["unwatch device", "pending closed", "detach claimed", "drop claims"]);
+  expect(log.slice(3)).toEqual(["unwatch device", "detach claimed", "drop claims"]);
 });
 
 it("does not admit a device that was revoked before its socket opened", () => {

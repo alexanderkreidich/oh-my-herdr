@@ -86,8 +86,6 @@ export const typingGuards = {
     && facts.ready && facts.sameClaim && facts.member)),
   /** a mirrored pane's secret: the same attach and session, still this connection's */
   mirrorSecret: (facts: SightingFacts): boolean => facts.sameAttachment && facts.samePty && facts.sameClaim && facts.member,
-  /** a pending message's lease, once its terminal is not held: the same attach and session, still claimed, joined and ready */
-  pendingLease: (facts: SightingFacts): boolean => facts.sameAttachment && facts.samePty && facts.claimed && facts.member && facts.ready,
 };
 
 /** One or more mouse reports as xterm sends them: SGR (`CSI < b ; x ; y M|m`) or the default `CSI M` plus three bytes. */

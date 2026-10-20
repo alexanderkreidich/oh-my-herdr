@@ -3,8 +3,8 @@ import { join } from "node:path";
 import type { HerdrPane, OmoTask } from "../shared/protocol.ts";
 
 /**
- * The subagents one Claude Code session started (the `Agent` tool), for the status line's list,
- * the pane's running count and the chat's result cards. Claude keeps, beside the session's
+ * The subagents one Claude Code session started (the `Agent` tool), for the pane's running
+ * count of background tasks. Claude keeps, beside the session's
  * transcript `<project>/<session>.jsonl`, a folder `<session>/subagents/` with one pair per
  * subagent: `agent-<id>.meta.json` (description, agent type, the tool call that started it) and
  * `agent-<id>.jsonl`, its own transcript. Whether it ended is told only by the parent
@@ -67,7 +67,7 @@ export function remember<T>(map: Map<string, T>, key: string, value: T, cap: num
   if (map.size > cap) map.delete(map.keys().next().value!);
 }
 
-/** One `<task-notification>` block, the part of it the chat and the list read. */
+/** One `<task-notification>` block, the part of it the count reads. */
 export interface TaskNotification {
   taskId: string;
   toolUseId: string | null;
@@ -111,14 +111,6 @@ function blocksIn(entry: Row): string[] {
   if (typeof content === "string") return [content];
   // only what the person's side wrote as text: a tool result that quotes a block is not one
   return (Array.isArray(content) ? content : []).flatMap((value) => { const block = row(value); return block?.["type"] === "text" && typeof block["text"] === "string" ? [block["text"]] : []; });
-}
-
-/** The notifications one transcript line carries, none for a line that only mentions the tag. */
-export function lineNotifications(line: string): TaskNotification[] {
-  if (!line.includes("<task-notification>")) return [];
-  let entry: Row | null;
-  try { entry = row(JSON.parse(line)); } catch { return []; }
-  return entry === null ? [] : blocksIn(entry).flatMap((block) => taskNotification(block) ?? []);
 }
 
 /**
@@ -556,24 +548,6 @@ export function subagentsSignature(parentPath: string, watch: readonly string[] 
   };
 }
 
-/** What a subagent's chat card takes from its files: what it was started with, which never changes. */
-export interface SubagentDetail {
-  title: string | null;
-  agent: string | null;
-}
-
-/** The subagents named, by agent id, as their meta files say. An id that is not a plain word is none. */
-export function subagentDetails(parentPath: string, ids: Iterable<string>): Map<string, SubagentDetail> {
-  const found = new Map<string, SubagentDetail>();
-  const dir = subagentsDir(parentPath);
-  for (const id of new Set(ids)) {
-    if (!AGENT_ID.test(id)) continue;
-    const meta = readMeta(join(dir, `agent-${id}.meta.json`));
-    if (meta !== null) found.set(id, { title: meta.title, agent: meta.agent });
-  }
-  return found;
-}
-
 const time = (value: string | null): number => value === null ? 0 : Date.parse(value) || 0;
 
 /**
@@ -701,8 +675,6 @@ export function claudeSubagentState(parentPath: string, live: boolean, now = Dat
     }
   }
 }
-
-export const claudeSubagents = (parentPath: string, live: boolean, now = Date.now(), since: number | null = null): OmoTask[] => claudeSubagentState(parentPath, live, now, since).tasks;
 
 /** Forget every read kept between calls (tests compare against a cold read). */
 export function forgetSubagents(): void {

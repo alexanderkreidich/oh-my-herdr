@@ -6,25 +6,22 @@
  * herdr web ui server on a PC called "workstation".
  *
  * What works: the sidebar (two repositories, each with two agent worktrees) and its live statuses,
- * every chat, the Codex approval card (answering it sets Codex to work and ends the turn), the
- * command palette, settings, and the terminal: the release shell tab replays a recording of `git log` and `bun test`, then a small pretend shell answers what you
- * type. `demo logs` loads fictional retained history for scrolling and search; agent panes show
- * one notice instead of a TUI. A message sent from a chat gets a demo answer.
- * What does not: files, images, push and remote PCs, which need a real machine.
+ * the command palette, settings, and the terminal: the release shell tab replays a recording of
+ * `git log` and `bun test`, then a small pretend shell answers what you type. `demo logs` loads
+ * fictional retained history for scrolling and search; agent panes show one notice instead of a TUI.
+ * What does not: images, push and remote PCs, which need a real machine.
  */
-import type { AgentIntegration, AgentStatus, CommandForm, ConversationTurn, IntegrationsResponse, Machine, MachineEvent, PaneDirection, PaneFindMatch, PaneFindRequest, PanePlan, PaneResized, PaneSplit, PaneSwapped, PaneZoomed, PendingMessage, PlanStep, PluginActionResult, PluginActions, PluginActionsResponse, PortalStatus, ServerMessage, SessionSnapshot, SlashCommand, TabMoved, UsageReport, WorkspaceCreated, WorkspaceInfo, WorktreeEntry, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../../shared/protocol.ts";
-import type { RepoDiffFile, RepoDiffFileList, RepoDiffFilePatch, RepoDiffRepository, RepoDiffScope } from "../../shared/protocol.ts";
+import type { AgentIntegration, AgentStatus, IntegrationsResponse, Machine, MachineEvent, PaneDirection, PaneFindMatch, PaneFindRequest, PaneResized, PaneSplit, PaneSwapped, PaneZoomed, PluginActionResult, PluginActions, PluginActionsResponse, PortalStatus, ServerMessage, SessionSnapshot, TabMoved, UsageReport, WorkspaceCreated, WorkspaceInfo, WorktreeEntry, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../../shared/protocol.ts";
 import { VOICE_DEFAULTS, type VoiceStatus } from "../../shared/voice.ts";
 import { isAgentName } from "../../shared/agent-name.ts";
 import { neighborPane } from "../../src/lib/layoutMap.ts";
 import { closeLayoutPane, resizeLayout, setLayoutSplitRatio, splitLayout, swapLayoutPanes } from "../../src/lib/layoutTree.ts";
 import { rollupStatus } from "../../src/lib/status.ts";
 import { movedTabOrder } from "../../src/lib/tabOrder.ts";
-import { CHATS, PROMPT, SPECS, type DemoSpec } from "./fixtures.ts";
+import { SPECS, type DemoSpec } from "./fixtures.ts";
 import { DemoHistory } from "./history.ts";
 import machinesFixture from "./fixtures/machines.json";
 import agentsFixture from "./fixtures/agents.json";
-import commandsFixture from "./fixtures/commands.json";
 import panesFixture from "./fixtures/panes.json";
 import terminalFixture from "./fixtures/terminal.json";
 
@@ -32,13 +29,10 @@ const DEMO_VERSION = "demo";
 /** Only an explicit `demo logs` command starts this fictional retained history. */
 const histories = new Map<string, DemoHistory>();
 const terminalGrids = new Map<string, { cols: number; rows: number }>();
-const heldCopyResends = new Map<string, { text: string; reply: Extract<ServerMessage, { type: "submit-result" }>; at: number }>();
 const demoGrid = (paneId: string) => terminalGrids.get(paneId) ?? { cols: 80, rows: 24 };
 function redrawHistory(paneId: string): void {
   for (const socket of sockets) socket.renderHistory(paneId);
 }
-const PROMPT_ANSWER_TURN_MS = 2600;
-const CHAT_ANSWER_MS = 2400;
 /** the recording's gaps, capped so the replay stays brisk */
 const MAX_FRAME_GAP_MS = 500;
 /** Settings → Agent integrations: one of each state, in herdr's order */
@@ -63,26 +57,7 @@ for (const machine of machines) if (machine.snapshot) {
 }
 /** pane id -> fixture key ("api", "web", …) */
 const keyOfPane = new Map<string, string>(Object.entries(panesFixture as Record<string, string>).map(([key, paneId]) => [paneId, key]));
-const chats = new Map<string, { turns: ConversationTurn[]; metadata: { model: string; reasoning_effort: string } }>(
-  Object.entries(CHATS).map(([key, chat]) => [key, structuredClone(chat)]),
-);
-// The fixtures' clocks say September 25th; the demo happens now. Every timestamp moves by the same
-// amount, so "Worked for" stays what it was and the newest turn ended three minutes ago.
-{
-  const stamps = [...chats.values()].flatMap((chat) => chat.turns.flatMap((turn) => [turn.ts, turn.end_ts].filter((v): v is string => typeof v === "string")));
-  const newest = Math.max(...stamps.map((v) => Date.parse(v)));
-  const shift = Date.now() - 3 * 60_000 - newest;
-  for (const chat of chats.values()) for (const turn of chat.turns) {
-    if (turn.ts) turn.ts = new Date(Date.parse(turn.ts) + shift).toISOString();
-    if (turn.end_ts) turn.end_ts = new Date(Date.parse(turn.end_ts) + shift).toISOString();
-    const last = turn.parts.at(-1);
-    if (turn.role === "assistant" && turn.end_ts && last?.kind === "text") last.phase = "final_answer";
-  }
-}
-let promptOpen = true;
-let promptId = PROMPT.id;
 let nextWorkspace = 100;
-let nextPending = 1;
 const replying = new Set(snapshot().panes.filter((pane) => pane.agent && pane.agent_status === "working").map((pane) => pane.pane_id));
 /** herdr's state_change_seq: one counter per session, bumped on every agent state change */
 let stateSeq = Math.max(0, ...(local.snapshot?.agents ?? []).map((agent) => agent.state_change_seq ?? 0));
@@ -98,12 +73,6 @@ function addAgent(pane: Pane): void {
     agent: pane.agent, agent_status: pane.agent_status, cwd: pane.cwd, foreground_cwd: pane.foreground_cwd, state_change_seq: nextStateSeq() });
 }
 
-const ago = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString();
-const planSteps: PlanStep[] = [
-  { id: "1", label: "Trace replayed requests", active: null, status: "completed", blocked_by: [], owner: null, started_at: ago(8), ended_at: ago(6) },
-  { id: "2", label: "Count idempotent replays", active: "Adding the replay metric", status: "in_progress", blocked_by: ["1"], owner: null, started_at: ago(5), ended_at: null },
-  { id: "3", label: "Cover the metric with tests", active: null, status: "pending", blocked_by: ["2"], owner: null, started_at: null, ended_at: null },
-];
 /** herdr lays a new tab out as its one pane over the whole area: the demo's layout for it, so the layout operations find the pane. */
 function addDemoLayout(workspaceId: string, tabId: string, paneId: string): void {
   const area = { x: 0, y: 0, width: 120, height: 40 };
@@ -229,7 +198,6 @@ function layOutRoster(): void {
   }
 }
 layOutRoster();
-for (const pane of snapshot().panes) if (keyOfPane.get(pane.pane_id) === "api") Object.assign(pane, { plan: { done: 1, total: planSteps.length, current: "Adding the replay metric" } });
 
 // The last workspace can be closed in a demo, so creation keeps templates independent of it.
 const newPaneTemplate = structuredClone(snapshot().panes[0]!);
@@ -247,8 +215,6 @@ function createDemoWorkspace(cwd: string, label: string, agent: string | null, w
   addDemoLayout(id, `${id}:t1`, pane.pane_id);
   if (agent) {
     keyOfPane.set(pane.pane_id, pane.pane_id);
-    chats.set(pane.pane_id, { turns: [], metadata: { model: agent === "codex" ? "gpt-5.6-sol" : "claude-opus-5-5", reasoning_effort: "medium" } });
-    conversationChanged(pane.pane_id);
     setTimeout(() => { if (!replying.has(pane.pane_id)) finishDemoTurn(pane.pane_id, "idle"); }, 1500);
   }
   return { workspace_id: id, pane_id: pane.pane_id, agent_started: agent !== null };
@@ -257,7 +223,6 @@ function createDemoWorkspace(cwd: string, label: string, agent: string | null, w
 function closeDemoWorkspaces(ids: Set<string>): void {
   const snap = snapshot();
   for (const removed of snap.panes.filter((pane) => ids.has(pane.workspace_id))) {
-    for (const socket of sockets) socket.holdPending(removed.pane_id, "pane_not_found", "This demo pane closed. Copy the message before discarding it.");
     replying.delete(removed.pane_id);
   }
   snap.panes = snap.panes.filter((pane) => !ids.has(pane.workspace_id));
@@ -277,7 +242,6 @@ function closeDemoWorkspaces(ids: Set<string>): void {
 
 const sseListeners = new Set<SseListener>();
 const sockets = new Set<DemoSocket>();
-const conversationVersions = new Map<string, number>();
 
 // herdr names an unnamed tab by its place in the row and moves that name up when an earlier tab
 // closes; a renamed tab keeps its name. The demo tracks which tabs still carry the automatic name.
@@ -318,12 +282,6 @@ function setStatus(paneId: string, status: AgentStatus): void {
   for (const socket of sockets) socket.push(message);
 }
 
-function conversationChanged(paneId: string): void {
-  const revision = (conversationVersions.get(paneId) ?? 0) + 1;
-  conversationVersions.set(paneId, revision);
-  for (const socket of sockets) socket.push({ type: "conversation-changed", pane_id: paneId, signature: `demo:${revision}` });
-}
-
 function structureChanged(): void {
   emitSse({ type: "machines", machines });
   emitSse({ type: "machine-message", machine_id: local.id, message: { type: "session-changed" } });
@@ -349,100 +307,10 @@ function focusDemoPane(pane: Pane): void {
   }
 }
 
-function agentOf(paneId: string): string {
-  const key = keyOfPane.get(paneId);
-  return SPECS.find((spec) => spec.key === key)?.agent ?? paneOf(paneId)?.agent ?? "the agent";
-}
-
-/**
- * How Claude's builtins behave, as the bridge describes them (shared/protocol.ts CommandForm): a
- * screen or output the chat cannot show runs in the terminal, a choice opens a dialog, the rest
- * needs nothing. The other agents' panes keep the recorded list as it is.
- */
-const CLAUDE_FORMS: Record<string, CommandForm[]> = {
-  clear: [{ match: "bare", interaction: "none" }],
-  compact: [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
-  config: [{ match: "bare", interaction: "terminal" }],
-  cost: [{ match: "bare", interaction: "terminal" }],
-  doctor: [{ match: "bare", interaction: "terminal" }],
-  help: [{ match: "bare", interaction: "terminal" }],
-  init: [{ match: "bare", interaction: "none" }],
-  login: [{ match: "bare", interaction: "dialog", dialog: "login" }],
-  logout: [{ match: "bare", interaction: "none" }],
-  memory: [{ match: "bare", interaction: "dialog", dialog: "memory" }],
-  model: [{ match: "bare", interaction: "dialog", dialog: "model" }, { match: "other", interaction: "none" }],
-  permissions: [{ match: "bare", interaction: "dialog", dialog: "permissions" }],
-  "pr-comments": [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
-  "release-notes": [{ match: "bare", interaction: "terminal" }],
-  review: [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
-  status: [{ match: "bare", interaction: "terminal" }],
-  "terminal-setup": [{ match: "bare", interaction: "terminal" }],
-  vim: [{ match: "bare", interaction: "none" }],
-};
-/** Claude's own menu hides these; they still run when typed, so the chat sends them as typed and never lists them. */
-const CLAUDE_HIDDEN: SlashCommand[] = [
-  { name: "agents", description: "Manage agent configurations", source: "builtin", visibility: "agent-hidden", forms: [{ match: "bare", interaction: "dialog", dialog: "agents" }] },
-  { name: "heapdump", description: "Write a heap snapshot", source: "builtin", visibility: "agent-hidden", forms: [{ match: "bare", interaction: "none" }] },
-];
-
-/** GET /api/pane/commands: the recorded Claude list, with its forms for a Claude pane. */
-function paneCommandRows(paneId: string): SlashCommand[] {
-  const rows = (commandsFixture as { commands: SlashCommand[] }).commands;
-  if (agentOf(paneId) !== "claude") return rows;
-  const described = rows.map((row) => {
-    const forms = CLAUDE_FORMS[row.name];
-    return { ...row, provenance: { transport: "static" as const, verified: false }, ...(forms ? { forms, id: row.name } : {}) };
-  });
-  return [...described, ...CLAUDE_HIDDEN.map((row) => ({ ...row, provenance: { transport: "static" as const, verified: false }, id: row.name }))];
-}
-
-const now = () => new Date().toISOString();
-
-/** The bridge takes one accepted pending message when the current mock turn finishes. */
+/** The pane's mock turn ends: its agent is at rest. */
 function finishDemoTurn(paneId: string, status: "idle" | "done" = "done"): void {
   replying.delete(paneId);
-  if (!paneOf(paneId)) return;
-  setStatus(paneId, status);
-  for (const socket of [...sockets].sort((a, b) => a.pendingOrder(paneId) - b.pendingOrder(paneId))) {
-    if (socket.drainPending(paneId)) break;
-  }
-}
-
-/** A sent Enter joins the conversation now; another Enter steers the current mock turn. */
-function submitToChat(paneId: string, text: string): void {
-  const key = keyOfPane.get(paneId);
-  const chat = key ? chats.get(key) : undefined;
-  if (!chat) return;
-  chat.turns.push({ role: "user", ts: now(), parts: [{ kind: "text", text }] });
-  conversationChanged(paneId);
-  const agent = agentOf(paneId);
-  if (replying.has(paneId)) return;
-  replying.add(paneId);
-  setStatus(paneId, "working");
-  setTimeout(() => {
-    chat.turns.push({ role: "assistant", ts: now(), end_ts: now(), parts: [{ kind: "text", phase: "final_answer", text: `This is the demo, so nothing ran. In the real app that message went to ${agent} in this pane, and its answer would be written here as it arrives, with its commands and edits folded above it.` }] });
-    conversationChanged(paneId);
-    finishDemoTurn(paneId);
-  }, CHAT_ANSWER_MS);
-}
-
-function answerPrompt(paneId: string, optionIndex: number | undefined): void {
-  promptOpen = false;
-  replying.add(paneId);
-  setStatus(paneId, "working");
-  const chat = chats.get("web");
-  const declined = optionIndex === 2;
-  setTimeout(() => {
-    chat?.turns.push({
-      role: "assistant", ts: now(), end_ts: now(),
-      parts: declined
-        ? [{ kind: "text", phase: "final_answer", text: "Understood, I won't push. The changes stay on `feat/export-guard` locally; tell me what to do differently." }]
-        : [{ kind: "tool", name: "exec", summary: "git push origin feat/export-guard", input: JSON.stringify({ cmd: "git push origin feat/export-guard" }, null, 2), output: "To github.com:acme/checkout-api.git\n * [new branch]      feat/export-guard -> feat/export-guard" },
-          { kind: "text", phase: "final_answer", text: "Pushed `feat/export-guard`. The export button is guarded and the branch is ready for a pull request." }],
-    });
-    if (chat) conversationChanged(paneId);
-    finishDemoTurn(paneId);
-  }, PROMPT_ANSWER_TURN_MS);
+  if (paneOf(paneId)) setStatus(paneId, status);
 }
 
 // ---- HTTP -------------------------------------------------------------------------------------
@@ -468,56 +336,6 @@ async function layoutBodyOf(method: string, init: RequestInit | undefined, input
   if (body === null || typeof body !== "object" || Array.isArray(body)) return error("invalid_body", "request body must be a JSON object", 400);
   return body as Record<string, unknown>;
 }
-
-const DEMO_FILES = ["src/routes/payments.ts", "src/lib/idempotency.ts", "src/metrics.ts", "src/pages/Reports.tsx", "src/money.ts", "src/money.test.ts", "package.json", "README.md"];
-
-/**
- * The demo repository's uncommitted work, as GET /api/workspace/diff/* answers it: one file of
- * each kind a diff view has to draw. The patches are what git would print, hunk counts included.
- */
-const DEMO_DIFF_LIMITS = { max_files: 2000, max_list_bytes: 2 * 1024 * 1024, max_patch_bytes: 1024 * 1024, context_lines: 3 };
-const DEMO_DIFF: { file: RepoDiffFile; patch: string | null }[] = [
-  { file: { path: "docs/checkout-flow.png", old_path: null, status: "modified", additions: null, deletions: null, binary: true }, patch: null },
-  { file: { path: "src/lib/idempotency.ts", old_path: "src/idempotency.ts", status: "renamed", additions: 0, deletions: 0, binary: false }, patch: [
-    "diff --git a/src/idempotency.ts b/src/lib/idempotency.ts",
-    "similarity index 100%",
-    "rename from src/idempotency.ts",
-    "rename to src/lib/idempotency.ts",
-    "",
-  ].join("\n") },
-  { file: { path: "src/money.test.ts", old_path: null, status: "untracked", additions: null, deletions: null, binary: false }, patch: [
-    "diff --git a/src/money.test.ts b/src/money.test.ts",
-    "new file mode 100644",
-    "index 0000000..5d2e8c1",
-    "--- /dev/null",
-    "+++ b/src/money.test.ts",
-    "@@ -0,0 +1,6 @@",
-    "+import { expect, it } from \"bun:test\";",
-    "+import { toCents } from \"./money.ts\";",
-    "+",
-    "+it(\"rounds half a cent away from zero\", () => {",
-    "+  expect(toCents(10.075)).toBe(1008);",
-    "+});",
-    "",
-  ].join("\n") },
-  { file: { path: "src/money.ts", old_path: null, status: "modified", additions: 4, deletions: 1, binary: false }, patch: [
-    "diff --git a/src/money.ts b/src/money.ts",
-    "index 3f1c2aa..9b7d410 100644",
-    "--- a/src/money.ts",
-    "+++ b/src/money.ts",
-    "@@ -1,5 +1,8 @@",
-    " export type Cents = number;",
-    " ",
-    "+/** Rounds half away from zero, so 10.075 is 1008 cents and not 1007. */",
-    " export function toCents(amount: number): Cents {",
-    "-  return amount * 100;",
-    "+  const scaled = Math.abs(amount) * 100;",
-    "+  const rounded = Math.round(scaled + Number.EPSILON * scaled);",
-    "+  return Math.sign(amount) * rounded;",
-    " }",
-    "",
-  ].join("\n") },
-];
 
 /** Settings → Subscription usage on the demo: plans as the workstation's CLIs might report them, resets counted from now. */
 function usageReport(): UsageReport {
@@ -677,29 +495,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     return json({ workspace_id: made.workspace_id, pane_id: made.pane_id, already_open: false, path: checkout.path, branch: checkout.branch, ...(agent ? { agent_started: made.agent_started } : {}) } satisfies WorktreeOpened);
   }
 
-  if (path === "/api/pane/conversation") {
-    const key = keyOfPane.get(paneId);
-    const chat = key ? chats.get(key) : undefined;
-    const agent = agentOf(paneId);
-    if (!chat) return json({ source: "scrollback", turns: [] });
-    const source = agent === "claude" ? "claude-transcript" : agent === "codex" ? "codex-transcript" : agent === "gjc" ? "gjc-transcript" : agent === "omo" ? "omo-transcript" : agent === "pi" ? "pi-transcript" : agent === "cmd" ? "cmd-transcript" : agent === "devin" ? "devin-transcript" : agent === "hermes" ? "hermes-transcript" : "omp-transcript";
-    // These demo fixtures have no native Grok/Agy lifecycle: omit optional activity.
-    return json({ source, turns: chat.turns, metadata: chat.metadata, cursor: null });
-  }
-  if (path === "/api/pane/plan") {
-    if (method !== "GET") return error("method_not_allowed", "use GET", 400);
-    if (!paneId) return error("missing_pane_id", "pane_id query parameter is required", 400);
-    return json({ plan: keyOfPane.get(paneId) === "api" ? { steps: planSteps } : null, server_time: new Date().toISOString() } satisfies PanePlan);
-  }
-  if (path === "/api/pane/prompt") return json({ prompt: keyOfPane.get(paneId) === "web" && promptOpen ? { ...PROMPT, id: promptId } : null });
-  if (path === "/api/pane/prompt/answer") {
-    const body = await bodyOf(init, input);
-    const target = String(body["pane_id"] ?? "");
-    if (keyOfPane.get(target) !== "web" || !promptOpen || body["prompt_id"] !== promptId) return error("prompt_changed", "the screen no longer shows that prompt", 409);
-    answerPrompt(target, typeof body["option_index"] === "number" ? body["option_index"] : undefined);
-    return json({ ok: true });
-  }
-  if (path === "/api/pane/commands") return json({ commands: paneCommandRows(paneId) });
   if (path === "/api/pane/scroll") {
     const body = method === "POST" ? await bodyOf(init, input) : {};
     const target = method === "POST" ? String(body["pane_id"] ?? "") : paneId;
@@ -744,11 +539,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     const result = history.find(request);
     if (request.jump !== false && result.match) redrawHistory(target);
     return json(result);
-  }
-  if (path === "/api/pane/omo-tasks") return json({ tasks: [], runs: [] });
-  if (path === "/api/pane/files") {
-    const q = (query.get("q") ?? "").toLowerCase();
-    return json({ files: DEMO_FILES.filter((file) => file.toLowerCase().includes(q)).slice(0, Number(query.get("limit") ?? 20)) });
   }
   if (path === "/api/pane/input" || path === "/api/pane/keys") return json({ ok: true });
   if (path === "/api/plugins/actions") return json({ plugins: PLUGINS } satisfies PluginActionsResponse);
@@ -803,7 +593,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     const snap = snapshot();
     const closedLayout = snap.layouts.find((layout) => layout.tab_id === pane.tab_id);
     if (closedLayout) closeLayoutPane(closedLayout, pane.pane_id);
-    for (const socket of sockets) socket.holdPending(pane.pane_id, "pane_not_found", "This demo pane closed. Copy the message before discarding it.");
     replying.delete(pane.pane_id);
     snap.panes = snap.panes.filter((candidate) => candidate.pane_id !== pane.pane_id);
     const survivingPanes = snap.panes.filter((candidate) => candidate.workspace_id === pane.workspace_id);
@@ -993,7 +782,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     const tab = snap.tabs.find((t) => t.tab_id === body["tab_id"]);
     if (!tab) return error("tab_not_found", "no such tab", 404);
     for (const removed of snap.panes.filter((p) => p.tab_id === tab.tab_id)) {
-      for (const socket of sockets) socket.holdPending(removed.pane_id, "pane_not_found", "This demo pane closed. Copy the message before discarding it.");
       replying.delete(removed.pane_id);
     }
     snap.panes = snap.panes.filter((p) => p.tab_id !== tab.tab_id);
@@ -1073,8 +861,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     workspace.pane_count = siblings.length + 1;
     if (agent) {
       keyOfPane.set(pane.pane_id, pane.pane_id);
-      chats.set(pane.pane_id, { turns: [], metadata: { model: agent === "codex" ? "gpt-5.6-sol" : "claude-opus-5-5", reasoning_effort: "medium" } });
-      conversationChanged(pane.pane_id);
       setTimeout(() => { if (!replying.has(pane.pane_id)) finishDemoTurn(pane.pane_id, "idle"); }, 1500);
     }
     structureChanged();
@@ -1084,27 +870,6 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
   if (path === "/api/voice") return json({ configured: false, source: null, ...VOICE_DEFAULTS } satisfies VoiceStatus, 200, { "cache-control": "no-store" });
   if (path === "/api/voice/config") return error("demo", "the demo saves no OpenAI key", 409);
   if (path === "/api/voice/transcribe") return error("voice_not_configured", "transcription is unavailable in the demo", 409);
-  if (path === "/api/workspace/diff/files" || path === "/api/workspace/diff/file") {
-    const scope = query.get("scope") || "workspace";
-    if (scope !== "workspace" && scope !== "staged" && scope !== "commit") return error("invalid_scope", "scope must be workspace, staged or commit", 400);
-    // the demo keeps no history to name commits in
-    if (scope === "commit") return error("revision_not_found", "the demo repository has no commits to compare", 404);
-    const root = snapshot().panes.find((pane) => pane.pane_id === paneId)?.cwd ?? query.get("directory") ?? "/home/demo/checkout-api";
-    // a worktree's checkout is on its own branch, as the sidebar and the footer say
-    const branch = [...repositories.values()].flatMap((repo) => repo.checkouts).find((checkout) => checkout.path === root)?.branch ?? "main";
-    const repository: RepoDiffRepository = { root, branch, head: "4f2a9c1d7e3b5a8c6d0e1f2a3b4c5d6e7f8a9b0c", detached: false, unborn: false };
-    // everything in the demo is unstaged work
-    const changed = scope === "workspace" ? DEMO_DIFF : [];
-    const compared: RepoDiffScope = scope;
-    const shared = { repository, scope: compared, base: null, head: null };
-    if (path === "/api/workspace/diff/files") {
-      return json({ ...shared, files: changed.map((entry) => entry.file), total: changed.length, truncated: false, limits: { max_files: DEMO_DIFF_LIMITS.max_files, max_list_bytes: DEMO_DIFF_LIMITS.max_list_bytes } } satisfies RepoDiffFileList);
-    }
-    const entry = changed.find((candidate) => candidate.file.path === query.get("path"));
-    if (!entry) return error("not_found", "nothing changed at that path in this comparison", 404);
-    return json({ ...shared, file: entry.file, patch: entry.patch, unavailable: entry.patch === null ? "binary" : null, truncated: false, limits: { max_patch_bytes: DEMO_DIFF_LIMITS.max_patch_bytes, context_lines: DEMO_DIFF_LIMITS.context_lines } } satisfies RepoDiffFilePatch);
-  }
-  if (path.startsWith("/api/fs/")) return error("not_found", "the demo has no files to open", 404);
   return error("demo", `${method} ${path} is not part of the demo`, 404);
 }
 
@@ -1198,11 +963,6 @@ class DemoSocket extends EventTarget {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly attached = new Set<string>();
   private mode: "interact" | "observe" = "interact";
-  /** Accepted messages belong to this live connection, never to a reconnect's empty queue. */
-  private readonly pending = new Map<string, PendingMessage[]>();
-  private readonly outcomes = new Map<string, { paneId: string; outcome: "sent" | "discarded" }>();
-  private readonly requests = new Map<number, { signature: string; reply?: ServerMessage }>();
-  private readonly conversationInterests = new Set<string>();
   /** the pretend shell's current line, per shell pane */
   private readonly lines = new Map<string, string>();
 
@@ -1218,7 +978,7 @@ class DemoSocket extends EventTarget {
       const open = new Event("open");
       this.onopen?.(open);
       this.dispatchEvent(open);
-      this.push({ type: "snapshot", snapshot: snapshot(), features: ["submit", "pending-input", "pending-hold", "secret-input", "input-ready", "conversation-watch", "ping"] });
+      this.push({ type: "snapshot", snapshot: snapshot(), features: ["submit", "secret-input", "input-ready", "ping"] });
     }, 20);
     this.timers.add(opening);
   }
@@ -1231,18 +991,9 @@ class DemoSocket extends EventTarget {
 
   push(message: ServerMessage): void {
     if (this.readyState !== 1) return;
-    if (message.type === "conversation-changed" && (!this.attached.has(message.pane_id) || !this.conversationInterests.has(message.pane_id))) return;
-    if (message.type === "pty-exit") {
-      this.attached.delete(message.pane_id);
-      this.conversationInterests.delete(message.pane_id);
-    }
+    if (message.type === "pty-exit") this.attached.delete(message.pane_id);
     if (message.type === "session-changed") {
-      for (const paneId of this.attached) {
-        if (!paneOf(paneId)) {
-          this.attached.delete(paneId);
-          this.conversationInterests.delete(paneId);
-        }
-      }
+      for (const paneId of this.attached) if (!paneOf(paneId)) this.attached.delete(paneId);
     }
     const event = new MessageEvent("message", { data: JSON.stringify(message) });
     this.onmessage?.(event);
@@ -1251,40 +1002,11 @@ class DemoSocket extends EventTarget {
 
   send(raw: string): void {
     if (this.readyState !== 1) return;
-    let message: { type: string; pane_id?: string; cols?: number; rows?: number; text?: string; payload?: string; keys?: string[]; id?: number; mode?: string; typed?: unknown; delivery?: unknown; clear_draft?: unknown; send_anyway?: unknown; resend_id?: unknown; resend_generation?: unknown; pending_id?: string; action?: unknown; enabled?: boolean; stop?: unknown; keep_size?: boolean };
+    let message: { type: string; pane_id?: string; cols?: number; rows?: number; text?: string; payload?: string; keys?: string[]; id?: number; mode?: string; typed?: unknown; keep_size?: boolean };
     try { message = JSON.parse(raw); } catch { return; }
-    if ((message.type === "submit" || message.type === "pending-action") && Number.isSafeInteger(message.id)) {
-      const signature = JSON.stringify({ type: message.type, pane_id: message.pane_id, text: message.text, payload: message.payload, typed: message.typed, delivery: message.delivery, clear_draft: message.clear_draft, send_anyway: message.send_anyway, resend_id: message.resend_id, resend_generation: message.resend_generation, pending_id: message.pending_id, action: message.action });
-      const previous = this.requests.get(message.id!);
-      if (previous) {
-        if (previous.signature !== signature) {
-          if (message.type === "submit") this.push({ type: "submit-result", id: message.id!, pane_id: message.pane_id ?? "", ok: false, code: "invalid_submit_id", message: "This submit ID already belongs to another message." });
-          else this.push({ type: "pending-result", id: message.id!, pane_id: message.pane_id ?? "", pending_id: message.pending_id ?? "", ok: false, code: "invalid_pending_action", message: "This request ID already belongs to another action." });
-        }
-        else if (previous.reply) {
-          const reply = previous.reply;
-          if (reply.type === "submit-result" && reply.pending) {
-            const pendingId = reply.pending.id;
-            const pending = this.pending.get(reply.pane_id)?.find((item) => item.id === pendingId);
-            if (pending) this.push({ ...reply, pending: structuredClone(pending) });
-            else this.push({ type: "submit-result", id: reply.id, pane_id: reply.pane_id, ok: true });
-          } else {
-            if (reply.type === "pending-result" && reply.ok) {
-              const receipt = this.outcomes.get(reply.pending_id);
-              if (receipt?.paneId === reply.pane_id) this.publishPending(receipt.paneId, [{ id: reply.pending_id, outcome: receipt.outcome }]);
-            }
-            this.push(reply);
-          }
-        }
-        return;
-      }
-      this.requests.set(message.id!, { signature });
-      if (this.requests.size > 128) this.requests.delete(this.requests.keys().next().value!);
-    }
     switch (message.type) {
       case "role":
         this.mode = message.mode === "observe" ? "observe" : "interact";
-        if (this.mode === "observe") this.holdPending(undefined, "read_only", "This connection now only watches. Pending messages will not be sent automatically.");
         this.push({ type: "role-ack", mode: this.mode });
         break;
       case "presence":
@@ -1296,7 +1018,7 @@ class DemoSocket extends EventTarget {
         break;
       case "attach":
         if (message.pane_id) {
-          // keep_size (the chat lens) and an observer leave the shared grid alone and learn it instead
+          // keep_size and an observer leave the shared grid alone and learn it instead
           const keepsSize = message.keep_size === true || this.mode === "observe";
           if (!keepsSize) this.resizeGrid(message.pane_id, message.cols, message.rows);
           this.attach(message.pane_id);
@@ -1318,26 +1040,8 @@ class DemoSocket extends EventTarget {
       case "watch": if (message.pane_id) this.push({ type: "watch-end", pane_id: message.pane_id }); break;
       case "unwatch": break;
       case "detach":
-        if (message.pane_id) {
-          this.attached.delete(message.pane_id);
-          this.holdPending(message.pane_id, "not_attached", "This pane was detached. Pending messages will not be sent automatically.");
-          this.conversationInterests.delete(message.pane_id);
-        }
+        if (message.pane_id) this.attached.delete(message.pane_id);
         break;
-      case "conversation-watch":
-        if (typeof message.pane_id !== "string" || message.pane_id.trim() === "" || typeof message.enabled !== "boolean") {
-          this.push({ type: "error", code: "invalid_conversation_watch", message: "pane_id must be a nonempty string and enabled must be a boolean" });
-        } else if (message.enabled) {
-          if (!this.attached.has(message.pane_id)) {
-            this.push({ type: "error", code: "not_attached", message: "conversation interest requires an attached pane", pane_id: message.pane_id });
-          } else {
-            this.conversationInterests.add(message.pane_id);
-          }
-        } else {
-          this.conversationInterests.delete(message.pane_id);
-        }
-        break;
-      // a Stop (`stop`) is typed like any key: the demo has no pty for a following message to overtake
       case "input": if (message.pane_id && message.text !== undefined) this.typed(message.pane_id, message.text); break;
       case "keys": if (message.pane_id) for (const key of message.keys ?? []) this.typed(message.pane_id, chordText(key)); break;
       case "secret":
@@ -1348,181 +1052,17 @@ class DemoSocket extends EventTarget {
           this.push({ type: "error", code: "invalid_submit", message: "id, pane_id, text and payload are required." });
           break;
         }
-        if (message.pane_id && message.text !== undefined && message.id !== undefined) {
-          if (message.resend_id !== undefined && message.send_anyway !== undefined) {
-            this.completeRequest({ type: "submit-result", id: message.id, pane_id: message.pane_id, ok: false, code: "invalid_delivery", message: "Use a held-copy resend id only for an immediate chat message" });
-            break;
-          }
-          const queued = message.delivery === "queue" || message.delivery === "hold";
-          for (const [key, receipt] of heldCopyResends) if (Date.now() - receipt.at >= 60_000) heldCopyResends.delete(key);
-          const resendKey = message.resend_id === undefined ? null : JSON.stringify([message.pane_id, message.resend_id, message.resend_generation ?? 0]);
-          const previous = resendKey === null ? undefined : heldCopyResends.get(resendKey);
-          if (previous && this.mode !== "observe" && message.clear_draft === undefined) {
-            this.push(previous.text === message.text ? { ...previous.reply, id: message.id }
-              : { type: "submit-result", id: message.id, pane_id: message.pane_id, ok: false, code: "invalid_submit_id", message: "This resend id already belongs to another message." });
-            break;
-          }
-          const text = queued ? message.text.replace(/[\r\n]+$/, "").replace(/\r\n?/g, "\n") : message.text;
-          let code: string | null = null;
-          if ((message.delivery !== undefined && message.delivery !== "immediate" && !queued) || (queued && message.typed !== undefined && message.typed !== false)) code = "invalid_delivery";
-          else if (message.clear_draft !== undefined && (typeof message.clear_draft !== "string" || !message.clear_draft
-            || queued || (message.typed !== undefined && message.typed !== false))) code = "invalid_delivery";
-          else if (message.send_anyway !== undefined && (message.send_anyway !== true || queued || message.clear_draft !== undefined
-            || (message.typed !== undefined && message.typed !== false))) code = "invalid_delivery";
-          else if (this.mode === "observe") code = "read_only";
-          // the demo agent never refuses over its input box, so there is nothing to clear or send over
-          else if (message.clear_draft !== undefined || message.send_anyway !== undefined) code = "unsupported";
-          else if (message.resend_id !== undefined && (typeof message.resend_id !== "string" || !message.resend_id || message.resend_id.length > 128 || queued || message.typed === true)) code = "invalid_delivery";
-          else if (message.resend_generation !== undefined && (typeof message.resend_generation !== "number" || !Number.isSafeInteger(message.resend_generation) || message.resend_generation < 0 || message.resend_id === undefined)) code = "invalid_delivery";
-          else if (resendKey !== null && heldCopyResends.size >= 256) code = "pending_limit";
-          else if (queued && (text.trim().length === 0 || text.length > 20_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(text))) code = "invalid_submit_text";
-          else if (queued) code = this.pendingTargetError(message.pane_id);
-          if (code) {
-            const reply: Extract<ServerMessage, { type: "submit-result" }> = { type: "submit-result", id: message.id, pane_id: message.pane_id, ok: false, code, message: "The demo agent cannot take this submission." };
-            if (resendKey !== null && this.mode !== "observe" && code !== "pending_limit" && !previous) heldCopyResends.set(resendKey, { text: message.text, reply, at: Date.now() });
-            this.completeRequest(reply);
-            break;
-          }
-          if (queued && (message.delivery === "hold" || paneOf(message.pane_id)?.agent_status === "working")) {
-            const pending: PendingMessage = { id: `demo-pending-${nextPending++}`, request_id: message.id, text, state: message.delivery === "hold" ? "held" : "queued", created_at: now() };
-            this.pending.set(message.pane_id, [...(this.pending.get(message.pane_id) ?? []), pending]);
-            const reply: ServerMessage = { type: "submit-result", id: message.id, pane_id: message.pane_id, ok: true, pending: structuredClone(pending) };
-            this.rememberRequest(reply);
-            this.publishPending(message.pane_id);
-            this.push(reply);
-          } else {
-            submitToChat(message.pane_id, text);
-            const reply: Extract<ServerMessage, { type: "submit-result" }> = { type: "submit-result", id: message.id, pane_id: message.pane_id, ok: true };
-            if (resendKey !== null) heldCopyResends.set(resendKey, { text: message.text, reply, at: Date.now() });
-            this.completeRequest(reply);
-          }
+        if (this.mode === "observe") {
+          this.push({ type: "submit-result", id: message.id!, pane_id: message.pane_id, ok: false, code: "read_only", message: "This connection only watches." });
+          break;
         }
-        break;
-      case "pending-action":
-        if (message.id !== undefined && message.pane_id && message.pending_id) {
-          const result = (ok: boolean, code?: string) => this.completeRequest({ type: "pending-result", id: message.id!, pane_id: message.pane_id!, pending_id: message.pending_id!, ok, ...(code ? { code, message: "The demo pending message was not changed." } : {}) });
-          if (message.action !== "steer" && message.action !== "discard") { result(false, "invalid_pending_action"); break; }
-          if (message.resend_generation !== undefined && (typeof message.resend_generation !== "number" || !Number.isSafeInteger(message.resend_generation) || message.resend_generation < 0)) {
-            result(false, "invalid_pending_action"); break;
-          }
-          if (this.mode === "observe") { result(false, "read_only"); break; }
-          const pending = this.pending.get(message.pane_id)?.find((item) => item.id === message.pending_id);
-          if (!pending) {
-            const receipt = this.outcomes.get(message.pending_id);
-            if (receipt?.paneId === message.pane_id) {
-              this.publishPending(message.pane_id, [{ id: message.pending_id, outcome: receipt.outcome }]);
-              result(true);
-            } else result(false, "pending_not_found");
-            break;
-          }
-          if (pending.state === "sending") { result(false, "pending_busy"); break; }
-          if (message.action === "discard") {
-            this.removePending(message.pane_id, pending.id, "discarded");
-            result(true);
-          } else {
-            const key = JSON.stringify([message.pane_id, pending.id, message.resend_generation ?? 0]);
-            for (const [id, receipt] of heldCopyResends) if (Date.now() - receipt.at >= 60_000) heldCopyResends.delete(id);
-            const previous = heldCopyResends.get(key);
-            if (previous) {
-              if (previous.text !== pending.text) { result(false, "invalid_submit_id"); break; }
-              if (previous.reply.ok) this.removePending(message.pane_id, pending.id, "sent");
-              result(previous.reply.ok, previous.reply.code);
-              break;
-            }
-            if (heldCopyResends.size >= 256) { result(false, "pending_limit"); break; }
-            const resendResult = (ok: boolean, code?: string) => {
-              heldCopyResends.set(key, { text: pending.text, at: Date.now(), reply: {
-                type: "submit-result", id: message.id!, pane_id: message.pane_id!, ok, ...(code ? { code } : {}),
-              } });
-              result(ok, code);
-            };
-            const code = this.pendingTargetError(message.pane_id);
-            if (code) { resendResult(false, code); break; }
-            if (pending.state === "uncertain") { result(false, "pending_uncertain"); break; }
-            const sent = this.deliverPending(message.pane_id, pending);
-            resendResult(sent, sent ? undefined : pending.error?.code ?? "pending_changed");
-          }
-        }
+        // the terminal's input line: typed into the pretend shell, then its Enter
+        this.typed(message.pane_id, message.payload);
+        this.typed(message.pane_id, "\r");
+        this.push({ type: "submit-result", id: message.id!, pane_id: message.pane_id, ok: true });
         break;
       default: /* pty-ack: nothing to do in the demo */
     }
-  }
-
-  private rememberRequest(message: Extract<ServerMessage, { type: "submit-result" | "pending-result" }>): void {
-    const request = this.requests.get(message.id);
-    if (request) request.reply = structuredClone(message);
-  }
-
-  private completeRequest(message: Extract<ServerMessage, { type: "submit-result" | "pending-result" }>): void {
-    this.rememberRequest(message);
-    this.push(message);
-  }
-
-  private publishPending(paneId: string, removed?: { id: string; outcome: "sent" | "discarded" }[]): void {
-    this.push({ type: "pending-messages", pane_id: paneId, messages: this.pending.get(paneId) ?? [], ...(removed ? { removed } : {}) });
-  }
-
-  /** A lost claim never becomes input merely because this pane becomes ready again. */
-  holdPending(paneId?: string, code = "disconnected", message = "The connection closed. Pending messages will not be sent automatically."): void {
-    for (const [pane, pending] of this.pending) {
-      if (paneId !== undefined && pane !== paneId) continue;
-      for (const item of pending) if (item.state === "queued" || item.state === "sending") {
-        item.state = "held";
-        item.error = { code, message };
-      }
-      this.publishPending(pane);
-    }
-  }
-
-  private pendingTargetError(paneId: string): string | null {
-    if (this.readyState !== 1) return "disconnected";
-    if (this.mode === "observe") return "read_only";
-    if (!this.attached.has(paneId)) return "not_attached";
-    const pane = paneOf(paneId);
-    if (!pane) return "pane_not_found";
-    if (!(pane.agent ?? pane.agent_session?.agent)) return "agent_not_ready";
-    if (keyOfPane.get(paneId) === "web" && promptOpen) return "agent_blocked";
-    if (pane.agent_status === "blocked") return "agent_blocked";
-    if (!["working", "idle", "done"].includes(pane.agent_status)) return "agent_not_ready";
-    return null;
-  }
-
-  private removePending(paneId: string, pendingId: string, outcome: "sent" | "discarded"): void {
-    this.pending.set(paneId, (this.pending.get(paneId) ?? []).filter((item) => item.id !== pendingId));
-    this.outcomes.set(pendingId, { paneId, outcome });
-    if (this.outcomes.size > 1024) this.outcomes.delete(this.outcomes.keys().next().value!);
-    this.publishPending(paneId, [{ id: pendingId, outcome }]);
-  }
-
-  private deliverPending(paneId: string, pending: PendingMessage): boolean {
-    pending.state = "sending";
-    delete pending.error;
-    this.publishPending(paneId);
-    // A close, detach or role change can land in the sending notification itself.
-    // Revalidate the same claim before the mock turn receives any of its text.
-    if (pending.state !== "sending") return false;
-    const code = this.pendingTargetError(paneId);
-    if (code !== null) {
-      pending.state = "held";
-      pending.error = { code, message: "The pane changed before delivery. This message will not be sent automatically." };
-      this.publishPending(paneId);
-      return false;
-    }
-    submitToChat(paneId, pending.text);
-    this.removePending(paneId, pending.id, "sent");
-    return true;
-  }
-
-  pendingOrder(paneId: string): number {
-    const first = this.pending.get(paneId)?.find((item) => item.state === "queued");
-    return first ? Number(first.id.split("-").at(-1)) : Infinity;
-  }
-
-  /** Only a live owner can drain one queued item at a real completion edge. */
-  drainPending(paneId: string): boolean {
-    if (this.pendingTargetError(paneId) !== null || !["idle", "done"].includes(paneOf(paneId)?.agent_status ?? "")) return false;
-    const pending = this.pending.get(paneId)?.find((item) => item.state === "queued");
-    return pending !== undefined && this.deliverPending(paneId, pending);
   }
 
   /** herdr's pane.clear: the screen goes blank with the cursor at home; what the program writes next shows again */
@@ -1550,12 +1090,10 @@ class DemoSocket extends EventTarget {
     const pane = paneOf(paneId);
     if (!pane) {
       this.attached.delete(paneId);
-      this.conversationInterests.delete(paneId);
       this.push({ type: "error", code: "pane_not_found", message: "no such pane", pane_id: paneId });
       return;
     }
     this.attached.add(paneId);
-    this.publishPending(paneId);
     this.push({ type: "input-ready", pane_id: paneId });
     const key = keyOfPane.get(paneId);
     if (histories.has(paneId)) { this.renderHistory(paneId); return; }
@@ -1569,7 +1107,7 @@ class DemoSocket extends EventTarget {
       }
       return;
     }
-    if (pane && !pane.agent && !chats.has(paneId)) {
+    if (!pane.agent) {
       // a shell the demo user started: an empty prompt
       this.later(() => { if (this.attached.has(paneId) && !histories.has(paneId)) this.push({ type: "pty-data", pane_id: paneId, data: "\x1b[2J\x1b[H" + PROMPT_TEXT }); }, 60);
       return;
@@ -1580,7 +1118,7 @@ class DemoSocket extends EventTarget {
   /** the pretend shell: echo, backspace, and a few commands it knows */
   private typed(paneId: string, text: string): void {
     const pane = paneOf(paneId);
-    if (!pane || pane.agent || chats.has(paneId) || this.mode === "observe") return;
+    if (!pane || pane.agent || this.mode === "observe") return;
     let history = histories.get(paneId);
     // xterm sends SGR wheel reports once demo history has enabled mouse reporting.
     text = text.replace(/\x1b\[<(\d+);\d+;\d+[Mm]/g, (_report, value: string) => {
@@ -1625,11 +1163,9 @@ class DemoSocket extends EventTarget {
   close(code = 1000, reason = ""): void {
     if (this.readyState >= 2) return;
     this.readyState = 3;
-    this.holdPending();
     for (const timer of this.timers) clearTimeout(timer);
     sockets.delete(this);
     this.attached.clear();
-    this.conversationInterests.clear();
     const event = new CloseEvent("close", { code, reason, wasClean: true });
     this.onclose?.(event);
     this.dispatchEvent(event);
@@ -1645,31 +1181,9 @@ for (const name of ["CONNECTING", "OPEN", "CLOSING", "CLOSED"] as const) Object.
 
 // ---- the turn in progress ----------------------------------------------------------------------
 
-// The Claude pane is mid-turn when the demo opens (RUN); a few seconds later the metric lands and
-// the turn ends, so the first thing a visitor sees move is a status, the way it does for real.
-setTimeout(() => {
-  const chat = chats.get("api");
-  const paneId = panesFixture.api;
-  const turn = chat?.turns.filter((turn) => turn.role === "assistant" && !turn.end_ts).at(-1);
-  if (!chat || !turn || turn.role !== "assistant") return;
-  turn.parts.push(
-    { kind: "tool", name: "Bash", summary: "bun test metrics", input: JSON.stringify({ command: "bun test metrics" }, null, 2), output: " 6 pass\n 0 fail\nRan 6 tests across 1 file. [201ms]" },
-    { kind: "text", phase: "final_answer", text: "Added `payments_idempotent_replays_total`, incremented where a stored response is replayed, and exposed with the other counters on `/metrics`. 6 tests pass." },
-  );
-  turn.end_ts = now();
-  conversationChanged(paneId);
-  finishDemoTurn(paneId);
-}, 4500);
-
-// ---- what the demo opens first ------------------------------------------------------------------
-
-// On a desktop the app opens a pane in its terminal, where the demo has only a notice: agent
-// panes open in the chat here unless this browser already chose (the same key the app writes).
-for (const pane of snapshot().panes) {
-  if (!pane.agent) continue;
-  const key = `herdr-web-ui:view:${pane.pane_id}`;
-  try { if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, "chat"); } catch { /* storage blocked: the app falls back to its default */ }
-}
+// The Claude pane is mid-turn when the demo opens (RUN); a few seconds later the turn ends, so the
+// first thing a visitor sees move is a status, the way it does for real.
+setTimeout(() => finishDemoTurn(panesFixture.api), 4500);
 
 // ---- browser features the demo cannot honour --------------------------------------------------
 

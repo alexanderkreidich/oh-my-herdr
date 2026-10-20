@@ -3,37 +3,35 @@ import { describe, expect, it } from "bun:test";
 import { LaunchedAgents, STARTUP_MS } from "./launched-agents.ts";
 
 describe("LaunchedAgents", () => {
-  it("answers a conversation not begun for a pane it started an agent in, under one history", () => {
+  it("tells a pane it started an agent in, before its first turn, from any other", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "codex", 0);
-    const first = launched.notBegun("w1:p1", undefined, 10);
-    expect(first).toEqual({ source: "codex-transcript", historyId: "unwritten:launch:w1:p1:1" });
-    expect(launched.notBegun("w1:p1", "done", 5_000)).toEqual(first);
-    expect(launched.notBegun("w1:p2", "idle", 10)).toBeNull();
+    expect(launched.notBegun("w1:p1", undefined, 10)).toBe(true);
+    expect(launched.notBegun("w1:p1", "done", 5_000)).toBe(true);
+    expect(launched.notBegun("w1:p2", "idle", 10)).toBe(false);
   });
 
   it("takes the status of an agent not yet seen at rest for its startup's", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "codex", 0);
-    expect(launched.notBegun("w1:p1", "working", 4_000)).not.toBeNull();
+    expect(launched.notBegun("w1:p1", "working", 4_000)).toBe(true);
     launched.launched("w2:p1", "claude", 0);
-    expect(launched.notBegun("w2:p1", "blocked", 4_000)).not.toBeNull();
+    expect(launched.notBegun("w2:p1", "blocked", 4_000)).toBe(true);
   });
 
   it("ends with the first turn: at work or asking after it rested", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "codex", 0);
-    expect(launched.notBegun("w1:p1", "idle", 5_000)).not.toBeNull();
-    expect(launched.notBegun("w1:p1", "working", 6_000)).toBeNull();
-    // the turn is over and still no transcript was found: the terminal stands in, as before
-    expect(launched.notBegun("w1:p1", "done", 60_000)).toBeNull();
+    expect(launched.notBegun("w1:p1", "idle", 5_000)).toBe(true);
+    expect(launched.notBegun("w1:p1", "working", 6_000)).toBe(false);
+    expect(launched.notBegun("w1:p1", "done", 60_000)).toBe(false);
   });
 
   it("takes an agent at work long after its launch for one on its first turn", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "opencode", 0);
-    expect(launched.notBegun("w1:p1", "working", STARTUP_MS + 1)).toBeNull();
-    expect(launched.notBegun("w1:p1", "idle", STARTUP_MS + 2)).toBeNull();
+    expect(launched.notBegun("w1:p1", "working", STARTUP_MS + 1)).toBe(false);
+    expect(launched.notBegun("w1:p1", "idle", STARTUP_MS + 2)).toBe(false);
   });
 
   it("reads a start screen's working and done as rest, and the first turn's as they are", () => {
@@ -55,22 +53,19 @@ describe("LaunchedAgents", () => {
     expect(launched.settle("w2:p1", "done", 4_500)).toBe("done");
   });
 
-  it("keeps the terminal's fallback for a kind it reads no transcript of", () => {
+  it("takes no part in a kind whose start screen it does not know", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "muse", 0);
-    expect(launched.notBegun("w1:p1", "idle", 10)).toBeNull();
-    expect(launched.notBegun("w1:p1", "idle", 10)).toBeNull();
+    expect(launched.notBegun("w1:p1", "idle", 10)).toBe(false);
+    expect(launched.notBegun("w1:p1", "idle", 10)).toBe(false);
     launched.launched("w1:p2", "constructor", 0);
-    expect(launched.notBegun("w1:p2", "idle", 10)).toBeNull();
+    expect(launched.notBegun("w1:p2", "idle", 10)).toBe(false);
   });
 
-  it("gives a pane id launched again a history of its own, and forgets a pane that ended", () => {
+  it("forgets a pane that ended", () => {
     const launched = new LaunchedAgents();
     launched.launched("w1:p1", "claude", 0);
-    const first = launched.notBegun("w1:p1", "idle", 10);
-    launched.launched("w1:p1", "claude", 20);
-    expect(launched.notBegun("w1:p1", "idle", 30)?.historyId).not.toBe(first?.historyId);
     launched.forget("w1:p1");
-    expect(launched.notBegun("w1:p1", "idle", 40)).toBeNull();
+    expect(launched.notBegun("w1:p1", "idle", 40)).toBe(false);
   });
 });

@@ -477,27 +477,6 @@ export function omoTranscriptsOfCwd(cwd: string, panes: HerdrPane[], infos: Read
 }
 
 /**
- * The session an OmO pane holds: its file, or `pending`, the id of a session the pane holds
- * but omo has not written yet (before its first message, or right after /new). The folder
- * is the pane's resolved runtime cwd, and its peers are the panes resolving to the same one.
- */
-export async function omoSessionForPane(paneId: string, cwd: string, panes: HerdrPane[], home = process.env["HOME"] ?? ""): Promise<{ path: string | null; pending: string | null }> {
-  // A child model can change herdr's agent label: inspect each pane's processes once.
-  const candidates = panes;
-  const infos = new Map(await Promise.all(candidates.map(async (pane) => [pane.pane_id, await processInfo(pane.pane_id)] as const)));
-  const resolved = candidates.map((pane) => resolvePaneRuntime(pane, infos.get(pane.pane_id) ?? null, home, processEnviron));
-  const target = resolved.find((entry) => entry.pane.pane_id === paneId);
-  // two holder-owning cwds fail closed: the pane cannot be bound to either
-  if (target?.ambiguous) return { path: null, pending: null };
-  const session = omoTranscriptsResolved(target?.cwd ?? cwd, resolved, home).get(paneId);
-  return { path: session?.path ?? null, pending: session?.pending ?? null };
-}
-
-export async function omoTranscriptForPane(paneId: string, cwd: string, panes: HerdrPane[], home = process.env["HOME"] ?? ""): Promise<string | null> {
-  return (await omoSessionForPane(paneId, cwd, panes, home)).path;
-}
-
-/**
  * Every pane of a snapshot that runs OmO, whatever herdr calls it, with the session it holds
  * (null when that cannot be told) and when its OmO process started. One process lookup per
  * pane, regardless of its child agent label, shared by all panes of a folder; the folder each

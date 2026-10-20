@@ -1,7 +1,6 @@
 /**
- * gzip for the text this server answers with, when the browser takes it. A conversation page is
- * JSON of up to a few megabytes, polled every 2 s while it changes; over a Tailscale relay or a
- * phone's link those bytes were most of a session switch (2026-10-08: 2.1 MB → about a fifth).
+ * gzip for the text this server answers with, when the browser takes it: the app's bundles and the
+ * larger JSON answers (a session snapshot, a pane's read), over a Tailscale relay or a phone's link.
  *
  * Only finished bodies of a text type: the event stream (SSE) and a WebSocket upgrade pass
  * untouched, and so do files a user downloads, a range answer and anything already encoded.
@@ -42,8 +41,6 @@ function negotiable(pathname: string, response: Response): boolean {
   // Immutable static variants have already selected br/gzip/identity by quality.
   // Recompressing their identity choice would override the browser's preference.
   if (pathname.startsWith("/assets/") && /\bimmutable\b/i.test(response.headers.get("cache-control") ?? "") && /\baccept-encoding\b/i.test(response.headers.get("vary") ?? "")) return false;
-  // a file the viewer opens can be any size: it streams as it is
-  if (/\/fs\/file$/.test(pathname)) return false;
   if (response.status === 304) return true;
   if (response.status !== 200 || response.headers.has("content-encoding") || response.headers.has("content-range")) return false;
   const type = response.headers.get("content-type") ?? "";

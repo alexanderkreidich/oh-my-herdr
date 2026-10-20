@@ -35,7 +35,6 @@ try {
   if (!roster.machines[0]?.snapshot) throw new Error("the local machine never reported a snapshot");
   save("machines.json", roster);
   save("agents.json", await get("/api/agents"));
-  save("commands.json", await get(`/api/pane/commands?pane_id=${encodeURIComponent(demo.pane("api").pane)}`));
   save("panes.json", Object.fromEntries(demo.panes.map((p) => [p.key, p.pane])));
 
   // the shell pane, driven the way the README terminal shot is: real git history, real tests

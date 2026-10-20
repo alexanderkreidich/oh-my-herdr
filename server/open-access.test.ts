@@ -63,11 +63,10 @@ describe("a paired watch device", () => {
     headers: { cookie, origin: base, "x-herdr-machine": "1", ...(method === "POST" ? { "content-type": "application/json" } : {}) },
   });
 
-  it("keeps the filesystem, the directory listing and push/test out of reach", async () => {
+  it("keeps the directory listing and push/test out of reach", async () => {
     // its own credentials are a preference of that device, so signing out keeps working
     expect((await asWatcher("/api/auth", "DELETE")).status).toBe(204);
-    // the filesystem and the directory listing are shape the terminal never shows it
-    expect((await asWatcher("/api/fs/file?path=/etc/hostname")).status).toBe(403);
+    // the directory listing is shape the terminal never shows it
     expect((await asWatcher("/api/workspace/directories?cwd=/tmp")).status).toBe(403);
     expect((await asWatcher("/api/machines/local/workspace/directories?cwd=/tmp")).status).toBe(403);
     // nor make a folder there

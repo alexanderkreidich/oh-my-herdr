@@ -1,5 +1,5 @@
 /**
- * The workspace routes: a folder's listing and a new folder, a repository's changes, and the
+ * The workspace routes: a folder's listing and a new folder, and the
  * workspaces, tabs and worktrees herdr makes, renames, moves and closes. They answer from herdr
  * and the disk; the dispatcher in index.ts runs the access gate first.
  */
@@ -14,7 +14,6 @@ import { createDirectory, listDirectories } from "./directories.ts";
 import { HerdrError, tabClose, tabCreate, tabMove, tabRename, workspaceClose, workspaceCreate, workspaceMove, workspaceRename, worktreeCreate, worktreeList, worktreeOpen, worktreeRemove } from "./herdr/client.ts";
 import { badRequest, conflictResponse, errorResponse, isJsonObject, jsonResponse, readJsonObject } from "./http.ts";
 import { paneContext } from "./pane-context.ts";
-import { repoDiffResponse } from "./repo-diff.ts";
 
 function expandedDirectory(value: string): string | null {
   const expanded = value === "~" ? homedir() : value.startsWith("~/") ? resolve(homedir(), value.slice(2)) : resolve(value);
@@ -43,7 +42,7 @@ export async function handleWorkspaceRequest(request: Request, url: URL, pathnam
 
   if (pathname === "/api/workspace/directories") {
     if (request.method !== "GET") return badRequest("method_not_allowed", "use GET or POST");
-    // a folder a pane's chat names is read from that pane's folder, as a file it names is
+    // a relative path is read from the folder of the pane it belongs to
     const paneId = url.searchParams.get("pane_id");
     let base: string | undefined;
     if (paneId) {
@@ -54,30 +53,6 @@ export async function handleWorkspaceRequest(request: Request, url: URL, pathnam
     }
     const listing = listDirectories(url.searchParams.get("path") ?? "", url.searchParams.get("hidden") === "1", url.searchParams.get("files") === "1", base);
     return listing === null ? badRequest("invalid_cwd", "path must be a directory this user can read") : jsonResponse(listing);
-  }
-
-  if (pathname === "/api/workspace/diff/files" || pathname === "/api/workspace/diff/file") {
-    if (request.method !== "GET") return badRequest("method_not_allowed", "use GET");
-    // file contents, like /api/fs/file: this app reads them, another site's page does not
-    if (request.headers.get("sec-fetch-site") === "cross-site") return jsonResponse({ error: { code: "cross_site", message: "A repository's changes are read from this app" } }, 403);
-    const paneId = url.searchParams.get("pane_id");
-    const directory = (url.searchParams.get("directory") ?? "").trim();
-    if (!paneId && directory === "") return badRequest("missing_directory", "pane_id or directory query parameter is required");
-    let base: string | undefined;
-    if (paneId) {
-      try { base = (await paneContext(paneId)).cwd; } catch (error) {
-        // a named folder is still read; the pane's own folder is gone with the pane
-        if (directory === "") return errorResponse(error);
-      }
-    }
-    let cwd = base;
-    if (directory !== "") {
-      const relative = directory !== "~" && !directory.startsWith("~/") && !isAbsolute(directory);
-      if (relative && base === undefined) return badRequest("invalid_cwd", "a relative directory needs the pane it belongs to");
-      cwd = expandedDirectory(relative ? resolve(base!, directory) : directory) ?? undefined;
-    }
-    if (cwd === undefined) return badRequest("invalid_cwd", "directory must be a directory this user can read");
-    return repoDiffResponse(pathname.endsWith("/files") ? "files" : "file", cwd, url.searchParams);
   }
 
   // A tab is made the way a workspace is: herdr opens it with a shell in its root pane, and

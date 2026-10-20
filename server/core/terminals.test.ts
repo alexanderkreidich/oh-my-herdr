@@ -32,7 +32,7 @@ for (const readOnly of [false, true]) for (const ready of [false, true]) {
     const registry = createTerminalRegistry({
       options: {}, clients: new Set([client]), stopped: () => false, terminalAttach: async () => true,
       holdFor: 0, heldRetry: 0, retryFor: 0, relookupFor: 0,
-      holdPending() {}, holdPendingPane() {}, end() {},
+      end() {},
     });
     await registry.terminalFrames.attach(client, { type: "attach", pane_id: "p", cols: 80, rows: 24, keep_size: true });
     expect(frames.filter((frame) => frame.type === "pty-data")).toEqual([
@@ -46,6 +46,5 @@ for (const readOnly of [false, true]) for (const ready of [false, true]) {
     if (ready) expect(frames.findIndex((frame) => frame.type === "input-ready"))
       .toBeGreaterThan(frames.findIndex((frame) => frame.type === "pty-data"));
     registry.closeAttachment("p");
-    registry.conversations.stop();
   });
 }
