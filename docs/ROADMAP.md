@@ -45,18 +45,24 @@ workspace list, the tab bar and the terminal; `bun run check fast` is green;
 Phase 1 makes them unreachable; this phase deletes them, client, server, contract, scripts and
 docs, so the tree is as small as the product.
 
-- [ ] Client: `ChatView`, `Composer` and the chat-only parts of `PaneTerminal`, chat timeline,
+- [x] Client: `ChatView`, `Composer` and the chat-only parts of `PaneTerminal`, chat timeline,
       minimap, pending messages, the chat libraries, `AgentSidebar`, the `PaneView` lens type.
-- [ ] Client: `FilesDialog`, `FileViewer`, `RepoDiffViewer`, `WebPanel`, file panels and their
+- [x] Client: `FilesDialog`, `FileViewer`, `RepoDiffViewer`, `WebPanel`, file panels and their
       settings.
-- [ ] Server: transcript readers and conversation push (`conversation*`, `codex*`, `claude-*`,
+- [x] Server: transcript readers and conversation push (`conversation*`, `codex*`, `claude-*`,
       `gjc*`, `devin*`, `grok*`, `agy*`, OpenCode, Hermes, OmO and the rest), skills and command
       menus that only the composer used, `files.ts`, `file-view.ts`; their routes in `shared/`.
-- [ ] Scripts and docs that test or describe them (chat and file browser QA, chat docs).
-- [ ] A lean browser lane for what is left, grown from `scripts/minimal-ui-regression.ts`:
-      upstream's (`ui-regression.ts` and the demo regressions) assume the chat, the More menu and
-      the lens switch. `FilesDialog` is still imported by `scripts/repo-diff-fixture.tsx` only.
-- [ ] Server routes only the removed UI used (`/api/fs/favicon` for the workspace face).
+      What pane status still reads (OmO labels, Claude's background count, GJC's binding) stays.
+- [x] Scripts and docs that test or describe them (chat and file browser QA, chat docs).
+- [x] Server routes only the removed UI used (`/api/fs/favicon`, herdr's agent-row tokens, the
+      folder listing's file and pane-relative modes).
+- [ ] A lean browser lane for what is left, grown from `scripts/minimal-ui-regression.ts`, run on
+      the system Chrome (`CHROME_PATH`): upstream's `scripts/ci-browser.sh` is already broken
+      (22 of its scripts are gone, most others assume the chat, the More menu, the lens switch or
+      the agent list). Keep a script only if it passes against this UI; delete the rest, and the
+      demo-only scripts with them. `docs/development.md` loses the deleted scripts in the same PR.
+- [ ] GJC's transcript lookup keeps a `purpose: "chat"` branch only status no longer takes;
+      collapsing it touches the SDK timeouts and failure cache, so it is its own slice.
 
 Done when: no `chat` lens or transcript route remains; `bun run check full` is green; the PR
 lists the bundle size and line count before and after.
@@ -65,7 +71,8 @@ lists the bundle size and line count before and after.
 
 - [ ] Own identity: plugin id, `package.json` repository, push subject, remote-bundle URL,
       updater source. Telemetry to upstream's endpoint is removed.
-- [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left.
+- [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left; `docs/guide.md`
+      rewritten without the chat (its Supported agents and Features sections describe it).
 - [ ] CI for the fork: one GitHub Actions workflow running `bun run check fast` on PRs; upstream's
       Pages, growth, release and self-hosted-runner workflows go.
 - [ ] Decide, one by one, what else leaves (each a small PR or a "keep" note here): the website
