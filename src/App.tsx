@@ -154,17 +154,6 @@ function ConnectionChip({ connected, word, title }: { connected: boolean; word: 
   );
 }
 
-function Brand() {
-  return (
-    <h1 className="brand">
-      <img src="/icons/icon-192.png?v=ram1" alt="" width="22" height="22" className="brand-mark" />
-      <span className="brand-name">
-        herdr <span className="brand-sub">web ui</span>
-      </span>
-    </h1>
-  );
-}
-
 export function App() {
   const t = useT();
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -1299,9 +1288,7 @@ export function App() {
     // instead of a blank page
     return (
       <div className="app">
-        <header className="app-header">
-          <Brand />
-        </header>
+        <header className="app-header" />
         <div className="app-body">
           <aside className="sidebar">
             <ConnectingNote />
@@ -1348,9 +1335,7 @@ export function App() {
         >
           <PanelLeft />
         </button>
-        <div ref={setTabBarHost} className="header-tabs">
-          {!selectedPane && <><Brand /><span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>}
-        </div>
+        <div ref={setTabBarHost} className="header-tabs" />
         <div className="header-meta">
           <HeaderNote note={note} />
           <ConnectionChip

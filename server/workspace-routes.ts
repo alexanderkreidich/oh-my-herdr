@@ -84,6 +84,9 @@ export async function handleWorkspaceRequest(request: Request, url: URL, pathnam
         ? await tabCreate({ ...options, workspaceId: payload.workspace_id as string })
         : await workspaceCreate(options);
       const workspaceId = created.tab.workspace_id;
+      // the new pane opens as soon as the roster lists it: tell clients now rather than after the
+      // collector's structure debounce, and before an agent's start, which can take a minute
+      broadcastAll({ type: "session-changed" });
       if (!payload.agent) {
         return jsonResponse({ workspace_id: workspaceId, pane_id: created.root_pane.pane_id, agent_started: false });
       }
