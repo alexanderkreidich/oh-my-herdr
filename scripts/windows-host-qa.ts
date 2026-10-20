@@ -72,11 +72,7 @@ try {
   await api(path + "/pane/input", "POST", { pane_id: paneId, text: "echo windows-bridge-input-ok" });
   await api(path + "/pane/keys", "POST", { pane_id: paneId, keys: ["Enter"] });
   await until(async () => api<{ read: { text: string } }>(path + `/pane/read?pane_id=${encodeURIComponent(paneId)}&source=recent&format=text`), (r) => r.read.text.includes("windows-bridge-input-ok"), "input reaches the Windows pane");
-  await api(path + `/pane/conversation?pane_id=${encodeURIComponent(paneId)}`);
-  await api(path + `/pane/prompt?pane_id=${encodeURIComponent(paneId)}`);
-  const files = await api<{ files: string[] }>(path + `/pane/files?pane_id=${encodeURIComponent(paneId)}&q=`);
-  assert.ok(Array.isArray(files.files));
-  console.log("PASS workspace, input, keys, read, conversation, prompt and files over the Windows bridge");
+  console.log("PASS workspace, input, keys and read over the Windows bridge");
 
   const { ws, frames } = await connectWs(machineId);
   ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, flow_control: "ack" }));

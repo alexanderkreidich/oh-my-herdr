@@ -100,12 +100,14 @@ describe("a JSON route's answer before herdr", () => {
 
 describe("a read that succeeds on this PC", () => {
 
-  it("lists a folder's folders, and its files when asked", async () => {
+  it("lists a folder's folders, never its files", async () => {
     const folder = join(root, "listing");
     mkdirSync(join(folder, "child"), { recursive: true });
     writeFileSync(join(folder, "a.txt"), "abc");
     const response = await fetch(`${ownBase}/api/workspace/directories?path=${encodeURIComponent(folder)}&files=1`);
     expect(response.status).toBe(200);
-    expect(await response.json() as DirectoryListing).toMatchObject({ path: realpathSync(folder), directories: ["child"], files: [{ name: "a.txt", size: 3 }] });
+    const listing = await response.json() as DirectoryListing;
+    expect(listing).toMatchObject({ path: realpathSync(folder), directories: ["child"] });
+    expect("files" in listing).toBe(false);
   });
 });

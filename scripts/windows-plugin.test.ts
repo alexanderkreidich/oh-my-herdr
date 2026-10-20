@@ -84,9 +84,6 @@ it.skipIf(process.platform !== "win32")("starts after its launcher exits, stops 
   };
   const socket = join(scratch, "herdr.sock");
   writeFileSync(socket, "test");
-  const transcript = join(scratch, ".omp", "agent", "sessions", "history.jsonl");
-  mkdirSync(dirname(transcript), { recursive: true });
-  writeFileSync(transcript, JSON.stringify({ type: "message", message: { role: "user", content: [{ type: "text", text: "saved history" }] } }) + "\n");
   // An isolated Herdr wire peer: no real sessions, panes, plugin registry or push keys.
   const peer = createServer(connection => {
     let buffer = "";
@@ -99,7 +96,6 @@ it.skipIf(process.platform !== "win32")("starts after its launcher exits, stops 
       const request = JSON.parse(buffer.trim());
       const result = request.method === "ping"
         ? { version: "0.9.3", protocol: 22, capabilities: { direct_terminal_attach: false } }
-        : request.method === "agent.get" ? { agent: { agent_session: { kind: "path", value: transcript } } }
         : { snapshot: { workspaces: [], panes: [{ pane_id: "history", agent: "omp", cwd: scratch }], tabs: [] } };
       connection.end(JSON.stringify({ id: request.id, result }) + "\n");
     });
@@ -134,9 +130,9 @@ it.skipIf(process.platform !== "win32")("starts after its launcher exits, stops 
     expect(health.herdr.terminal_mirror).toBe(true);
     // The "not built yet" notice is a 200 too: the page itself must come back.
     expect(await (await fetch(`http://127.0.0.1:${port}/`)).text()).toContain('<div id="root"');
-    const history = await (await fetch(`http://127.0.0.1:${port}/api/pane/conversation?pane_id=history`)).json() as { source: string; turns: unknown[] };
-    expect(history.source).toBe("omp-transcript");
-    expect(JSON.stringify(history.turns)).toContain("saved history");
+    // and it reads herdr through the socket it was given
+    const session = await (await fetch(`http://127.0.0.1:${port}/api/session`)).json() as { snapshot: { panes: { pane_id: string }[] } };
+    expect(session.snapshot.panes.map((pane) => pane.pane_id)).toEqual(["history"]);
     // The spawned server must retain git on Windows' usual mixed-case Path key.
     const updates = await (await fetch(`http://127.0.0.1:${port}/api/updates`)).json() as { current_revision: string | null };
     expect(updates.current_revision).toMatch(/^[a-f0-9]{40}$/);
