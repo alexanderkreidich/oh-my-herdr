@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type AnimationEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Layers, ListChecks, Pencil, Pin, PinOff, Plus, Terminal, Trash2, TriangleAlert, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, Terminal, Trash2, TriangleAlert, X } from "lucide-react";
 
 import "./Sidebar.css";
 
-import type { AgentStatus, PaneInfo, PlanSummary, SessionSnapshot, WorkspaceInfo } from "../../shared/protocol.ts";
+import type { AgentStatus, PaneInfo, SessionSnapshot, WorkspaceInfo } from "../../shared/protocol.ts";
 import { paneTitle } from "../../shared/notify-policy.ts";
 import { MAX_LABEL_CHARS } from "../../shared/labels.ts";
 import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
@@ -104,34 +104,6 @@ export function StatusBadge({ status, compact = false }: { status?: AgentStatus;
       {compact && indicators === "classic" && value === "blocked" && <span className="sidebar-status-mark" aria-hidden="true">?</span>}
       {compact && indicators === "classic" && dot && <span className="sidebar-status-dot" aria-hidden="true" onAnimationStart={value === "working" ? alignBreath : undefined} />}
       <span className={compact ? "visually-hidden" : undefined}>{label}</span>
-    </span>
-  );
-}
-
-/**
- * Background tasks an agent started that still run (OmO's `task` children): the main turn can be
- * done while they work, and they wake the session by themselves. A quiet count beside the state,
- * not a state of its own: DONE stays the moment the agent answered.
- */
-export function BackgroundBadge({ count }: { count?: number }) {
-  const t = useT();
-  if (!count || count <= 0) return null;
-  const label = t("Background tasks running: {count}", { count });
-  return (
-    <span className="background-count" title={label} aria-label={label} data-testid="background-tasks">
-      <Layers aria-hidden="true" />{count}
-    </span>
-  );
-}
-
-/** How far the pane's plan has got: a count beside the state word, quiet once every step is done. */
-export function PlanBadge({ plan }: { plan?: PlanSummary }) {
-  const t = useT();
-  if (!plan || plan.total <= 0) return null;
-  const label = t("Plan: {done} of {total} done", { done: plan.done, total: plan.total });
-  return (
-    <span className={`plan-count${plan.done === plan.total ? " is-done" : ""}`} title={plan.current ? `${label} · ${plan.current}` : label} aria-label={label} data-testid="plan-progress">
-      <ListChecks aria-hidden="true" />{plan.done}/{plan.total}
     </span>
   );
 }

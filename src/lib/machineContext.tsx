@@ -32,7 +32,7 @@ export function useMachineApi() {
     moveWorkspace: (workspace: string, index: number) => api.moveWorkspace(workspace, index, id),
     fetchAgentKinds: () => api.fetchAgentKinds(id),
     fetchIntegrations: () => api.fetchIntegrations(id),
-    fetchDirectories: (path: string, hidden: boolean, files = false, pane: string | null = null) => api.fetchDirectories(path, hidden, id, files, pane),
+    fetchDirectories: (path: string, hidden: boolean) => api.fetchDirectories(path, hidden, id),
     createDirectory: (path: string, name: string) => api.createDirectory(path, name, id),
     createWorkspace: (request: api.CreateWorkspaceRequest) => api.createWorkspace(request, id),
     createTab: (request: api.CreateTabRequest) => api.createTab(request, id),

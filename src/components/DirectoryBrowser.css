@@ -121,18 +121,6 @@
   cursor: pointer;
 }
 
-.dir-browser-size {
-  flex: none;
-  margin-left: auto;
-  color: var(--text-dim);
-  font-size: var(--fs-2xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.dir-browser-item.is-file svg {
-  color: var(--text-dim);
-}
-
 @media (pointer: coarse) {
   .dir-browser-item {
     min-height: var(--touch-target);
@@ -144,10 +132,3 @@
   }
 }
 
-.files-dialog {
-  width: min(100%, 560px);
-}
-
-.files-dialog .dir-browser-list {
-  max-height: min(60vh, calc(var(--control-h) * 14));
-}

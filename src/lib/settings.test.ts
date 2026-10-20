@@ -11,7 +11,7 @@ import { FONT_FAMILY_MAX_CHARS } from "./fontFamily.ts";
 import { DEFAULT_KEY_BAR_ITEMS, migrateKeyBarItems } from "./keyBar.ts";
 import { SHARED_SETTING_KEYS } from "../../shared/preferences.ts";
 import { NOTICE_VERSION, TELEMETRY_SETTINGS_KEYS, TELEMETRY_THEME_SIDE_KEYS, telemetrySettings } from "../../shared/telemetry.ts";
-import { SETTING_SCOPE, telemetrySettingsSnapshot, alertPrefs, CHAT_FONT_MAX, CHAT_FONT_MIN, chatFontSize, DEFAULT_SETTINGS, MARKDOWN_WIDTHS, sanitizeSettings, terminalTheme, forgetPaneViews, DICTATION_LANGUAGES, VOICE_BUTTONS, wantsVoiceInput } from "./settings.ts";
+import { SETTING_SCOPE, telemetrySettingsSnapshot, alertPrefs, CHAT_FONT_MAX, CHAT_FONT_MIN, chatFontSize, DEFAULT_SETTINGS, MARKDOWN_WIDTHS, sanitizeSettings, terminalTheme, DICTATION_LANGUAGES, VOICE_BUTTONS, wantsVoiceInput } from "./settings.ts";
 import { applyToDocument, loadSettings, saveSettings } from "./settings.ts";
 import { sanitizeSettings as oldSanitizeSettings, saveSettings as oldSaveSettings } from "./settings.legacy-fixture.ts";
 import { themeFor } from "./themeFor.ts";
@@ -473,8 +473,6 @@ describe("alert choices", () => {
   });
 });
 
-describe("quick replies", () => {
-});
 
 describe("microphone button", () => {
   it("is automatic until chosen, and reads a record from before it had three places", () => {
@@ -810,12 +808,6 @@ describe("default lens", () => {
     expect(DEFAULT_SETTINGS.defaultView).toBe("auto");
     expect(sanitizeSettings({ defaultView: "chat" }).defaultView).toBe("chat");
     expect(sanitizeSettings({ defaultView: "split" }).defaultView).toBe("auto");
-  });
-  it("forgets every pane's own lens and nothing else", () => {
-    const data = new Map<string, string>([["herdr-web-ui:view:local:w1:p1", "terminal"], ["herdr-web-ui:view:remote:pc:w2:p1", "chat"], ["herdr-web-ui:settings", "{}"]]);
-    const storage = { get length() { return data.size; }, key: (i: number) => [...data.keys()][i] ?? null, removeItem: (k: string) => { data.delete(k); } };
-    expect(forgetPaneViews(storage)).toBe(2);
-    expect([...data.keys()]).toEqual(["herdr-web-ui:settings"]);
   });
 });
 

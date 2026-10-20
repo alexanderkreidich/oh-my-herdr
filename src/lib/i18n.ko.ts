@@ -183,7 +183,6 @@ export const KO: Record<string, string> = {
   // ---- agent status words (lib/status.ts) ----
   "READY": "대기",
   "RUN": "실행",
-  "Background tasks running: {count}": "실행 중인 백그라운드 작업: {count}",
   "INPUT": "입력",
   "DONE": "완료",
   "BG": "백그라운드",
@@ -415,7 +414,6 @@ export const KO: Record<string, string> = {
   "Parent folder": "상위 폴더",
   "Home folder": "홈 폴더",
   "Filter folders": "폴더 검색",
-  "Nothing here": "여기에는 아무것도 없습니다",
   "No folders here": "여기에는 폴더가 없습니다",
   "No matching folders": "일치하는 폴더가 없습니다",
   "Showing the first {n} folders; type the rest of the path to go further.": "처음 {n}개 폴더만 보입니다. 더 들어가려면 나머지 경로를 입력하세요.",
@@ -888,7 +886,6 @@ export const KO: Record<string, string> = {
   "Tab order did not refresh. Try again.": "탭 순서가 갱신되지 않았습니다. 다시 시도해 주세요.",
   "Jump to bottom": "맨 아래로 이동",
   "Scroll failed: {reason}": "스크롤 실패: {reason}",
-  "Plan: {done} of {total} done": "계획: {total}개 중 {done}개 완료",
   "Plan": "계획",
   "Something went wrong": "문제가 발생했습니다",
   "The app hit an error and stopped drawing. Your terminals keep running in herdr.": "앱에 오류가 발생해 화면을 그리지 못했습니다. 터미널은 herdr에서 계속 실행 중입니다.",

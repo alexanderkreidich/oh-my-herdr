@@ -77,25 +77,3 @@ export function matchFolders(paths: readonly string[], query: string, home: stri
   return paths.filter((path) => forms(path).some((form) => form !== typed && form.startsWith(typed))).slice(0, limit);
 }
 
-/**
- * The folder the palette asked Files to show: Files' browser takes it as it opens, or at once
- * while it is already open, instead of the pane's own folder.
- */
-let requestedFolder: string | null = null;
-const folderListeners = new Set<() => void>();
-
-export function requestFilesFolder(path: string): void {
-  requestedFolder = path;
-  for (const listener of [...folderListeners]) listener();
-}
-
-export function takeFilesFolder(): string | null {
-  const path = requestedFolder;
-  requestedFolder = null;
-  return path;
-}
-
-export function subscribeFilesFolder(listener: () => void): () => void {
-  folderListeners.add(listener);
-  return () => { folderListeners.delete(listener); };
-}

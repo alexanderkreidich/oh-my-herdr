@@ -187,7 +187,6 @@ export const ZH: Record<string, string> = {
   // ---- agent status words (lib/status.ts) ----
   "READY": "就绪",
   "RUN": "运行",
-  "Background tasks running: {count}": "正在运行的后台任务：{count}",
   "INPUT": "输入",
   "DONE": "完成",
   "BG": "后台",
@@ -419,7 +418,6 @@ export const ZH: Record<string, string> = {
   "Parent folder": "上级文件夹",
   "Home folder": "主文件夹",
   "Filter folders": "筛选文件夹",
-  "Nothing here": "此处为空",
   "No folders here": "此处没有文件夹",
   "No matching folders": "没有匹配的文件夹",
   "Showing the first {n} folders; type the rest of the path to go further.": "仅显示前 {n} 个文件夹。输入其余路径以继续深入。",
@@ -892,7 +890,6 @@ export const ZH: Record<string, string> = {
   "Tab order did not refresh. Try again.": "标签页顺序未更新，请重试。",
   "Jump to bottom": "跳转到底部",
   "Scroll failed: {reason}": "滚动失败：{reason}",
-  "Plan: {done} of {total} done": "计划：已完成 {done}/{total}",
   "Plan": "计划",
   "Something went wrong": "出了点问题",
   "The app hit an error and stopped drawing. Your terminals keep running in herdr.": "应用出错，无法继续显示。你的终端仍在 herdr 中运行。",

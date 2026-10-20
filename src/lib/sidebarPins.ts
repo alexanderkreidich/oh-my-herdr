@@ -19,11 +19,6 @@ export function workspacePinKey(machineId: string, workspaceId: string): string 
   return `${machineId}:${WORKSPACE_MARK}${workspaceId}`;
 }
 
-export function isWorkspacePinKey(key: string): boolean {
-  const machineId = pinMachineId(key);
-  return machineId !== null && key.startsWith(WORKSPACE_MARK, machineId.length + 1);
-}
-
 /** This PC's pinned workspaces, in pin order. */
 export function pinnedWorkspaceIds(keys: readonly string[], machineId: string): string[] {
   const prefix = workspacePinKey(machineId, "");
@@ -97,18 +92,6 @@ export function toggleSidebarPin(keys: readonly string[], key: string): string[]
   return keys.includes(key) ? keys.filter((current) => current !== key) : [...keys, key];
 }
 
-function pinMachineId(key: string): string | null {
-  const separator = key.indexOf(":");
-  return separator > 0 ? key.slice(0, separator) : null;
-}
-
-/** The agent pins whose pane is gone from a loaded PC leave; workspace pins are the workspace list's to prune. */
-export function pruneSidebarPins(keys: readonly string[], liveKeys: ReadonlySet<string>, machines: readonly { id: string; snapshot: object | null }[]): string[] {
-  if (machines.length === 0) return [...keys];
-  const loading = new Set(machines.filter((machine) => machine.snapshot === null).map((machine) => machine.id));
-  return keys.filter((key) => isWorkspacePinKey(key) || liveKeys.has(key) || (pinMachineId(key) !== null && loading.has(pinMachineId(key)!)));
-}
-
 export interface WorkspaceGroup<W> { workspace: W; children: W[] }
 
 /**
@@ -142,13 +125,3 @@ export function pinnedGroupIds<W>(groups: readonly WorkspaceGroup<W>[], pinnedId
     : group.children.map(idOf).filter((id) => pinnedSet.has(id))));
 }
 
-/** Pinned rows in their saved order, and the other rows in the source roster order. */
-export function splitPinnedRows<T>(rows: readonly T[], keys: readonly string[], keyOf: (row: T) => string): { pinned: T[]; rest: T[] } {
-  const byKey = new Map(rows.map((row) => [keyOf(row), row]));
-  const pinned = keys.flatMap((key) => {
-    const row = byKey.get(key);
-    return row === undefined ? [] : [row];
-  });
-  const pinnedKeys = new Set(pinned.map(keyOf));
-  return { pinned, rest: rows.filter((row) => !pinnedKeys.has(keyOf(row))) };
-}

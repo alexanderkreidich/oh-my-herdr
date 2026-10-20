@@ -34,5 +34,3 @@ describe("paneStatus", () => {
   });
 });
 
-describe("statusEdgeRead", () => {
-});

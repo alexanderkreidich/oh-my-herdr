@@ -169,7 +169,6 @@ function FallbackMark({ agent, size }: { agent: string; size: number }) {
   );
 }
 
-const DRAWN_MARKS = new Set(["claude", "omp", "codex", "cursor", "opencode", "gjc", "omo"]);
 /** the drawn marks with brand fills; codex and cursor ride currentColor */
 const BRAND_MARKS = new Set(["claude", "omp", "opencode", "gjc", "omo"]);
 
@@ -181,11 +180,6 @@ export function hasBrandColors(agent: string): boolean {
   if (BRAND_MARKS.has(agent)) return true;
   const svg = AGENT_SVG_MARKS[agent];
   return svg !== undefined && /fill="#(?!fff\b|ffffff\b)/i.test(svg.body);
-}
-
-/** Whether `agent` has a mark of its own rather than the fallback's initial. */
-export function hasAgentMark(agent: string): boolean {
-  return DRAWN_MARKS.has(agent) || Object.hasOwn(AGENT_SVG_MARKS, agent);
 }
 
 export function AgentMark({ agent, size = 16, className }: AgentMarkProps) {

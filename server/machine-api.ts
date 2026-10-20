@@ -1,5 +1,4 @@
 import type { MachineEvent, SetupAction, SetupRequest } from "../shared/machines.ts";
-import type { AgentRowTokens } from "../shared/pane-tokens.ts";
 import type { SharedPreferences } from "../shared/preferences.ts";
 import { MachineManager } from "./machines.ts";
 import { canSendSecret, sameOrigin } from "./machine-security.ts";
@@ -24,8 +23,7 @@ function transportFailure(id: string, path: string, error: unknown): Response {
 }
 
 export async function handleMachineRequest(request: Request, manager: MachineManager, onRevoke?: (close: () => void) => () => void,
-  preferences?: { get(): SharedPreferences; subscribe(listener: (preferences: SharedPreferences) => void): () => void },
-  herdrSidebar?: { get(): AgentRowTokens | null; subscribe(listener: (agents: AgentRowTokens | null) => void): () => void }): Promise<Response> {
+  preferences?: { get(): SharedPreferences; subscribe(listener: (preferences: SharedPreferences) => void): () => void }): Promise<Response> {
   const url = new URL(request.url);
   // every PC route answers only this app
   if (!sameOrigin(request)) return fail("invalid_origin", "Use PC controls from this app", 403);
@@ -38,12 +36,11 @@ export async function handleMachineRequest(request: Request, manager: MachineMan
     if (parts[0] === "events" && parts.length === 1 && request.method === "GET") {
       let stop: (() => void) | undefined;
       let stopPreferences: (() => void) | undefined;
-      let stopSidebar: (() => void) | undefined;
       let unwatchDevice: (() => void) | undefined;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let close = () => {};
       const cleanup = () => {
-        stop?.(); stopPreferences?.(); stopSidebar?.(); unwatchDevice?.(); clearInterval(heartbeat);
+        stop?.(); stopPreferences?.(); unwatchDevice?.(); clearInterval(heartbeat);
         request.signal.removeEventListener("abort", close);
       };
       const encoder = new TextEncoder();
@@ -60,11 +57,6 @@ export async function handleMachineRequest(request: Request, manager: MachineMan
           const sendPreferences = (shared: SharedPreferences) => send(`data: ${JSON.stringify({ type: "preferences", preferences: shared } satisfies MachineEvent)}\n\n`);
           stopPreferences = preferences?.subscribe(sendPreferences);
           if (preferences) sendPreferences(preferences.get());
-          // herdr's sidebar rows are this PC's config, as herdr's own sidebar takes the client's for every PC
-          const sendSidebar = (agents: AgentRowTokens | null) => send(`data: ${JSON.stringify({ type: "herdr-sidebar", agents } satisfies MachineEvent)}\n\n`);
-          // read before listening: a change this read finds is told to the browsers already listening, and to this one once
-          if (herdrSidebar) sendSidebar(herdrSidebar.get());
-          stopSidebar = herdrSidebar?.subscribe(sendSidebar);
           if (closed) { cleanup(); return; }
           heartbeat = setInterval(() => send(": heartbeat\n\n"), 15_000);
           request.signal.addEventListener("abort", close, { once: true });
