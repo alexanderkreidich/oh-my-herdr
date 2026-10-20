@@ -185,7 +185,6 @@ export const JA: Record<string, string> = {
   // ---- agent status words (lib/status.ts) ----
   "READY": "待機",
   "RUN": "実行中",
-  "Background tasks running: {count}": "実行中のバックグラウンドタスク: {count}",
   "INPUT": "入力待ち",
   "DONE": "完了",
   "BG": "BG待ち",
@@ -417,7 +416,6 @@ export const JA: Record<string, string> = {
   "Parent folder": "親フォルダー",
   "Home folder": "ホームフォルダー",
   "Filter folders": "フォルダーを絞り込む",
-  "Nothing here": "何もありません",
   "No folders here": "フォルダーはありません",
   "No matching folders": "一致するフォルダーはありません",
   "Showing the first {n} folders; type the rest of the path to go further.": "最初の {n} 個のフォルダーのみ表示しています。さらに進むには残りのパスを入力してください。",
@@ -890,7 +888,6 @@ export const JA: Record<string, string> = {
   "Tab order did not refresh. Try again.": "タブの順序が更新されませんでした。もう一度お試しください。",
   "Jump to bottom": "一番下へ移動",
   "Scroll failed: {reason}": "スクロールに失敗しました: {reason}",
-  "Plan: {done} of {total} done": "計画: {total} 件中 {done} 件完了",
   "Plan": "計画",
   "Something went wrong": "問題が発生しました",
   "The app hit an error and stopped drawing. Your terminals keep running in herdr.": "アプリでエラーが発生し、表示できなくなりました。ターミナルは herdr で動き続けています。",

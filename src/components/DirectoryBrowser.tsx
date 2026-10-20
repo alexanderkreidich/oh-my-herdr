@@ -6,21 +6,17 @@ import { FileGlyph } from "./FileGlyph.tsx";
 
 import type { DirectoryListing } from "../../shared/protocol.ts";
 import { ApiError } from "../lib/api.ts";
-import { formatBytes } from "../lib/bridgeProgress.ts";
 import { useMachineApi } from "../lib/machineContext.tsx";
 import { useT } from "../lib/i18n.ts";
-import { resolveWorkspaceRoot, workspaceRelativePath } from "../lib/workspacePath.ts";
-import { homeRelative, subscribeFilesFolder, takeFilesFolder } from "../lib/paletteFolders.ts";
+import { homeRelative } from "../lib/paletteFolders.ts";
 
 export { homeRelative };
 
 export interface DirectoryBrowserProps {
   /** where to open: the path typed so far (absolute, `~` or `~/…`); empty or unreadable opens home */
   start: string;
-  /** the folder chosen, in the dialog's own syntax (`~/…` inside home); without it there is no "Use this folder" */
-  onPick?: (path: string) => void;
-  /** lists files too, and opens the one clicked (its absolute path) */
-  onOpenFile?: (path: string) => void;
+  /** the folder chosen, in the dialog's own syntax (`~/…` inside home) */
+  onPick: (path: string) => void;
   /** told the folder shown (its absolute path, and the PC's home) each time one opens; New workspace drafts Directory from it */
   onFolder?: (path: string, home: string) => void;
 }
@@ -33,7 +29,7 @@ function childPath(parent: string, name: string): string {
  * A folder browser for the new-session dialog: one directory at a time, fetched from the
  * PC the session starts on. Nothing is kept but the folder shown now.
  */
-export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: DirectoryBrowserProps) {
+export function DirectoryBrowser({ start, onPick, onFolder }: DirectoryBrowserProps) {
   const t = useT();
   const { fetchDirectories, createDirectory } = useMachineApi();
   const [listing, setListing] = useState<DirectoryListing | null>(null);
@@ -65,7 +61,7 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
     fellBack.current = false;
     setLoading(true);
     try {
-      const next = await fetchDirectories(path, showHidden, onOpenFile !== undefined);
+      const next = await fetchDirectories(path, showHidden);
       if (id !== request.current) return;
       if (listing !== null && next.path !== listing.path) setQuery("");
       shownByFallback.current = fallback;
@@ -85,23 +81,9 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [fetchDirectories, listing, onOpenFile, t]);
+  }, [fetchDirectories, listing, t]);
 
-  // Files opens on a folder the palette picked (lib/paletteFolders.ts) instead of the pane's own,
-  // also when it is open already
-  const openRef = useRef(open);
-  openRef.current = open;
-  useEffect(() => {
-    const requested = onOpenFile ? takeFilesFolder() : null;
-    void open(requested ?? start, false, requested === null);
-    if (!onOpenFile) return;
-    return subscribeFilesFolder(() => {
-      const next = takeFilesFolder();
-      if (next === null) return;
-      setHidden(false);
-      void openRef.current(next, false, false);
-    });
-  }, []);
+  useEffect(() => { void open(start, false, true); }, []);
 
   // makes the folder inside the one shown and opens it, so New workspace's Directory follows
   const makeFolder = async () => {
@@ -128,11 +110,10 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
   };
 
   const path = listing?.path ?? "";
-  const homeShown = listing ? homeRelative(listing.path, listing.home) : start || "~";
-  // browsing files reads from the folder opened on; picking a folder keeps the `~/…` form it hands back
-  const shown = listing && onPick === undefined ? workspaceRelativePath(listing.path, resolveWorkspaceRoot(start, listing.home), homeShown) : homeShown;
+  // the `~/…` form the pick hands back
+  const shown = listing ? homeRelative(listing.path, listing.home) : start || "~";
   const normalizedQuery = query.trim().toLowerCase();
-  const directories = listing === null || onPick === undefined || normalizedQuery === ""
+  const directories = listing === null || normalizedQuery === ""
     ? listing?.directories
     : listing.directories.filter((name) => name.toLowerCase().includes(normalizedQuery));
 
@@ -146,11 +127,9 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
           <House aria-hidden="true" />
         </button>
         <span className="dir-browser-path" title={path}><span dir="ltr">{shown}</span></span>
-        {onPick !== undefined && (
-          <button type="button" className="icon-button" aria-label={t("New folder")} title={t("New folder")} aria-expanded={naming !== null} disabled={listing === null || loading || error !== null} onClick={() => setNaming((current) => current ?? "")}>
-            <FolderPlus aria-hidden="true" />
-          </button>
-        )}
+        <button type="button" className="icon-button" aria-label={t("New folder")} title={t("New folder")} aria-expanded={naming !== null} disabled={listing === null || loading || error !== null} onClick={() => setNaming((current) => current ?? "")}>
+          <FolderPlus aria-hidden="true" />
+        </button>
       </div>
       {naming !== null && (
         <div className="dir-browser-new">
@@ -179,29 +158,27 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
           {namingError !== null && <p className="dir-browser-note dir-browser-error" role="alert">{namingError}</p>}
         </div>
       )}
-      {onPick !== undefined && (
-        <label className="field dir-browser-search">
-          <span className="field-label">{t("Filter folders")}</span>
-          {/* a touch screen would raise its keyboard over the list just opened; Escape clears the
-              filter before it reaches the dialog's own Escape, which closes the dialog */}
-          <input type="search" className="input" value={query} autoFocus={window.matchMedia?.("(pointer: coarse)").matches !== true}
-            autoComplete="off" spellCheck={false}
-            onChange={(event) => { setQuery(event.target.value); listRef.current?.scrollTo({ top: 0 }); }}
-            onKeyDown={(event) => {
-              // Enter confirms an IME candidate; Escape dismisses it, not this dialog.
-              if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
-                event.stopPropagation();
-                return;
-              }
-              if (event.key === "Enter") event.preventDefault();
-              if (event.key === "Escape" && query !== "") {
-                event.preventDefault();
-                event.stopPropagation();
-                setQuery("");
-              }
-            }} />
-        </label>
-      )}
+      <label className="field dir-browser-search">
+        <span className="field-label">{t("Filter folders")}</span>
+        {/* a touch screen would raise its keyboard over the list just opened; Escape clears the
+            filter before it reaches the dialog's own Escape, which closes the dialog */}
+        <input type="search" className="input" value={query} autoFocus={window.matchMedia?.("(pointer: coarse)").matches !== true}
+          autoComplete="off" spellCheck={false}
+          onChange={(event) => { setQuery(event.target.value); listRef.current?.scrollTo({ top: 0 }); }}
+          onKeyDown={(event) => {
+            // Enter confirms an IME candidate; Escape dismisses it, not this dialog.
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+              event.stopPropagation();
+              return;
+            }
+            if (event.key === "Enter") event.preventDefault();
+            if (event.key === "Escape" && query !== "") {
+              event.preventDefault();
+              event.stopPropagation();
+              setQuery("");
+            }
+          }} />
+      </label>
       {error !== null ? <p className="dir-browser-note dir-browser-error" role="alert">{error}</p> : (
         <ul className="dir-browser-list" ref={listRef}>
           {listing === null && <li className="dir-browser-note" role="status">{t("Loading…")}</li>}
@@ -213,19 +190,10 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
               </button>
             </li>
           ))}
-          {onOpenFile !== undefined && listing?.files?.map((file) => (
-            <li key={`file:${file.name}`}>
-              <button type="button" className="dir-browser-item is-file" disabled={loading} onClick={() => onOpenFile(childPath(path, file.name))}>
-                <FileGlyph name={file.name} />
-                <span>{file.name}</span>
-                <span className="dir-browser-size">{formatBytes(file.size)}</span>
-              </button>
-            </li>
-          ))}
-          {listing !== null && onPick !== undefined && normalizedQuery !== "" && directories?.length === 0 && <li className="dir-browser-note" role="status">{t("No matching folders")}</li>}
-          {listing !== null && normalizedQuery === "" && listing.directories.length === 0 && (listing.files ?? []).length === 0 && <li className="dir-browser-note">{t(onOpenFile ? "Nothing here" : "No folders here")}</li>}
+          {listing !== null && normalizedQuery !== "" && directories?.length === 0 && <li className="dir-browser-note" role="status">{t("No matching folders")}</li>}
+          {listing !== null && normalizedQuery === "" && listing.directories.length === 0 && <li className="dir-browser-note">{t("No folders here")}</li>}
           {listing?.truncated && <li className="dir-browser-note">{t("Showing the first {n} folders; type the rest of the path to go further.", { n: listing.directories.length })}</li>}
-          {listing?.truncated && onPick !== undefined && <li className="dir-browser-note">{t("Search is limited to the {n} loaded folders.", { n: listing.directories.length })}</li>}
+          {listing?.truncated && <li className="dir-browser-note">{t("Search is limited to the {n} loaded folders.", { n: listing.directories.length })}</li>}
         </ul>
       )}
       <div className="dir-browser-footer">
@@ -233,9 +201,9 @@ export function DirectoryBrowser({ start, onPick, onOpenFile, onFolder }: Direct
           <input type="checkbox" checked={hidden} disabled={loading && listing === null} onChange={(event) => { setHidden(event.target.checked); if (listing) void open(listing.path, event.target.checked, false); }} />
           {t("Show hidden")}
         </label>
-        {onPick && <button type="button" className="btn btn-primary" disabled={listing === null || loading} onClick={() => listing && onPick(homeRelative(listing.path, listing.home))}>
+        <button type="button" className="btn btn-primary" disabled={listing === null || loading} onClick={() => listing && onPick(homeRelative(listing.path, listing.home))}>
           {t("Use this folder")}
-        </button>}
+        </button>
       </div>
     </div>
   );

@@ -188,32 +188,6 @@
   overflow-wrap: anywhere;
 }
 
-/* a column, not a grid: a grid's track is as wide as a text field asks to be, and on a phone
-   that pushed each row's Remove button out of the card */
-.quick-replies-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.quick-replies-list:empty {
-  display: none;
-}
-
-.quick-replies-list li {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.quick-replies-list .input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 /* Voice input: the key field and its buttons share a row, the notes stay dim */
 .voice-key {
   display: flex;

@@ -13,7 +13,6 @@ import { agentFault, agentLaunch, type AgentPayload } from "./agent-launch.ts";
 import { createDirectory, listDirectories } from "./directories.ts";
 import { HerdrError, tabClose, tabCreate, tabMove, tabRename, workspaceClose, workspaceCreate, workspaceMove, workspaceRename, worktreeCreate, worktreeList, worktreeOpen, worktreeRemove } from "./herdr/client.ts";
 import { badRequest, conflictResponse, errorResponse, isJsonObject, jsonResponse, readJsonObject } from "./http.ts";
-import { paneContext } from "./pane-context.ts";
 
 function expandedDirectory(value: string): string | null {
   const expanded = value === "~" ? homedir() : value.startsWith("~/") ? resolve(homedir(), value.slice(2)) : resolve(value);
@@ -42,16 +41,7 @@ export async function handleWorkspaceRequest(request: Request, url: URL, pathnam
 
   if (pathname === "/api/workspace/directories") {
     if (request.method !== "GET") return badRequest("method_not_allowed", "use GET or POST");
-    // a relative path is read from the folder of the pane it belongs to
-    const paneId = url.searchParams.get("pane_id");
-    let base: string | undefined;
-    if (paneId) {
-      try { base = (await paneContext(paneId)).cwd; } catch { /* an absolute path still lists */ }
-      // a relative path whose pane is gone has no folder to be read from: not the server's own
-      const path = (url.searchParams.get("path") ?? "").trim();
-      if (base === undefined && path !== "" && path !== "~" && !path.startsWith("~/") && !isAbsolute(path)) return badRequest("invalid_cwd", "the pane a relative path belongs to is gone");
-    }
-    const listing = listDirectories(url.searchParams.get("path") ?? "", url.searchParams.get("hidden") === "1", url.searchParams.get("files") === "1", base);
+    const listing = listDirectories(url.searchParams.get("path") ?? "", url.searchParams.get("hidden") === "1");
     return listing === null ? badRequest("invalid_cwd", "path must be a directory this user can read") : jsonResponse(listing);
   }
 

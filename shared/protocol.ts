@@ -432,13 +432,6 @@ export interface OmoTask {
   tokens: number | null;
 }
 
-/** How far a pane's plan has got, for the sidebar: `current` names the step in progress. */
-export interface PlanSummary {
-  done: number;
-  total: number;
-  current: string | null;
-}
-
 /** Where a plugin manifest says an action applies. herdr may add more, so it stays open. */
 export type PluginActionContext = "global" | "workspace" | "tab" | "pane" | "selection" | (string & {});
 
@@ -505,8 +498,6 @@ export interface DirectoryListing {
   directories: string[];
   /** more folders than the list holds */
   truncated: boolean;
-  /** the files beside the folders, when asked for (`files=1`), sorted, within the same cap */
-  files?: { name: string; size: number }[];
 }
 
 /**

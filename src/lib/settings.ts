@@ -601,21 +601,3 @@ export function useSettings(): SettingsContextValue {
   return value;
 }
 
-export const PANE_VIEW_KEY_PREFIX = "herdr-web-ui:view:";
-
-/** Forgets every pane's own lens on this device, so each opens in the default one again. */
-export function forgetPaneViews(given?: Pick<Storage, "length" | "key" | "removeItem">): number {
-  const keys: string[] = [];
-  try {
-    // inside the try: reading localStorage itself throws where storage is blocked
-    const storage = given ?? window.localStorage;
-    for (let index = 0; index < storage.length; index++) {
-      const key = storage.key(index);
-      if (key?.startsWith(PANE_VIEW_KEY_PREFIX)) keys.push(key);
-    }
-    for (const key of keys) storage.removeItem(key);
-  } catch {
-    /* private mode: there is nothing remembered to forget */
-  }
-  return keys.length;
-}

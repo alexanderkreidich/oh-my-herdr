@@ -448,8 +448,8 @@ export async function fetchIntegrations(machineId = "local"): Promise<Integratio
 }
 
 /** GET /api/workspace/directories: the folders in `path` (empty: home), for the folder browser. */
-export async function fetchDirectories(path: string, hidden: boolean, machineId = "local", files = false, paneId: string | null = null): Promise<DirectoryListing> {
-  const query = new URLSearchParams({ path, ...(hidden ? { hidden: "1" } : {}), ...(files ? { files: "1" } : {}), ...(paneId ? { pane_id: paneId } : {}) });
+export async function fetchDirectories(path: string, hidden: boolean, machineId = "local"): Promise<DirectoryListing> {
+  const query = new URLSearchParams({ path, ...(hidden ? { hidden: "1" } : {}) });
   return getJson<DirectoryListing>(machinePath(machineId, `workspace/directories?${query.toString()}`));
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentInfo, HerdrPane, SessionSnapshot, TabInfo, WorkspaceInfo } from "../../shared/protocol.ts";
-import { agentContext, agentTabName, paneMark, sidebarAgents, workspaceAgentLabels } from "./sidebarAgents.ts";
+import { agentTabName, paneMark, sidebarAgents, workspaceAgentLabels } from "./sidebarAgents.ts";
 
 function workspace(id: string): WorkspaceInfo {
   return { workspace_id: id, active_tab_id: `${id}:t1`, label: id, number: 1, tab_count: 1, pane_count: 1, focused: false, agent_status: "idle" };
@@ -105,28 +105,6 @@ describe("workspaceAgentLabels", () => {
     const third = pane("third", { agent: "codex" });
     const labels = workspaceAgentLabels(sidebarAgents(snapshot([first, second, third, pane("shell")])));
     expect([...labels]).toEqual([["w1", ["claude", "codex"]]]);
-  });
-});
-
-describe("agentContext", () => {
-  const base = { agentLabel: "claude", title: "Idempotent payments", markAgent: null, machineName: null, workspaceLabel: "checkout-api", tabName: null };
-
-  it("leaves a lone PC unnamed, as herdr does", () => {
-    expect(agentContext(base)).toEqual(["claude", "checkout-api"]);
-    expect(agentContext({ ...base, machineName: "workstation" })).toEqual(["claude", "workstation", "checkout-api"]);
-  });
-
-  it("does not repeat the workspace as its tab, or the title as its agent", () => {
-    expect(agentContext({ ...base, workspaceLabel: "cli-tools", tabName: "cli-tools" })).toEqual(["claude", "cli-tools"]);
-    expect(agentContext({ ...base, tabName: "Review" })).toEqual(["claude", "checkout-api", "Review"]);
-    expect(agentContext({ ...base, tabName: " " })).toEqual(["claude", "checkout-api"]);
-    expect(agentContext({ ...base, title: "claude" })).toEqual(["checkout-api"]);
-  });
-
-  it("leaves out the kind its mark already draws, and keeps a kind the mark does not say", () => {
-    expect(agentContext({ ...base, markAgent: "claude", tabName: "Review" })).toEqual(["checkout-api", "Review"]);
-    expect(agentContext({ ...base, agentLabel: "Claude", markAgent: "claude" })).toEqual(["checkout-api"]);
-    expect(agentContext({ ...base, agentLabel: "reviewer-bot", markAgent: "claude" })).toEqual(["reviewer-bot", "checkout-api"]);
   });
 });
 

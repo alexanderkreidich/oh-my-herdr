@@ -10,10 +10,10 @@ export const MAX_DIRECTORY_ENTRIES = 500;
 /** A folder name past this many bytes is refused before the filesystem is asked (255 on every common filesystem). */
 const MAX_NAME_BYTES = 255;
 
-/** `path` in the dialog's syntax (absolute, `~`, `~/…`, empty for home), resolved against `base` or the server's own folder. */
-function resolveFolder(path: string, home: string, base?: string): string {
+/** `path` in the dialog's syntax (absolute, `~`, `~/…`, empty for home), resolved against the server's own folder. */
+function resolveFolder(path: string, home: string): string {
   const trimmed = path.trim();
-  return trimmed === "" || trimmed === "~" ? home : trimmed.startsWith("~/") ? resolve(home, trimmed.slice(2)) : base !== undefined ? resolve(base, trimmed) : resolve(trimmed);
+  return trimmed === "" || trimmed === "~" ? home : trimmed.startsWith("~/") ? resolve(home, trimmed.slice(2)) : resolve(trimmed);
 }
 
 export type CreateDirectoryResult =
@@ -56,10 +56,9 @@ export function createDirectory(parent: string, name: string): CreateDirectoryRe
  * Hidden folders (a leading dot) are left out unless asked for. Null when `path` is not
  * a directory this user can read.
  */
-/** `base`: the folder a relative path is read from (a pane's); else the server's own. */
-export function listDirectories(path: string, hidden = false, withFiles = false, base?: string): DirectoryListing | null {
+export function listDirectories(path: string, hidden = false): DirectoryListing | null {
   const home = homedir();
-  const target = resolveFolder(path, home, base);
+  const target = resolveFolder(path, home);
   let entries;
   try {
     if (!statSync(target).isDirectory()) return null;
@@ -68,32 +67,22 @@ export function listDirectories(path: string, hidden = false, withFiles = false,
     return null;
   }
   const directories: string[] = [];
-  const files: { name: string; size: number }[] = [];
   for (const entry of entries) {
     if (!hidden && entry.name.startsWith(".")) continue;
     let isDirectory = entry.isDirectory();
-    let isFile = entry.isFile();
     // a link is what it points at (a dangling or looping one is neither)
     if (entry.isSymbolicLink()) {
-      try { const target_ = statSync(join(target, entry.name)); isDirectory = target_.isDirectory(); isFile = target_.isFile(); } catch { isDirectory = false; isFile = false; }
+      try { isDirectory = statSync(join(target, entry.name)).isDirectory(); } catch { isDirectory = false; }
     }
     if (isDirectory) directories.push(entry.name);
-    else if (withFiles && isFile && files.length <= MAX_DIRECTORY_ENTRIES) {
-      let size = 0;
-      try { size = statSync(join(target, entry.name)).size; } catch { continue; }
-      files.push({ name: entry.name, size });
-    }
   }
-  const byName = (left: string, right: string) => left.localeCompare(right, undefined, { sensitivity: "base", numeric: true });
-  directories.sort(byName);
-  files.sort((left, right) => byName(left.name, right.name));
+  directories.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: "base", numeric: true }));
   const parent = dirname(target);
   return {
     path: target,
     parent: parent === target ? null : parent,
     home,
     directories: directories.slice(0, MAX_DIRECTORY_ENTRIES),
-    truncated: directories.length > MAX_DIRECTORY_ENTRIES || files.length > MAX_DIRECTORY_ENTRIES,
-    ...(withFiles ? { files: files.slice(0, MAX_DIRECTORY_ENTRIES) } : {}),
+    truncated: directories.length > MAX_DIRECTORY_ENTRIES,
   };
 }

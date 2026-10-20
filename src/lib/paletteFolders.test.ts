@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { browseEntries, folderQuery, folderQueryFor, matchFolders, pinnedFolders, requestFilesFolder, subscribeFilesFolder, takeFilesFolder } from "./paletteFolders.ts";
+import { browseEntries, folderQuery, folderQueryFor, matchFolders, pinnedFolders } from "./paletteFolders.ts";
 
 describe("folderQuery", () => {
   test("a pane or action search is no folder", () => {
@@ -83,16 +83,3 @@ describe("matchFolders", () => {
   });
 });
 
-describe("Files folder request", () => {
-  test("taken once, and heard by an open Files", () => {
-    expect(takeFilesFolder()).toBeNull();
-    const heard: (string | null)[] = [];
-    const stop = subscribeFilesFolder(() => heard.push(takeFilesFolder()));
-    requestFilesFolder("/home/me/work");
-    stop();
-    expect(heard).toEqual(["/home/me/work"]);
-    requestFilesFolder("/srv");
-    expect(takeFilesFolder()).toBe("/srv");
-    expect(takeFilesFolder()).toBeNull();
-  });
-});
