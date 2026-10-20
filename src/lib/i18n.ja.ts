@@ -171,6 +171,8 @@ export const JA: Record<string, string> = {
   "Star on GitHub": "GitHub で Star する",
   "Remote PCs": "リモート PC",
   "Connect another PC over an SSH alias or user@host. Its workspaces join the sidebar.": "SSH エイリアスまたは user@host で別の PC を接続します。接続した PC のワークスペースはサイドバーに並びます。",
+  "Show remote PCs": "リモート PC を表示",
+  "List the PCs you added or saved in herdr in the sidebar, under this one. Off, the sidebar shows this PC alone; the others stay set up.": "追加した PC や herdr に保存した PC を、サイドバーのこの PC の下に表示します。オフにするとこの PC だけが表示され、ほかの PC の設定はそのまま残ります。",
   "Update PC bridges automatically": "PC ブリッジを自動更新",
   "When an app update needs a newer bridge, PCs that connect with their saved key are updated in the background. PCs that need a password ask first.": "アプリの更新で新しいブリッジが必要になった場合、保存済みのキーで接続する PC はバックグラウンドで更新されます。パスワードが必要な PC では先に確認します。",
 

@@ -22,10 +22,9 @@
   height: 100%;
 }
 
-/* the grid keeps a small gutter of its own: the host (styles.css) has none, so the input line
-   and the key bar take the full width. The gutter sits on .xterm itself, not
-   on the mount: the fit addon subtracts the terminal element's padding but reads the
-   parent's border-box width, so padding on the mount would overflow the last columns */
+/* the grid runs edge to edge: no gutter on the host (styles.css) or on .xterm, so the cells start
+   at the window's edge and under the header's rule. Never pad the mount: the fit addon reads the
+   parent's border-box width, so padding there would overflow the last columns */
 .pane-terminal {
   flex: 1 1 auto;
   min-height: 0;
@@ -53,7 +52,6 @@
    much letter-spacing and the rest of its row drew right of its cells: OmO's side panel stood
    in a different column on each row, moving as scrolling brought other rows beside it (#739). */
 .pane-terminal .xterm {
-  padding: var(--space-2) var(--space-2) 0;
   text-spacing-trim: space-all;
   text-autospace: no-autospace;
 }

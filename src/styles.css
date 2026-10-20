@@ -1820,8 +1820,8 @@ button {
   font-weight: var(--fw-medium);
 }
 
-/* the workspace-list toggle: in the bar below 769px and beside a collapsed sidebar, the
-   sidebar's own top row otherwise (further down) */
+/* the drawer's toggle in the bar below 769px; from 769px the sidebar's own top row (further
+   down), the sidebar toggle right of it */
 .header-side {
   display: contents;
 }
@@ -1941,6 +1941,39 @@ button {
     padding: env(safe-area-inset-top, 0px) var(--space-3) 0 calc(var(--space-3) + env(safe-area-inset-left, 0px));
     border-right: var(--hairline) solid var(--border);
     background: var(--bg-panel);
+  }
+
+  /* the top row slides with the sidebar it belongs to (the .sidebar rules above), on the same
+     curve: out over the bar when the sidebar goes, back into its place when it comes */
+  .app-header.is-zoned .header-side {
+    transition: transform var(--dur-modal) var(--ease-spring);
+  }
+
+  .app.sidebar-collapsed .header-side {
+    display: flex;
+    position: absolute;
+    inset: 0 auto calc(-1 * var(--hairline)) 0;
+    z-index: 1;
+    width: min(var(--sidebar-user-w, var(--sidebar-w)), 50vw);
+    border-right: var(--hairline) solid var(--border);
+    background: var(--bg-panel);
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform var(--dur-modal) var(--ease-spring),
+      visibility 0s linear var(--dur-modal);
+  }
+
+  [data-key-action] .app .header-side {
+    transition: none;
+  }
+}
+
+@media (min-width: 769px) and (prefers-reduced-motion: reduce) {
+  .app .header-side,
+  .app.sidebar-collapsed .header-side {
+    transition: none;
   }
 }
 

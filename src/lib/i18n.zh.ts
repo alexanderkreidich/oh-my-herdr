@@ -173,6 +173,8 @@ export const ZH: Record<string, string> = {
   "Star on GitHub": "在 GitHub 上点 Star",
   "Remote PCs": "远程 PC",
   "Connect another PC over an SSH alias or user@host. Its workspaces join the sidebar.": "通过 SSH 别名或 user@host 连接另一台 PC。连接后，它的工作区会显示在侧栏中。",
+  "Show remote PCs": "显示远程 PC",
+  "List the PCs you added or saved in herdr in the sidebar, under this one. Off, the sidebar shows this PC alone; the others stay set up.": "在侧边栏中此 PC 的下方列出你添加或保存在 herdr 中的 PC。关闭后侧边栏只显示此 PC，其他 PC 的设置保持不变。",
   "Update PC bridges automatically": "自动更新 PC 的 bridge",
   "When an app update needs a newer bridge, PCs that connect with their saved key are updated in the background. PCs that need a password ask first.": "当应用更新需要更新的 bridge 时，使用已保存密钥连接的 PC 会在后台更新。需要密码的 PC 会先询问。",
 
