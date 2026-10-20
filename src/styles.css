@@ -202,8 +202,13 @@
   --dur-spin: 1600ms;
   /* one breath of the sidebar's working dot: held full, dimmed, held, back (Sidebar.css) */
   --dur-breathe: 2000ms;
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  /* Emil Kowalski's curves (.agents/skills/animate): a strong ease-out for anything entering or
+     answering a press, a strong ease-in-out for things moving on screen, never ease-in */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  /* a dialog growing in from 641px: occasional, so a standard entrance */
+  --dur-modal: 220ms;
   /* the pulse jumps between its two looks: a smooth one has the browser draw a new frame at
      every display refresh for as long as an agent works (60+ a second), which stutters a
      video playing beside the app; two steps draw about one frame a second */
@@ -1636,6 +1641,46 @@ button {
   --sidebar-shown-w: 0px;
 }
 
+/* From 769px the sidebar slides in and out from the window's edge (an occasional action, on the
+   drawer's curve). The pane column takes its new width once, at the start: a terminal is never
+   resized frame by frame. Shown, the sidebar is in the row and slides into its own column; hidden,
+   it leaves the row and slides out over the pane, then goes. */
+@media (min-width: 769px) {
+  .app-body {
+    position: relative;
+  }
+
+  .sidebar {
+    transition: transform var(--dur-modal) var(--ease-spring);
+  }
+
+  .app.sidebar-collapsed .sidebar {
+    display: flex;
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: var(--z-header);
+    width: min(var(--sidebar-user-w, var(--sidebar-w)), 50vw);
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform var(--dur-modal) var(--ease-spring),
+      visibility 0s linear var(--dur-modal);
+  }
+
+  /* toggled by its shortcut (lib/shortcuts.ts markKeyAction), or with reduced motion: at once */
+  [data-key-action] .app .sidebar {
+    transition: none;
+  }
+}
+
+@media (min-width: 769px) and (prefers-reduced-motion: reduce) {
+  .app .sidebar,
+  .app.sidebar-collapsed .sidebar {
+    transition: none;
+  }
+}
+
 .scrim {
   display: none;
 }
@@ -1812,100 +1857,29 @@ button {
   font-weight: var(--fw-medium);
 }
 
-/* The selected pane on one line: mark and title, then PC › workspace › folder. The title may
-   shorten; the crumb may not: when it does not fit whole beside a whole title it wraps to a second
-   line that the height clips, so it is all there or gone, and the title has the row. The full
-   location is in the tooltip and at the top of the More menu. */
-.context {
-  --context-line: calc(var(--fs-lg) * var(--lh-base));
+/* the workspace-list toggle: in the bar below 769px and beside a collapsed sidebar, the
+   sidebar's own top row otherwise (further down) */
+.header-side {
+  display: contents;
+}
+
+/* the rest of the bar: the solo pane's tab strip (TabStrip, drawn here through a portal), or the
+   brand while no pane is open. A split view keeps a strip per half, and this stays empty. */
+.header-tabs {
   display: flex;
-  flex-flow: row wrap;
   align-items: center;
-  justify-content: flex-start;
-  column-gap: var(--space-3);
-  row-gap: var(--header-h);
+  align-self: stretch;
+  gap: var(--space-2);
   flex: 1 1 auto;
   min-width: 0;
-  max-height: var(--context-line);
-  /* the title never touches the lens switch */
-  margin-right: var(--space-1);
-  overflow: hidden;
-  line-height: var(--lh-tight);
 }
 
-.context-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  /* the first line is as tall as the box that clips the second: the title sits the same with
-     the crumb beside it or gone */
-  min-height: var(--context-line);
-  font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
-  color: var(--text-strong);
-  letter-spacing: var(--tracking-tight);
-}
-
-/* the header note's sentence (.header-note-text, App.tsx) is cut like the title it stands in for; its
-   own class keeps .context-title-text on the pane title alone (the browser checks measure it) */
-.context-title-text,
+/* a deep link that could not open what it named: a short note at the bar's end */
 .header-note-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.context-sub {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex: 0 0 auto;
-  font-size: var(--fs-xs);
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-/* the PC's name is whole in the crumb, like the rest of it: the crumb fits or is not drawn.
-   Its cap (Machines.css) is for the header with no pane, where it sits beside the brand. */
-.context-sub .machine-context-name {
-  max-width: none;
-  overflow: visible;
-}
-
-/* the switch keeps its size; the pane title (.context) is the header's one flexible item */
-.view-switch {
-  flex: 0 0 auto;
-}
-
-/* From 769px the lens switch is its two words and nothing around them: no track, no glyphs, the
-   chosen lens on the hover fill. Files follows it as an action of its own, after a hairline. */
-@media (min-width: 769px) {
-  .app-header .view-switch {
-    padding: 0;
-    background: transparent;
-    border-color: transparent;
-  }
-
-  .app-header .view-switch > button svg {
-    display: none;
-  }
-}
-
-.header-divider {
-  flex: 0 0 auto;
-  width: var(--hairline);
-  height: var(--chip-h);
-  background: var(--border);
-}
-
-/* the workspace-list toggle and the palette: in the bar below 769px and beside a collapsed
-   sidebar, the sidebar's own top row otherwise (further down) */
-.header-side {
-  display: contents;
 }
 
 .header-meta {
@@ -1978,60 +1952,14 @@ button {
   }
 }
 
-/* New tab, Browse files and Alerts are one menu's items (RowMenu, through its portal) */
-.header-more {
-  position: relative;
-  display: inline-flex;
-}
-
-/* alerts are off on this device: the one state of the menu worth a glance. The button's name
-   and the Alerts item say it in words. */
-.header-more-dot {
-  position: absolute;
-  top: var(--space-1);
-  right: var(--space-1);
-  width: var(--dot-size);
-  height: var(--dot-size);
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  pointer-events: none;
-}
-
-/* the menu's first thing, two lines on purpose: "PC › workspace", then the whole path in the
-   mono face. It is where a touch screen reads the path. A path longer than six lines scrolls
-   here, so the items under it stay on the screen. */
-.header-more-crumb {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(6em * var(--lh-base));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-base);
-  overflow-wrap: anywhere;
-}
-
-.header-more-path {
-  color: var(--text);
-  font-family: var(--font-mono);
-  white-space: pre-wrap;
-}
-
-/* From 769px the header is two zones. Over the sidebar, the sidebar's own top row (its toggle
-   and the palette) on the sidebar's surface, the seam between sidebar and pane running to the
-   top of the window. Over the pane, the pane's surface: under the chat lens no bar and no rule,
-   the transcript scrolls under a short fade (ChatView.css); under the terminal lens the
-   terminal's colour and the rule. A collapsed sidebar leaves one bar. A phone keeps the
-   --bg-panel bar and its rule: the installed app's theme-color matches it. */
+/* From 769px the header is two zones. Over the sidebar, the sidebar's own top row (its toggle)
+   on the sidebar's surface, the seam between sidebar and pane running to the top of the window.
+   Over the pane, the terminal's colour: the tab bar sits on the terminal it switches. A collapsed
+   sidebar leaves one bar. A phone keeps the --bg-panel bar and its rule: the installed app's
+   theme-color matches it. */
 @media (min-width: 769px) {
   .app-header.is-zoned {
     background: var(--term-bg);
-  }
-
-  .app-header.is-zoned.is-chat {
-    border-bottom-color: transparent;
-    background: var(--bg);
   }
 
   .app:not(.sidebar-collapsed) .app-header.is-zoned {
@@ -2093,7 +2021,12 @@ button {
   cursor: pointer;
   transition:
     background-color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.icon-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .icon-button.is-outlined {
@@ -2151,7 +2084,13 @@ button {
   transition:
     background-color var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out);
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+/* a press answers at once: the control gives a little under the pointer (also .icon-button) */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn svg {
@@ -2499,6 +2438,38 @@ button {
   }
 }
 
+/* From 641px a dialog grows in over a scrim that darkens with it: centred (a dialog is not
+   anchored to what opened it), scale 0.96 and opacity, ease-out. Closing snaps. The palette is
+   opened by key many times a day and snaps both ways. */
+@media (min-width: 641px) {
+  .modal-scrim:not(.palette-scrim) {
+    transition: background-color var(--dur-modal) var(--ease-out);
+  }
+
+  .modal-scrim:not(.palette-scrim) > .modal {
+    transition:
+      opacity var(--dur-modal) var(--ease-out),
+      transform var(--dur-modal) var(--ease-out);
+  }
+
+  @starting-style {
+    .modal-scrim:not(.palette-scrim) {
+      background-color: transparent;
+    }
+
+    .modal-scrim:not(.palette-scrim) > .modal {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  /* opened by a shortcut (lib/shortcuts.ts markKeyAction): at once */
+  [data-key-action] .modal-scrim:not(.palette-scrim),
+  [data-key-action] .modal-scrim:not(.palette-scrim) > .modal {
+    transition: none;
+  }
+}
+
 @keyframes scrim-in {
   from { background-color: transparent; }
 }
@@ -2760,8 +2731,7 @@ button {
 }
 
 /* phones: the version pill is the least useful header item; below that, the brand word goes
-   too - the mark keeps the identity. The palette's button gives its room to the pane's title:
-   the palette is the More menu's first item there. */
+   too - the mark keeps the identity */
 @media (max-width: 480px) {
   .conn {
     padding: 0 var(--space-1);
@@ -2771,61 +2741,20 @@ button {
   .pill-version,
   .pill-offline,
   .brand-name,
-  .palette-button,
   .header-desktop-only {
     display: none;
   }
 }
 
-/* just above phone width the lens labels would squeeze the pane title to a glyph: icons only */
-@media (max-width: 560px) {
-  .view-switch .header-desktop-only { display: none; }
-}
-
-/* phones: every header control is a full thumb target. The lens track draws smaller than the bar,
-   so it never meets the header's rule, and its buttons reach the target's height through an
-   invisible expander */
+/* phones: every header control is a full thumb target */
 @media (max-width: 768px) {
   .app-header .icon-button {
     width: var(--touch-target-header);
     height: var(--touch-target-header);
   }
-
-  .app-header .view-switch > button {
-    position: relative;
-    min-width: var(--touch-target-header);
-    height: 34px;
-  }
-
-  .app-header .view-switch > button::before {
-    content: "";
-    position: absolute;
-    inset: calc((34px - var(--touch-target-header)) / 2) 0;
-  }
 }
 
 /* ---------- phone: an app, not a page ---------- */
-
-/* Over the chat on a phone the header is glass, as an iPhone's bar is: the transcript scrolls on
-   under it, blurred, instead of stopping at a ruled edge. Only when the transcript is right under
-   the header; a tab strip or a notice between them keeps the plain bar. The header pulls the body
-   up under itself by its own height (--header-over), and the stack gives that height back above
-   everything in it, so a prompt card, the held messages and the composer never go under the bar:
-   only the transcript reaches up into it (ChatView.css), its first line still below it, and the
-   banners start below it (PaneTerminal.css). The terminal lens keeps the bar in the flow as before. */
-@media (max-width: 768px) {
-  .app:has(> .app-body > .pane-column.is-chat > .pane-split:first-child > .pane-slot > .terminal-host:first-child) {
-    --header-over: calc(var(--header-h) + env(safe-area-inset-top, 0px));
-  }
-
-  .app:has(> .app-body > .pane-column.is-chat > .pane-split:first-child > .pane-slot > .terminal-host:first-child) > .app-header {
-    z-index: var(--z-header);
-    margin-bottom: calc(-1 * var(--header-over));
-    background: var(--bar-bg);
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
-  }
-}
 
 /* A finger, not a mouse. The app's own controls are not text: a long press on a row, a tab or a
    button opens no loupe, selection or link callout, while what is read (the transcript, code,
@@ -2900,6 +2829,22 @@ button {
   .modal-scrim,
   .modal-scrim > * {
     animation: none;
+  }
+
+  /* no press give and no growth: a dialog fades in */
+  .icon-button:active:not(:disabled),
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+
+  .modal-scrim:not(.palette-scrim) > .modal {
+    transition: opacity var(--dur-modal) ease;
+  }
+
+  @starting-style {
+    .modal-scrim:not(.palette-scrim) > .modal {
+      transform: none;
+    }
   }
 
   .badge-working::before,

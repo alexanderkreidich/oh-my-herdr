@@ -6,9 +6,9 @@ import { physicalKey } from "./keys.ts";
 import type { AppActions } from "./actions.ts";
 
 export const SHORTCUTS = [
-  { id: "palette", label: "Command palette", keys: ["Mod", "Shift", "K"] },
+  // the search button's place: Ctrl+F on every platform (Mod+Shift+K still opens it, unlisted)
+  { id: "palette", label: "Command palette", keys: ["Ctrl", "F"] },
   { id: "find", label: "Find in terminal", keys: ["Mod", "Shift", "F"] },
-  { id: "toggle-view", label: "Switch chat / terminal", keys: ["Mod", "Shift", "J"] },
   { id: "focus-input", label: "Focus pane input", keys: ["Mod", "Shift", "E"] },
   { id: "scroll-up", label: "Scroll pane up", keys: ["Mod", "Shift", "PageUp"] },
   { id: "scroll-down", label: "Scroll pane down", keys: ["Mod", "Shift", "PageDown"] },
@@ -43,7 +43,6 @@ export interface ShortcutEventLike {
 const KEY_TO_ID: Readonly<Record<string, ShortcutId>> = {
   k: "palette",
   f: "find",
-  j: "toggle-view",
   e: "focus-input",
   PageUp: "scroll-up",
   PageDown: "scroll-down",
@@ -55,9 +54,18 @@ const KEY_TO_ID: Readonly<Record<string, ShortcutId>> = {
   ",": "settings",
 };
 
+/**
+ * Defaults that are exact chords, not Mod+Shift+key: stored as overrides store them. Ctrl+F takes
+ * the key from the terminal (readline's forward-char) on purpose; Settings can give it back.
+ */
+const DEFAULT_CHORDS: Readonly<Partial<Record<ShortcutId, string>>> = {
+  palette: "ctrl+f",
+};
+
 export function shortcutKeys(id: ShortcutId, overrides: ShortcutOverrides): string[] {
   if (Object.hasOwn(overrides, id)) return overrides[id] ? [overrides[id]!] : [];
-  return Object.entries(KEY_TO_ID).filter(([, action]) => action === id).map(([key]) => key);
+  const chord = DEFAULT_CHORDS[id];
+  return [...(chord ? [chord] : []), ...Object.entries(KEY_TO_ID).filter(([, action]) => action === id).map(([key]) => key)];
 }
 
 export function shortcutDisplayKeys(id: ShortcutId, overrides: ShortcutOverrides): string[] {
@@ -132,7 +140,7 @@ export function matchShortcut(event: ShortcutEventLike, platformIsMac: boolean, 
     const pressed = formatExactChord(exactChordFromEvent(event));
     for (const shortcut of SHORTCUTS) {
       if (shortcut.id === "voice") continue;
-      const value = Object.hasOwn(overrides, shortcut.id) ? overrides[shortcut.id] : null;
+      const value = Object.hasOwn(overrides, shortcut.id) ? overrides[shortcut.id] : DEFAULT_CHORDS[shortcut.id] ?? null;
       const chord = value ? parseExactChord(value) : null;
       if (chord && formatExactChord(chord) === pressed) return shortcut.id;
     }
@@ -211,6 +219,17 @@ function layoutLabel(key: string): string {
   return own ? own.toUpperCase() : key;
 }
 
+/**
+ * What a shortcut opens or toggles appears at once: nothing keyboard-initiated animates (AGENTS.md,
+ * UX and motion). The root carries data-key-action for the two frames the action takes to land, and
+ * styles.css drops the transitions under it.
+ */
+function markKeyAction(): void {
+  const root = document.documentElement;
+  root.dataset["keyAction"] = "";
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => { delete root.dataset["keyAction"]; }));
+}
+
 /** True while Settings records a chord: the dispatcher below stands down so the pressed chord is not run. */
 let recordingShortcut = false;
 export function setShortcutRecording(recording: boolean): void {
@@ -231,15 +250,13 @@ export function useShortcuts(actions: AppActions, enabled: boolean): void {
       event.preventDefault();
       // a held chord repeats: a tab or a split is made once per press, not once per key repeat
       if (event.repeat && (shortcut === "new-tab" || shortcut === "split-right" || shortcut === "split-down")) return;
+      markKeyAction();
       switch (shortcut) {
         case "palette":
           actions.openPalette();
           break;
         case "find":
           actions.openFind();
-          break;
-        case "toggle-view":
-          actions.toggleView();
           break;
         case "focus-input":
           actions.focusInput();

@@ -1,15 +1,15 @@
 /**
- * Herdr's tab row, visible for a single tab too. Left-click selects; right-click opens
- * New tab with agent / Rename / Close at the pointer. The + opens a shell tab at once, as herdr's
- * own new tab does. Pane actions belong to PaneCanvas.
- * The selected tab carries an ellipsis that opens its trimmed menu: a phone keeps it in view as a
- * touch entry, a desktop with a mouse draws it when the strip is hovered or the tab has keyboard
- * focus (TabStrip.css), so the menu is never only behind a right-click. Where the canvas shows a
- * split tab's panes one at a time (SOLO_PANE_QUERY), that menu lists them first.
- * That menu also carries the open pane's actions, so a lone pane shows no ellipsis of its own.
+ * Herdr's tab row as pills, visible for a single tab too: each tab says what runs in it (its
+ * pane's agent mark or a terminal glyph, and the pane's title unless the tab was named), the open
+ * one on a filled pill. Left-click selects; right-click (or the menu key) opens New tab with agent
+ * / Rename / Close at the pointer. The + opens a shell tab at once, as herdr's own new tab does.
+ * Pane actions belong to PaneCanvas.
+ * On a touch screen the selected tab carries an ellipsis that opens its trimmed menu, the touch
+ * entry to it. Where the canvas shows a split tab's panes one at a time (SOLO_PANE_QUERY), that
+ * menu lists them first; it also carries the open pane's actions.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Bot, Ellipsis, Pencil, Plus, Terminal, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Ellipsis, Pencil, Plus, SquareTerminal, Terminal, X } from "lucide-react";
 
 import "./TabStrip.css";
 
@@ -62,11 +62,8 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
   const { settings } = useSettings();
   const machineId = useMachineId();
   const { closeTab, renameTab, moveTab } = useMachineApi();
-  const touchMenu = useMediaQuery("(pointer: coarse), (max-width: 768px)");
-  // a mouse on a wide screen gets the same ellipsis, drawn while the strip is hovered or the tab
-  // has keyboard focus (TabStrip.css): the tab's menu is never only behind a right-click
-  const hoverMenu = useMediaQuery("(hover: hover) and (pointer: fine) and (min-width: 769px)");
-  const menuButton = touchMenu || hoverMenu;
+  // a touch screen has no right-click: the selected tab's ellipsis is its way to the menu
+  const menuButton = useMediaQuery("(pointer: coarse), (max-width: 768px)");
   const soloPanes = useMediaQuery(SOLO_PANE_QUERY);
   // a short phone screen (landscape, a small phone) has no height to spare: a lone tab is not
   // drawn there, so an approval card keeps its options in reach; its actions stay in the header
@@ -114,7 +111,29 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
       move: paneDrag.move, back: paneDrag.back, drop: paneDrag.drop, cancel: paneDrag.cancel,
     } : undefined,
   });
-  const nameOf = (tab: HerdrTab): string => sent?.tabId === tab.tab_id ? sent.label : tabLabel(tab, t, tabs.findIndex((candidate) => candidate.tab_id === tab.tab_id) + 1);
+  const panesOf = (tab: HerdrTab): PaneInfo[] => panes.filter((pane) => pane.tab_id === tab.tab_id);
+  const paneFor = (tab: HerdrTab): PaneInfo | undefined => {
+    const own = panesOf(tab);
+    const pick = (id: string | null | undefined) => (id ? own.find((pane) => pane.pane_id === id) : undefined);
+    return pick(lastViewedPane("tab", machineId, tab.tab_id))
+      ?? pick(snapshot.layouts?.find((layout) => layout.tab_id === tab.tab_id)?.focused_pane_id)
+      ?? own.find((pane) => pane.focused)
+      ?? own[0];
+  };
+  // a tab herdr still names by its place says what runs in it, as a terminal's tab does (Ghostty)
+  const nameOf = (tab: HerdrTab): string => {
+    if (sent?.tabId === tab.tab_id) return sent.label;
+    const place = tabs.findIndex((candidate) => candidate.tab_id === tab.tab_id) + 1;
+    const pane = paneFor(tab);
+    return customTabLabel(tab, place) ?? (pane ? displayPaneTitle(pane) : tabLabel(tab, t, place));
+  };
+  // tabs that arrived while this workspace's strip was on screen enter (TabStrip.css); the tabs
+  // a newly opened workspace already had are just there
+  const seen = useRef<{ owner: string; ids: ReadonlySet<string> } | null>(null);
+  const arrived = (tabId: string): boolean => seen.current?.owner === owner && !seen.current.ids.has(tabId);
+  useLayoutEffect(() => {
+    seen.current = { owner, ids: new Set(tabs.map((tab) => tab.tab_id)) };
+  });
 
   useEffect(() => {
     // the pane each tab was last seen on, per PC: a tab clicked again opens where it was left
@@ -210,16 +229,6 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
   };
 
   if (!shown || (cramped && tabs.length === 1)) return null;
-
-  const panesOf = (tab: HerdrTab): PaneInfo[] => panes.filter((pane) => pane.tab_id === tab.tab_id);
-  const paneFor = (tab: HerdrTab): PaneInfo | undefined => {
-    const own = panesOf(tab);
-    const pick = (id: string | null | undefined) => (id ? own.find((pane) => pane.pane_id === id) : undefined);
-    return pick(lastViewedPane("tab", machineId, tab.tab_id))
-      ?? pick(snapshot.layouts?.find((layout) => layout.tab_id === tab.tab_id)?.focused_pane_id)
-      ?? own.find((pane) => pane.focused)
-      ?? own[0];
-  };
 
   const focusTab = (tabId: string): void => {
     window.requestAnimationFrame(() => strip.current?.querySelector<HTMLElement>(`[role="tab"][data-tab-id="${CSS.escape(tabId)}"]`)?.focus());
@@ -374,8 +383,9 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
           const status = rollupStatus(own.map((pane) => paneStatus(pane as HerdrPane)));
           const pickerOpen = picker?.tab.tab_id === tab.tab_id;
           const name = nameOf(tab);
+          const agent = paneFor(tab)?.agent;
           return (
-            <div className={`tab-strip-item${active ? " is-active" : ""}${own.length > 1 ? " has-panes" : ""}${editing?.tabId === tab.tab_id ? " is-editing" : ""}${reorder.drag?.tabId === tab.tab_id ? " is-dragging" : ""}${reorder.drag?.boundary === index ? " is-drop-before" : ""}${reorder.drag?.boundary === tabs.length && index === tabs.length - 1 ? " is-drop-after" : ""}`} key={tab.tab_id}>
+            <div className={`tab-strip-item${active ? " is-active" : ""}${arrived(tab.tab_id) ? " is-new" : ""}${own.length > 1 ? " has-panes" : ""}${editing?.tabId === tab.tab_id ? " is-editing" : ""}${reorder.drag?.tabId === tab.tab_id ? " is-dragging" : ""}${reorder.drag?.boundary === index ? " is-drop-before" : ""}${reorder.drag?.boundary === tabs.length && index === tabs.length - 1 ? " is-drop-after" : ""}`} key={tab.tab_id}>
               {editing?.tabId === tab.tab_id ? (
                 <input
                   className="input tab-strip-rename"
@@ -426,9 +436,12 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
                   // the middle button closes a tab, as it does a browser's
                   onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); requestClose(tab); } }}
                 >
-                  {(status === "working" || status === "blocked" || status === "waiting" || status === "done") && (settings.statusIndicators === "classic"
-                    ? <span className="tab-strip-dot" data-status={status} aria-hidden="true" />
-                    : <span className="tab-strip-dot tab-strip-glyph" data-status={status} aria-hidden="true">{indicatorGlyph(status, settings.statusIndicators)}</span>)}
+                  <span className="tab-strip-icon" aria-hidden="true">
+                    {agent ? <AgentMark agent={agent} size={14} /> : <SquareTerminal />}
+                    {(status === "working" || status === "blocked" || status === "waiting" || status === "done") && (settings.statusIndicators === "classic"
+                      ? <span className="tab-strip-dot" data-status={status} />
+                      : <span className="tab-strip-dot tab-strip-glyph" data-status={status}>{indicatorGlyph(status, settings.statusIndicators)}</span>)}
+                  </span>
                   <span className="tab-strip-label">{name}</span>
                 </button>
               )}

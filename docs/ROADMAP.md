@@ -17,25 +17,28 @@ A slice is done when its "Done when" holds, with evidence in the PR.
 
 The visible UI shrinks to a workspace list, one top bar of pill tabs and the terminal.
 
-- [ ] **Top bar with pill tabs.** The header and the tab strip become one bar: sidebar toggle,
+- [x] **Top bar with pill tabs.** The header and the tab strip become one bar: sidebar toggle,
       then the tabs as pills (the pane's icon — agent mark or terminal glyph — and its title or the
       tab's own name), the open tab on a filled pill, `+` at the end. A status dot sits on the icon.
       The connection chip shows only while the bridge is not live.
-- [ ] **Header removals.** No Chat/Terminal switch, no Files button, no More (…) menu, no search
+- [x] **Header removals.** No Chat/Terminal switch, no Files button, no More (…) menu, no search
       button.
-- [ ] **Sidebar: workspaces only.** No Agents section; no folder or favicon face on workspace
-      rows (a worktree group folds with a chevron).
-- [ ] **Command palette on Ctrl+F.** The search button goes; Find in terminal stays on
+- [x] **Sidebar: workspaces only.** No Agents section; no folder or favicon face on workspace
+      rows (a worktree group's mark turns to a chevron that folds it).
+- [x] **Command palette on Ctrl+F.** The search button goes; Find in terminal stays on
       Mod+Shift+F and in the palette.
-- [ ] **No chat lens.** Every pane opens in the terminal; the lens switch shortcut, the default
-      view setting and the palette's lens actions go.
-- [ ] **Motion pass.** Tokens from the skills (`--ease-out`, `--ease-in-out`), press feedback on
+- [x] **No chat lens.** Every pane opens in the terminal; the lens switch shortcut, the Chat
+      settings page and the palette's lens and Files actions go.
+- [x] **Motion pass.** Tokens from the skills (`--ease-out`, `--ease-in-out`), press feedback on
       tabs and buttons, new tabs enter, menus and dialogs open from their origin, the sidebar
       slides; reduced-motion variants. Nothing keyboard-initiated animates.
+- [ ] Follow-ups: the split view's halves still draw their own strip rows under an empty bar;
+      the sidebar's top zone in the bar snaps while the sidebar slides; Install app in the
+      sidebar footer is a candidate for removal (Phase 3).
 
 Done when: desktop (1440×900) and phone (390×844) screenshots in both themes show only the
 workspace list, the tab bar and the terminal; `bun run check fast` is green;
-`review-animations` passes on the diff.
+`scripts/minimal-ui-regression.ts` passes; `review-animations` passes on the diff.
 
 ## Phase 2 — Delete chat and files
 
@@ -50,6 +53,10 @@ docs, so the tree is as small as the product.
       `gjc*`, `devin*`, `grok*`, `agy*`, OpenCode, Hermes, OmO and the rest), skills and command
       menus that only the composer used, `files.ts`, `file-view.ts`; their routes in `shared/`.
 - [ ] Scripts and docs that test or describe them (chat and file browser QA, chat docs).
+- [ ] A lean browser lane for what is left, grown from `scripts/minimal-ui-regression.ts`:
+      upstream's (`ui-regression.ts` and the demo regressions) assume the chat, the More menu and
+      the lens switch. `FilesDialog` is still imported by `scripts/repo-diff-fixture.tsx` only.
+- [ ] Server routes only the removed UI used (`/api/fs/favicon` for the workspace face).
 
 Done when: no `chat` lens or transcript route remains; `bun run check full` is green; the PR
 lists the bundle size and line count before and after.

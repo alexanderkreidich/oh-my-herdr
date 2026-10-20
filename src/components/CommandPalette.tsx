@@ -1,6 +1,6 @@
 import { MachineContext, useMachineApi, useMachineId } from "../lib/machineContext.tsx";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Bell, Columns2, CornerLeftUp, Folder, FolderOpen, FolderSearch, History, LoaderCircle, Maximize2, MessageSquarePlus, Minimize2, Monitor, PanelLeft, Pin, Plus, Puzzle, RefreshCw, Rows2, Settings, SunMoon, SwitchCamera, X } from "lucide-react";
+import { Bell, Columns2, CornerLeftUp, Folder, FolderSearch, History, LoaderCircle, Maximize2, MessageSquarePlus, Minimize2, Monitor, PanelLeft, Pin, Plus, Puzzle, RefreshCw, Rows2, Settings, SunMoon, X } from "lucide-react";
 
 import "./CommandPalette.css";
 
@@ -9,7 +9,7 @@ import type { Machine } from "../../shared/machines.ts";
 import { ApiError } from "../lib/api.ts";
 import { paneStatus, STATUS_WORD } from "../lib/status.ts";
 import { zoomMode } from "../lib/layoutMap.ts";
-import type { AppActions, PaneView } from "../lib/actions.ts";
+import type { AppActions } from "../lib/actions.ts";
 import { FILTER_KEYS, offeredPluginActions, parseQuery, STATUS_FILTERS, statusCounts, type OfferedPluginAction, type PaletteStatusFilter } from "../lib/paletteSearch.ts";
 import { actionAliases, rankByTitle, requestSettingsPage, settingsPageEntries } from "../lib/paletteSettings.ts";
 import { Ownership, runPluginActionToEnd } from "../lib/pluginRun.ts";
@@ -28,7 +28,7 @@ import { usePhoneSheetBack } from "../lib/sheetHistory.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
 import { useWorktreeBranches } from "../lib/useWorktreeBranches.ts";
 import { worktreeLabel } from "../lib/worktreeName.ts";
-import { browseEntries, folderQuery, folderQueryFor, homeRelative, matchFolders, pinnedFolders, requestFilesFolder } from "../lib/paletteFolders.ts";
+import { browseEntries, folderQuery, folderQueryFor, homeRelative, matchFolders, pinnedFolders } from "../lib/paletteFolders.ts";
 import { currentSidebarPins, subscribeSidebarPins } from "../lib/sidebarPins.ts";
 import { recentDirectories } from "../lib/recent-directories.ts";
 
@@ -48,7 +48,6 @@ interface CommandPaletteProps {
   snapshot: SessionSnapshot | null;
   online: boolean;
   selectedPaneId: string | null;
-  view: PaneView;
   actions: AppActions;
 }
 
@@ -146,7 +145,7 @@ function ShortcutHint({ shortcutId }: { shortcutId?: ShortcutId }) {
   return <span className="palette-shortcut" aria-label={keys.join(" + ")}>{keys.map((key) => <kbd className="kbd" key={key}>{key}</kbd>)}</span>;
 }
 
-export function CommandPalette({ open, initialQuery = "", onClose, machines, onSelect, snapshot, online, selectedPaneId, view, actions }: CommandPaletteProps) {
+export function CommandPalette({ open, initialQuery = "", onClose, machines, onSelect, snapshot, online, selectedPaneId, actions }: CommandPaletteProps) {
   const t = useT();
   const machineId = useMachineId();
   const api = useMachineApi();
@@ -308,16 +307,14 @@ export function CommandPalette({ open, initialQuery = "", onClose, machines, onS
       { id: "split-down-open", label: t("Split pane down and open it"), icon: Rows2, run: () => splitPane("down", true) },
     ] satisfies PaletteAction[] : []),
     ...(zoomPane && zoom && tabPanes > 1 ? [{ id: "zoom", label: t(zoom === "off" ? "Unzoom pane" : "Zoom pane"), icon: zoom === "off" ? Minimize2 : Maximize2, run: () => zoomPane(zoom) }] : []),
-    { id: "view", label: t(view === "chat" ? "Switch to terminal" : "Switch to chat"), icon: SwitchCamera, shortcut: "toggle-view", run: actions.toggleView },
     { id: "sidebar", label: t("Toggle sidebar"), icon: PanelLeft, shortcut: "toggle-sidebar", run: actions.toggleSidebar },
     { id: "theme", label: t("Toggle theme"), icon: SunMoon, run: actions.toggleTheme },
     { id: "settings", label: t("Settings"), icon: Settings, shortcut: "settings", run: actions.openSettings },
     { id: "add-pc", label: t("Add PC"), icon: Monitor, run: actions.openAddPc },
     ...(actions.enableNotifications ? [{ id: "notifications", label: t("Enable notifications"), icon: Bell, run: actions.enableNotifications }] : []),
-    ...(actions.openFiles ? [{ id: "files", label: t("Browse files"), icon: FolderOpen, run: actions.openFiles }] : []),
     ...(online ? [{ id: "browse-folders", label: t("Browse folders"), icon: FolderSearch, keepOpen: true, run: () => browseTo(browseStart ?? home ?? "~") }] : []),
     { id: "refresh", label: t("Refresh"), icon: RefreshCw, run: actions.refresh },
-  ], [actions, splitPane, zoomPane, tabPanes, zoom, view, t, selectedPaneId, online, browseTo, browseStart, home]);
+  ], [actions, splitPane, zoomPane, tabPanes, zoom, t, selectedPaneId, online, browseTo, browseStart, home]);
 
   // Settings pages are found by a query only, and open on the page itself: the dialog reads the request as it mounts
   const settingsActions = useMemo(() => {
@@ -344,9 +341,7 @@ export function CommandPalette({ open, initialQuery = "", onClose, machines, onS
       const machineName = multiMachine ? selectedMachineName : undefined;
       const jump = (path: string, prefix: string, icon: ComponentType): FolderRow => ({ kind: "folder", id: `${prefix}:${path}`, label: lastSegment(path), path, detail: home === null ? path : homeRelative(path, home), icon });
       if (listing && folder.filter === "") {
-        const { openFiles } = actions;
         const here: PaletteRow[] = [
-          ...(openFiles ? [{ kind: "action" as const, action: { id: "open-folder", label: t("Open in Files"), icon: FolderOpen, run: () => { requestFilesFolder(listing.path); openFiles(); } } }] : []),
           ...(listing.parent !== null ? [{ kind: "folder" as const, id: "up", label: "..", path: listing.parent, detail: null, icon: CornerLeftUp }] : []),
         ];
         if (here.length > 0) list.push({ id: "folder-here", heading: folderQueryFor(listing.path, listing.home), machineName, branch: null, placeNamesWorkspace: false, rows: here });

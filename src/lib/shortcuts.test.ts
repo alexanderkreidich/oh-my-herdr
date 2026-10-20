@@ -16,10 +16,8 @@ describe("matchShortcut", () => {
   });
 
   it("matches every terminal-safe key", () => {
-    expect(matchShortcut(keyEvent("j", { ctrlKey: true }), false)).toBe("toggle-view");
     expect(matchShortcut(keyEvent("F", { ctrlKey: true }), false)).toBe("find");
     expect(matchShortcut(keyEvent("F", { metaKey: true }), true)).toBe("find");
-    expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), false)).toBeNull();
     expect(matchShortcut(keyEvent("f", { ctrlKey: true }), false, { find: null })).toBeNull();
     expect(matchShortcut(keyEvent("g", { ctrlKey: true }), false, sanitizeShortcutOverrides({ find: "g" }))).toBe("find");
     expect(matchShortcut(keyEvent("B", { ctrlKey: true }), false)).toBe("toggle-sidebar");
@@ -28,6 +26,17 @@ describe("matchShortcut", () => {
     expect(matchShortcut(keyEvent("ArrowDown", { ctrlKey: true }), false)).toBe("next-pane");
     expect(matchShortcut(keyEvent(",", { ctrlKey: true }), false)).toBe("settings");
     expect(matchShortcut(keyEvent("<", { ctrlKey: true, code: "Comma" }), false)).toBe("settings");
+  });
+
+  it("opens the palette on Ctrl+F on every platform, unless Settings rebinds or frees it", () => {
+    expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), false)).toBe("palette");
+    expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), true)).toBe("palette");
+    expect(matchShortcut(keyEvent("а", { ctrlKey: true, shiftKey: false, code: "KeyF" }), true)).toBe("palette");
+    expect(matchShortcut(keyEvent("f", { metaKey: true, shiftKey: false }), true)).toBeNull();
+    expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), false, { palette: null })).toBeNull();
+    expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), false, { palette: "p" })).toBeNull();
+    expect(shortcutKeys("palette", {})).toContain("ctrl+f");
+    expect(isAppShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }))).toBe(true);
   });
 
   it("requires Shift and rejects extra or competing modifiers", () => {
@@ -91,8 +100,8 @@ it("matches shifted digits and detects alias and default-restoration conflicts",
 
 describe("shortcutDisplayKeys", () => {
   it("shows the default chord, custom chord, disabled state, and uncustomizable voice chord", () => {
-    expect(shortcutDisplayKeys("palette", {})).toEqual(["Mod", "Shift", "K"]);
-    expect(shortcutDisplayKeys("toggle-view", { "toggle-view": "p" })).toEqual(["Mod", "Shift", "P"]);
+    expect(shortcutDisplayKeys("palette", {})).toEqual(["Ctrl", "F"]);
+    expect(shortcutDisplayKeys("find", { find: "p" })).toEqual(["Mod", "Shift", "P"]);
     expect(shortcutDisplayKeys("settings", { settings: null })).toEqual([]);
     expect(shortcutDisplayKeys("voice", { voice: "p" })).toEqual(["Mod", "Shift", "Space"]);
   });

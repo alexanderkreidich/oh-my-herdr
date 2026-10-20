@@ -56,10 +56,17 @@ The loop for a UI slice:
      `bun run build`;
    - screenshots: `bun run build && bun run sandbox --shot /tmp/desktop.png` and
      `--size 390x844` for a phone, `--theme light` when colours change. Look at them;
+   - the browser check of the minimal UI:
+     `bun run build && bun run check run bun scripts/minimal-ui-regression.ts`; extend it when a
+     slice changes what it checks;
    - `bun run check fast` before a PR (generated types and themes, typecheck, build, unit tests).
-     Changes to `server/`, `shared/` or terminal I/O also run
-     `bun run check integration browser` (each lane runs on a herdr of its own).
-5. Run the `review-animations` skill over a diff that touches motion; fix what it blocks.
+     Changes to `server/`, `shared/` or terminal I/O also run `bun run check integration` (a herdr
+     of its own). Upstream's browser lane still assumes the chat and the old header: it is being
+     replaced (roadmap, Phase 2), so do not chase its failures from removed UI.
+   - after removing UI, `bun scripts/i18n-prune.ts` drops the translations nothing asks for.
+5. Run the `review-animations` skill over a diff that touches motion; fix what it blocks. One-off
+   probe scripts (screenshots mid-animation and the like) go in `scripts/*.tmp.ts`, which git
+   ignores.
 6. Commit, push the branch, open the PR with before/after screenshots.
 
 Stop the sandbox's herdr when done: `herdr --session restty-sandbox server stop`.

@@ -8,6 +8,28 @@
   /* the popover's max-height comes from the room the anchor leaves (RowMenu.tsx); `.menu` hides
      its overflow, so the scroll box is here */
   overflow-y: auto;
+  /* it grows from the corner nearest what opened it (transform-origin, RowMenu.tsx) once placed:
+     occasional, so a standard entrance; it closes at once */
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.row-menu.is-placed {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-menu {
+    transform: none;
+  }
+
+  .row-menu.is-placed {
+    transition: opacity var(--dur-base) ease;
+  }
 }
 
 /* hints that are paths (New workspace's "+N" folders): room for them, and the path, not the name, is cut */

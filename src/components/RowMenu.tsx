@@ -72,7 +72,8 @@ export function RowMenu({ anchor, point, restoreFocusTo, title, subtitle, detail
   useSheetSwipe(surface, sheet ? onClose : null);
   // Back closes the sheet, not the pane under it
   useSheetHistory(sheet, onClose);
-  const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  // transformOrigin: the corner nearest what opened it, which the popover grows from (RowMenu.css)
+  const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number; transformOrigin: string } | null>(null);
   // where the button was when the menu was placed: a scroll that leaves it there is not a reason to close
   const placedAt = useRef<{ top: number; left: number } | null>(null);
 
@@ -93,11 +94,9 @@ export function RowMenu({ anchor, point, restoreFocusTo, title, subtitle, detail
     const rect = anchor.getBoundingClientRect();
     placedAt.current = { top: rect.top, left: rect.left };
     if (point) {
-      setPlace({
-        left: Math.max(EDGE, Math.min(point.x, window.innerWidth - menu.offsetWidth - EDGE)),
-        top: Math.max(EDGE, Math.min(point.y, window.innerHeight - menu.offsetHeight - EDGE)),
-        maxHeight: window.innerHeight - EDGE * 2,
-      });
+      const left = Math.max(EDGE, Math.min(point.x, window.innerWidth - menu.offsetWidth - EDGE));
+      const top = Math.max(EDGE, Math.min(point.y, window.innerHeight - menu.offsetHeight - EDGE));
+      setPlace({ left, top, maxHeight: window.innerHeight - EDGE * 2, transformOrigin: `${point.x - left}px ${point.y - top}px` });
       return;
     }
     const left = Math.max(EDGE, Math.min(align === "start" ? rect.left : rect.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - EDGE));
@@ -106,7 +105,7 @@ export function RowMenu({ anchor, point, restoreFocusTo, title, subtitle, detail
     const roomAbove = rect.top - GAP - EDGE;
     const up = below + menu.offsetHeight + EDGE > window.innerHeight && roomAbove > roomBelow;
     const top = up ? Math.max(EDGE, rect.top - GAP - menu.offsetHeight) : below;
-    setPlace({ top, left, maxHeight: Math.max(EDGE, up ? roomAbove : roomBelow) });
+    setPlace({ top, left, maxHeight: Math.max(EDGE, up ? roomAbove : roomBelow), transformOrigin: `${align === "start" ? "left" : "right"} ${up ? "bottom" : "top"}` });
   }, [align, anchor, onClose, point, sheet]);
 
   useEffect(() => {
@@ -212,7 +211,7 @@ export function RowMenu({ anchor, point, restoreFocusTo, title, subtitle, detail
   }
 
   return createPortal(
-    <div ref={surface} className={`menu row-menu${anchor.closest('[aria-modal="true"]') ? " is-over-modal" : ""}${variant === "paths" ? " row-menu-paths" : ""}`} role="menu" aria-label={title} style={place ?? { visibility: "hidden" }} onKeyDown={onKeyDown} onBlur={onBlur}>
+    <div ref={surface} className={`menu row-menu${place ? " is-placed" : ""}${anchor.closest('[aria-modal="true"]') ? " is-over-modal" : ""}${variant === "paths" ? " row-menu-paths" : ""}`} role="menu" aria-label={title} style={place ?? { visibility: "hidden" }} onKeyDown={onKeyDown} onBlur={onBlur}>
       {header && <div className="row-menu-header" role="presentation">{header}</div>}
       {items.map((item) => (
         <Fragment key={item.id}>
