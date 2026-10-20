@@ -60,7 +60,6 @@ export function labelMapKeys(root: string): string[] {
   return [
     ...grab("lib/status.ts", "STATUS_WORD", value),
     ...grab("components/MachineSidebar.tsx", "STATE_WORD", value),
-    ...grab("components/Composer.tsx", "SOURCE_LABEL", value),
     ...grab("components/DevicesPanel.tsx", "VIA", value),
     ...grab("components/SettingsDialog.tsx", "THEME_NAMES", /^\s+"?[\w-]+"?: "([^"]*)",?$/gm),
     ...grab("components/KeyBar.tsx", "ARROWS", /label: "([^"]+)"/g),
@@ -68,8 +67,6 @@ export function labelMapKeys(root: string): string[] {
     ...grab("lib/shortcuts.ts", "SHORTCUTS", /label: "([^"]+)"/g),
     ...grab("lib/bridgeProgress.ts", "STAGES", /label: "([^"]+)"/g),
     ...grab("lib/updateProgress.ts", "STEPS", /label: "([^"]+)"/g),
-    ...grab("lib/workBlocks.ts", "CATEGORY_LABEL", /\["([^"]+)", "([^"]+)"\]/g),
     ...grab("lib/usage.ts", "WINDOW_LABEL", value),
-    ...grab("lib/toolVerbs.ts", "VERB_LABEL", value),
   ];
 }

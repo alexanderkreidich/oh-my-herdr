@@ -2243,9 +2243,9 @@ describe("WebSocket roles and status push", () => {
         await shellSees(desktop, paneId, "33x53");
 
         // An in-band response on the same connection orders keepSize before the phone releases.
-        // A nonexistent pending ID changes nothing and sends no terminal input.
+        // A line for a pane this connection never attached is refused and types nothing.
         hidden.keepSize(paneId);
-        expect(await hidden.pendingAction(paneId, "nonexistent-472", "discard")).toMatchObject({ ok: false });
+        expect(await hidden.submit("w-nonexistent-472:p1", "", "", true)).toMatchObject({ ok: false });
         desktop.seen.length = 0;
         phone.send({ type: "release-size", pane_id: paneId });
         // regression (fails on main): the hidden 100x30 candidate must not win.

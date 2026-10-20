@@ -1,7 +1,7 @@
 /**
  * The address says where the app is, so any moment can be linked to and returned to:
  *
- *   ?machine=<pc>&ws=<id>-<slug>&pane=<pane>&view=chat|terminal&file=<path>&settings=<page>&section=<group>
+ *   ?machine=<pc>&ws=<id>-<slug>&pane=<pane>&settings=<page>&section=<group>
  *   ?new=workspace|tab&cwd=<folder>&name=<name>&agent=<kind>
  *   &sidebar=hidden|shown
  *
@@ -18,13 +18,11 @@
  * hyphen and the workspace's name as a short slug: readable, and a check, since herdr's ids are
  * short counters a new session can hand out again. A link to a workspace (`ws` alone, or a
  * `pane` that has closed) opens the pane its sidebar row opens. Opening another pane is an
- * entry of the history, so Back returns to the last one; a lens switch, a Settings page and a
- * pane the app picked itself only replace the entry. Settings keeps its own entries
+ * entry of the history, so Back returns to the last one; a Settings page and a pane the app
+ * picked itself only replace the entry. Settings keeps its own entries
  * (lib/settingsHistory.ts); the address of the one shown carries its page.
  */
 import type { SessionSnapshot } from "../../shared/protocol.ts";
-
-export type LinkView = "chat" | "terminal";
 
 export interface AppLink {
   machine: string;
@@ -33,9 +31,6 @@ export interface AppLink {
   /** the workspace's name as it was when the link was made (`slugOf`), or null */
   workspaceSlug?: string | null;
   pane: string | null;
-  view: LinkView | null;
-  /** the file open in the viewer over the pane, as the chat or the Files dialog gave its path */
-  file?: string | null;
   settings: string | null;
   /** a group on the Settings page (`data-section` on its SettingsGroup) */
   section?: string | null;
@@ -59,7 +54,8 @@ const FIELD_MAX = { cwd: 1024, name: 120 } as const;
 const AGENT_KIND = /^[a-z0-9][a-z0-9._-]{0,39}$/;
 
 const LOCAL = "local";
-/** the query names this module owns; anything else in the address is left as it is */
+/** the query names this module owns; anything else in the address is left as it is. `view` and
+ *  `file` are what older links and alerts named (the chat lens, the file viewer): dropped */
 const OWN = ["machine", "ws", "pane", "view", "file", "settings", "section", "new", "cwd", "name", "agent", "sidebar"] as const;
 const SIDEBAR: Readonly<Record<string, "shown" | "hidden">> = { shown: "shown", show: "shown", open: "shown", "1": "shown", hidden: "hidden", hide: "hidden", closed: "hidden", "0": "hidden" };
 /** a slug stays this short, cut at a word where it can be: a link names the workspace, it does not spell it out */
@@ -79,15 +75,9 @@ const named = (value: string | null): string | null => {
   return trimmed ? trimmed : null;
 };
 
-/** Relative file links need a pane; an absolute file can outlive the pane that wrote it. */
-export function fileFromLink(link: Pick<AppLink, "file" | "pane">): string | null {
-  return link.file && (link.pane || /^(?:\/|[A-Za-z]:[\\/])/.test(link.file)) ? link.file : null;
-}
-
 /** The place an address names. Every field is optional in an address; a missing PC is the local one. */
 export function readLink(search: string): AppLink {
   const query = new URLSearchParams(search);
-  const view = query.get("view");
   // herdr's ids hold no hyphen: the first one starts the slug
   const ws = named(query.get("ws"));
   const cut = ws?.indexOf("-") ?? -1;
@@ -97,8 +87,6 @@ export function readLink(search: string): AppLink {
     workspace: ws && cut > 0 ? ws.slice(0, cut) : ws,
     workspaceSlug: ws && cut > 0 ? named(ws.slice(cut + 1)) : null,
     pane: named(query.get("pane")),
-    view: view === "chat" || view === "terminal" ? view : null,
-    file: named(query.get("file")),
     settings,
     section: settings ? named(query.get("section")) : null,
     create: readCreate(query),
@@ -127,9 +115,6 @@ export function linkSearch(link: AppLink, current = ""): string {
   if (link.machine !== LOCAL) query.set("machine", link.machine);
   if (link.workspace) query.set("ws", link.workspaceSlug ? `${link.workspace}-${link.workspaceSlug}` : link.workspace);
   if (link.pane) query.set("pane", link.pane);
-  if (link.pane && link.view) query.set("view", link.view);
-  const file = fileFromLink(link);
-  if (file) query.set("file", file);
   if (link.settings) query.set("settings", link.settings);
   if (link.settings && link.section) query.set("section", link.section);
   if (link.sidebar) query.set("sidebar", link.sidebar);

@@ -220,11 +220,9 @@ self.addEventListener("push", (event) => {
 });
 
 /**
- * A window that runs the app and so takes a "select-pane": the shell's own paths only. Not a
- * markdown reader tab (`?read=`, src/lib/fileReader.ts renders FileReader there instead of App),
- * nor a raw file or HTML page the file viewer opened in a tab of its own (those are /api/
- * responses), nor any shipped file (an icon, /social-preview.png, a notice): a path whose last
- * part has an extension is a file, except the shell's own index.html.
+ * A window that runs the app and so takes a "select-pane": the shell's own paths only. Not an
+ * /api/ response open in a tab of its own, nor any shipped file (an icon, /social-preview.png, a
+ * notice): a path whose last part has an extension is a file, except the shell's own index.html.
  */
 function isAppWindow(url) {
   let parsed;
@@ -232,8 +230,7 @@ function isAppWindow(url) {
   const path = parsed.pathname;
   if (path.startsWith("/api/") || path === "/ws") return false;
   const last = path.slice(path.lastIndexOf("/") + 1);
-  if (last.includes(".") && last !== "index.html") return false;
-  return (parsed.searchParams.get("read") ?? "").trim() === "";
+  return !last.includes(".") || last === "index.html";
 }
 
 // Tap: bring the app forward on that pane - an open window is told which pane
@@ -247,7 +244,7 @@ self.addEventListener("notificationclick", (event) => {
   const machineId = event.notification.data?.machine_id || "local";
   // the workspace the pane was last seen in: an ended pane's tap opens it (src/lib/deepLink.ts)
   const workspaceId = event.notification.data?.workspace_id || null;
-  const selection = paneId ? { type: "select-pane", pane_id: paneId, machine_id: machineId, view: "chat", ...(workspaceId ? { workspace_id: workspaceId } : {}) } : null;
+  const selection = paneId ? { type: "select-pane", pane_id: paneId, machine_id: machineId, ...(workspaceId ? { workspace_id: workspaceId } : {}) } : null;
   // Remember the intent before any lookup: an older focus can finish while this one
   // is still finding its window.
   latestNotificationSelection = selection;
@@ -257,7 +254,7 @@ self.addEventListener("notificationclick", (event) => {
       const windows = (await self.clients.matchAll({ type: "window", includeUncontrolled: true }))
         .filter((client) => isAppWindow(client.url));
       if (click !== latestNotificationClick) return;
-      const url = paneId ? `/?machine=${encodeURIComponent(machineId)}${workspaceId ? `&ws=${encodeURIComponent(workspaceId)}` : ""}&pane=${encodeURIComponent(paneId)}&view=chat` : "/";
+      const url = paneId ? `/?machine=${encodeURIComponent(machineId)}${workspaceId ? `&ws=${encodeURIComponent(workspaceId)}` : ""}&pane=${encodeURIComponent(paneId)}` : "/";
       const selectLatest = (client) => { if (client && latestNotificationSelection) client.postMessage(latestNotificationSelection); };
       const open = async () => {
         // An opening can also finish after a newer tap. Repair that returned

@@ -1,4 +1,4 @@
-import { fileUriPath } from "./terminalFileLinks.ts";
+import { fileUriPath } from "./terminalLinks.ts";
 import { parseHtmlBlock, startsHtml } from "./markdownHtml.ts";
 
 export type InlineNode =

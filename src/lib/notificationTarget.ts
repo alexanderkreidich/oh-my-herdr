@@ -1,23 +1,10 @@
 import type { AppLink } from "./deepLink.ts";
 
-export type NotificationPaneView = "chat" | "terminal";
 /** `workspace_id`: the workspace the pane was last seen in (server/push.ts), so an ended pane's tap opens it. */
-export type NotificationTarget = { machine_id: string; pane_id: string; view?: NotificationPaneView; workspace_id?: string };
+export type NotificationTarget = { machine_id: string; pane_id: string; workspace_id?: string };
 type Target = NotificationTarget;
 type Select = (target: Target) => void;
 
-export function notificationTargetFromSearch(search: string): NotificationTarget | null {
-  const params = new URLSearchParams(search);
-  const pane_id = params.get("pane");
-  const view = params.get("view");
-  if (!pane_id || (view !== "chat" && view !== "terminal")) return null;
-  return { machine_id: params.get("machine") ?? "local", pane_id, view };
-}
-
-export function notificationViewForPane(target: NotificationTarget | null, machineId: string, paneId: string | null): NotificationPaneView | null {
-  if (!target || paneId === null || target.machine_id !== machineId || target.pane_id !== paneId) return null;
-  return target.view ?? null;
-}
 /** The roster is in and does not list this PC: it was removed since (the roster lists every PC set up, connected or not). */
 export function machineMissing(roster: readonly { id: string }[], machineId: string): boolean {
   return roster.length > 0 && !roster.some((machine) => machine.id === machineId);
@@ -44,13 +31,13 @@ type RosterMachine = { id: string; snapshot?: { panes: readonly { pane_id: strin
 export function notificationLanding(roster: readonly RosterMachine[], target: NotificationTarget): { kind: "select" } | { kind: "link"; link: AppLink; stale: boolean } {
   const machine = roster.find((candidate) => candidate.id === target.machine_id);
   if (machine?.snapshot?.panes.some((pane) => pane.pane_id === target.pane_id)) return { kind: "select" };
-  const link: AppLink = { machine: target.machine_id, workspace: target.workspace_id ?? null, pane: target.pane_id, view: target.view ?? null, settings: null };
+  const link: AppLink = { machine: target.machine_id, workspace: target.workspace_id ?? null, pane: target.pane_id, settings: null };
   return { kind: "link", link, stale: machineMissing(roster, target.machine_id) };
 }
 
 /** The same place: a second delivery of one tap (public/sw.js names it before and after focus). */
 export function sameLink(a: AppLink | null, b: AppLink): boolean {
-  return a !== null && a.machine === b.machine && a.pane === b.pane && (a.workspace ?? null) === (b.workspace ?? null) && (a.view ?? null) === (b.view ?? null);
+  return a !== null && a.machine === b.machine && a.pane === b.pane && (a.workspace ?? null) === (b.workspace ?? null);
 }
 
 type MessageSource = { addEventListener: (type: "message", listener: (event: MessageEvent) => void) => void };
@@ -60,13 +47,12 @@ export function notificationTargets(source?: MessageSource): (select: Select) =>
   let pending: Target | null = null;
   let consumer: Select | null = null;
   source?.addEventListener("message", (event) => {
-    const data = event.data as { type?: unknown; pane_id?: unknown; machine_id?: unknown; view?: unknown; workspace_id?: unknown } | null;
+    const data = event.data as { type?: unknown; pane_id?: unknown; machine_id?: unknown; workspace_id?: unknown } | null;
     if (data?.type !== "select-pane" || typeof data.pane_id !== "string") return;
     const target: Target = {
       machine_id: typeof data.machine_id === "string" ? data.machine_id : "local",
       pane_id: data.pane_id,
     };
-    if (data.view === "chat" || data.view === "terminal") target.view = data.view;
     if (typeof data.workspace_id === "string" && data.workspace_id !== "") target.workspace_id = data.workspace_id;
     if (consumer) consumer(target);
     else pending = target;

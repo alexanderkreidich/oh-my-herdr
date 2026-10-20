@@ -7,8 +7,6 @@
 import type { SplitPaneDirection } from "../../shared/protocol.ts";
 import type { ZoomMode } from "./layoutMap.ts";
 
-export type PaneView = "chat" | "terminal";
-
 /** The selected pane’s mounted input and history, bound to its PC. */
 export interface PaneControls {
   focusInput: () => void;
@@ -19,7 +17,6 @@ export interface AppActions {
   selectPane: (paneId: string) => void;
   /** the previous/next pane in sidebar order; wraps around */
   selectAdjacentPane: (direction: -1 | 1) => void;
-  setView: (view: PaneView) => void;
   /** Focus the selected pane's mounted input without sending any text or keys. */
   focusInput: () => void;
   scrollPage: (direction: -1 | 1) => void;
@@ -36,8 +33,6 @@ export interface AppActions {
   openTerminalTab: (target?: { machineId: string; workspaceId: string }) => Promise<void>;
   /** the palette, blank or opened on `query` (a `>` prefix keeps the actions alone) */
   openPalette: (query?: string) => void;
-  /** A pane this page started an agent in opens in an agent's lens, whatever its first snapshot says. */
-  agentStarted: (machineId: string, paneId: string) => void;
   openFind: () => void;
   openSettings: () => void;
   /** the Add PC dialog, from Settings → Remote PCs and the palette; Settings closes first */

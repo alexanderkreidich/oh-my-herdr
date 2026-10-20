@@ -21,7 +21,7 @@ function fakeWindow() {
 const fake = fakeWindow();
 (globalThis as unknown as { window: unknown }).window = fake.window;
 // after the window: the module listens to it as it loads
-const { outsideSettings, recordSettings, settingsEntry, settingsLevels } = await import("./settingsHistory.ts");
+const { recordSettings, settingsEntry, settingsLevels } = await import("./settingsHistory.ts");
 const settled = async () => { for (let i = 0; i < 4; i++) await new Promise((resolve) => queueMicrotask(() => resolve(undefined))); };
 
 describe("settingsLevels", () => {
@@ -310,24 +310,6 @@ describe("history traversal races", () => {
     await browser.move(-1);
     await browser.land();
     expect(moves).toEqual([true]);
-    expect(browser.index).toBe(0);
-  });
-
-  it("keeps a preview opened over Settings on a reload, and steps Back over the Settings under it", async () => {
-    // what a link to a file and Settings leaves: the entry it opened from, Settings, the preview over it
-    const base = { "herdr-web-ui:settings-base": "a" };
-    const settings = { ...base, "herdr-web-ui:settings": { page: "about", keyBar: false, depth: 1 } };
-    const preview = { ...outsideSettings(settings), "herdr-web-ui:file-preview": { path: "README.md", paneId: null, machineId: "local" } };
-    expect(settingsEntry(preview)).toBeNull();
-    const browser = await delayedHistory([base, settings, preview]);
-    const moves: Array<[ReturnType<typeof browser.settingsEntry>, boolean]> = [];
-    browser.onSettingsHistory((entry, own) => moves.push([entry, own]));
-    // the reload closes Settings without stepping back: the preview's entry stays where it is
-    expect(browser.loadedOnSettingsEntry()).toBe(true);
-    expect(browser.requests).toEqual([]);
-    await browser.move(-1);
-    await browser.land();
-    expect(moves).toEqual([[null, true]]);
     expect(browser.index).toBe(0);
   });
 

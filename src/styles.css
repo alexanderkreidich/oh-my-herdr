@@ -76,8 +76,8 @@
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
 
   /* document surfaces: NOT theme-driven. A PDF page is paper, not UI — it is white in either
-     theme, so it is named here and never overridden by the theme blocks below
-     (FileViewer's .file-viewer-pdf) */
+     theme, so it is named here and never overridden by the theme blocks below (the file viewer
+     that drew one is gone; the token stays with the theme set) */
   --pdf-page: #ffffff;
 
   /* terminal theme: copied into src/lib/themes.generated.ts by `bun run generate:themes` for xterm */
@@ -114,7 +114,6 @@
   --fs-xs: calc(12px * var(--ui-scale));
   --fs-sm: calc(13px * var(--ui-scale));
   --fs-md: calc(14px * var(--ui-scale));
-  --fs-chat: calc(15px * var(--ui-scale)); /* text that is read at length: chat prose, the user's bubble, the message box with a mouse */
   --fs-lg: calc(16px * var(--ui-scale));
   --fs-xl: calc(18px * var(--ui-scale));
   --fs-display: calc(22px * var(--ui-scale));
@@ -175,17 +174,6 @@
   --rail-w: 3px;
   --hairline: 1px;
   --content-w: 820px;
-  /* the chat lane: transcript, composer column, held list (Settings → Chat width, lib/settings.ts).
-     At the Default step PaneTerminal writes the pane's own lane on .terminal-stack, as one
-     length (chatLaneLength: 71.43% of the pane in px, min 820px, max 60rem), and a file viewer
-     writes the lane of the pane that opened it on itself; this is that rule's floor, for a
-     pane not measured yet. Never a percentage here: each column would resolve it against its
-     own box and the columns would differ by their gutters */
-  --chat-w: var(--content-w);
-  /* a long user message folds to this many lines of its prose (ChatView.css caps the bubble's body
-     at the count; lib/userMessageFold.ts folds a message past it) */
-  --chat-fold-lines: 12;
-  --pending-max-h: min(20dvh, 12rem);
   --palette-w: 640px;
   --palette-top: 12vh;
 
@@ -1433,25 +1421,11 @@
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-[data-chat-width="narrow"] {
-  --chat-w: var(--content-w);
-}
-
-[data-chat-width="wide"] {
-  --chat-w: 72rem;
-}
-
-/* the whole pane: each column keeps its own gutter */
-[data-chat-width="full"] {
-  --chat-w: 100%;
-}
-
 [data-density="compact"] {
   --fs-2xs: calc(10px * var(--ui-scale));
   --fs-xs: calc(11px * var(--ui-scale));
   --fs-sm: calc(12px * var(--ui-scale));
   --fs-md: calc(13px * var(--ui-scale));
-  --fs-chat: calc(14px * var(--ui-scale));
   --fs-lg: calc(15px * var(--ui-scale));
   --fs-xl: calc(17px * var(--ui-scale));
   --fs-display: calc(21px * var(--ui-scale));
@@ -1518,32 +1492,30 @@ html:is(:lang(ja), :lang(zh)) body {
   line-break: strict;
 }
 
-/* Code, keys, the terminal and the two text boxes keep the browser's breaking, and their children
-   inherit this reset: a path or a command is not a word, and xterm lays out its own cells.
-   overflow-wrap is not part of this rule; the chat's and the composer's own rules keep it. */
-:is(pre, code, kbd, samp, .xterm, .composer-text, .composer-measure, .terminal-input-text) {
+/* Code, keys, the terminal and the input line keep the browser's breaking, and their children
+   inherit this reset: a path or a command is not a word, and xterm lays out its own cells. */
+:is(pre, code, kbd, samp, .xterm, .terminal-input-text) {
   word-break: normal;
   line-break: auto;
 }
 
-/* The two boxes' placeholders are interface copy, not typed text: Korean keeps their words whole
+/* The input line's placeholder is interface copy, not typed text: Korean keeps its words whole
    too ("넣지 않습니다", never "넣지 않 / 습니다"). The pseudo-element alone takes keep-all, so the box
    itself, what the user types in it, and the code and terminal subtrees keep the reset above. */
-html:lang(ko) :is(.composer-text, .composer-measure, .terminal-input-text)::placeholder {
+html:lang(ko) .terminal-input-text::placeholder {
   word-break: keep-all;
 }
 
 /* A failure's folded line quotes what the PC or the browser said (lib/userError.ts): a sentence,
    often a translated one, so it takes the interface face. The mono stack has no Hangul: Korean set
    in it gets a letter-wide space between words and a period set off from its word. */
-:is([role="alert"], .composer-note-text, .composer-note-details, .chat-failure-details) > code {
+[role="alert"] > code {
   font-family: var(--font-ui);
 }
 
-/* A title that wraps takes even lines, never a full line over a one-word stub: dialog titles, the
-   empty chat's greeting and a Settings group's caption. */
+/* A title that wraps takes even lines, never a full line over a one-word stub: dialog titles and
+   a Settings group's caption. */
 .modal-title,
-.composer-greeting-title,
 .settings-section h3 {
   text-wrap: balance;
 }
@@ -1589,9 +1561,6 @@ button {
   /* the sidebar column's width: the one the user dragged its edge to (--sidebar-user-w, written
      by App), else the density's; never more than half the window */
   --sidebar-shown-w: min(var(--sidebar-user-w, var(--sidebar-w)), 50vw);
-  /* the docked file panel's width (FileViewer.css): the one its edge was dragged to (--file-panel-user-w,
-     written by App), else min(42vw, 560px). The panel yields first to leave 320px for the pane. */
-  --file-panel-shown-w: min(max(320px, min(var(--file-panel-user-w, min(42vw, 560px)), 60vw)), calc(100vw - var(--sidebar-shown-w) - 320px));
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1817,12 +1786,6 @@ button {
 /* the inactive half is a step quieter, so the one keys go to reads at a glance */
 .pane-slot.is-inactive .terminal-host {
   opacity: 0.88;
-}
-
-/* the chat's composer takes the home-indicator inset itself (Composer.css): kept here as
-   well, it stacked under the composer's own padding as a band of another colour */
-.terminal-host:has(.composer) {
-  padding-bottom: 0;
 }
 
 /* the tab strip's panel inside .terminal-host: a role for screen readers, no box of its own */

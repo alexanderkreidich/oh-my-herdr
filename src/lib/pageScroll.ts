@@ -1,10 +1,3 @@
-import type { ShortcutEventLike } from "./shortcuts.ts";
-
-/** Plain page keys can belong to chat without replacing modified app shortcuts. */
-export function plainPageDirection(event: ShortcutEventLike): -1 | 1 | null {
-  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.isComposing || event.keyCode === 229) return null;
-  return event.key === "PageUp" ? -1 : event.key === "PageDown" ? 1 : null;
-}
 
 /** Lines kept visible between pages, in chat and in terminal history. */
 export const PAGE_OVERLAP_ROWS = 1;

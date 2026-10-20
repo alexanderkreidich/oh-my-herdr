@@ -324,7 +324,7 @@ function AppearancePage() {
     </SettingsGroup>
 
     <SettingsGroup title={t("Typography")} section="typography">
-      <SettingsRow label={t("Interface font size")} description={t("Menus, lists, dialogs and the sidebar. The chat follows it until it has a size of its own; the terminal keeps its own.")}>
+      <SettingsRow label={t("Interface font size")} description={t("Menus, lists, dialogs and the sidebar. The terminal keeps its own.")}>
         <Stepper label={t("Interface font size")} value={uiFontSize(settings)} text={`${uiFontSize(settings)}px`} min={UI_FONT_MIN} max={UI_FONT_MAX} decreaseLabel={t("Decrease interface font size")} increaseLabel={t("Increase interface font size")} onChange={(size) => update({ uiFontSize: size })} />
       </SettingsRow>
     </SettingsGroup>
@@ -449,7 +449,7 @@ function VoicePage() {
   return (
     <>
       <SettingsGroup>
-        <SettingsRow label={t("Microphone button")} description={<>{t("Auto: in the chat on a desktop, where dictation can work. On: on a phone and in the terminal input line too.")}{micProblem !== null && <span className="voice-error">{micProblem}</span>}</>} wide>
+        <SettingsRow label={t("Microphone button")} description={<>{t("On: in the terminal input line, where dictation can work.")}{micProblem !== null && <span className="voice-error">{micProblem}</span>}</>} wide>
           <Segmented label={t("Microphone button")} value={settings.voiceInput} onChange={(voiceInput) => void chooseVoiceInput(voiceInput)} options={VOICE_BUTTONS.map((voiceInput) => ({ value: voiceInput, label: t(voiceInput === "auto" ? "Auto" : voiceInput === "on" ? "On" : "Off") }))} />
         </SettingsRow>
         {settings.voiceInput !== "off" && (
@@ -461,9 +461,6 @@ function VoicePage() {
 
       {settings.voiceInput !== "off" && (
         <SettingsGroup title={t("Tidy dictated text")} section="tidy-dictation">
-          <SettingsRow label={t("In chat")} description={t("Drops fillers and fixes spacing; code and paths stay as spoken")}>
-            <Toggle label={t("Tidy dictated text in chat")} checked={settings.voicePolishChat} onChange={(voicePolishChat) => update({ voicePolishChat })} />
-          </SettingsRow>
           <SettingsRow label={t("In the terminal")} description={t("Off keeps a command exactly as transcribed")}>
             <Toggle label={t("Tidy dictated text in the terminal")} checked={settings.voicePolishTerminal} onChange={(voicePolishTerminal) => update({ voicePolishTerminal })} />
           </SettingsRow>
@@ -760,7 +757,7 @@ function DevicesPage({ auth, onSignOut }: { auth: HealthAuth | null; onSignOut: 
           </SettingsRow>
         )}
         <div className="settings-item"><PhonePanel plan={plan} loading={access === undefined} onRefresh={loadAccess} /></div>
-        <SettingsRow label={t("Keep screen on")} description={<>{t("While a terminal or chat pane is open.")}{wakeLockProblem !== null && <span className="settings-condition">{wakeLockProblem}</span>}</>}>
+        <SettingsRow label={t("Keep screen on")} description={<>{t("While a terminal is open.")}{wakeLockProblem !== null && <span className="settings-condition">{wakeLockProblem}</span>}</>}>
           <Toggle label={t("Keep screen on")} checked={settings.keepScreenOn} onChange={(keepScreenOn) => update({ keepScreenOn })} />
         </SettingsRow>
         <SettingsRow label={t("Install")} description={installPrompt.installed ? t("Installed") : installPrompt.canInstall ? undefined : installPrompt.help}>

@@ -1,23 +1,19 @@
-import type { ClientMessage, ClientRole, PendingMessage, ServerFeature, ServerMessage } from "../../shared/protocol.ts";
+import type { ClientMessage, ClientRole, ServerFeature, ServerMessage } from "../../shared/protocol.ts";
 import { OUTPUT_STALLED_CLOSE_CODE } from "../../shared/terminal-flow.ts";
 import { ConnectionTrace } from "./connectionTrace.ts";
 
 type Handler = (message: ServerMessage) => void;
 
-/** A submit was delivered, accepted into the bridge's pending queue, or refused. */
-/** `draft`: an input_draft refusal's one-row Claude draft, which a send with clearDraft may clear;
- * `box`: a refusal naming no draft, what the server read in the box, after which a send with sendAnyway may go */
-/** immediate: typed now; queue: waits for the next turn; hold: waits for the user's Send now */
-export type SubmitDelivery = "immediate" | "queue" | "hold";
-export type SubmitResult = { ok: true; pending?: PendingMessage } | { ok: false; code: string; message: string; draft?: string; box?: string };
+/** A submit (the input line's line, a masked secret) was delivered, or refused. */
+export type SubmitResult = { ok: true } | { ok: false; code: string; message: string };
 
 /** Right after a reconnect the snapshot that says what the server supports may still be on its way. */
 const SNAPSHOT_WAIT_MS = 2000;
 /**
- * A submit the server never answers: the composer stops waiting and keeps the text. The
- * server types nothing once 45s have passed since the message reached it (queued behind
- * others included) and a send that started in time ends within two more 10s RPCs, so a
- * message the client gave up on is never submitted later.
+ * A submit the server never answers: the input line stops waiting and keeps the text. The
+ * server types nothing once 45s have passed since the line reached it (queued behind others
+ * included) and a send that started in time ends within two more 10s RPCs, so a line the
+ * client gave up on is never submitted later.
  */
 const SUBMIT_TIMEOUT_MS = 90_000;
 /**
@@ -67,7 +63,7 @@ const NOT_TRANSMITTED: SubmitResult = { ok: false, code: "not_transmitted", mess
  * - connecting: an attempt has not opened yet
  * - open: open, and no liveness probe in flight
  * - probing: open, a ping sent and its pong not back yet; terminal input is refused (it goes to the
- *   held draft) and submits, pending actions and secrets wait for the answer before they are sent
+ *   held draft) and submits and secrets wait for the answer before they are sent
  * - waiting: no socket, a reconnect waits out its backoff
  * - stopped: output stopped (4008); only an attach reconnects (PaneTerminal attaches again on its
  *   own once when the stop came while the page was hidden, see stoppedWhileHidden)
@@ -78,7 +74,7 @@ export type ConnectionState = "idle" | "connecting" | "open" | "probing" | "wait
 interface AttachState {
   cols: number;
   rows: number;
-  /** Chat or a hidden pane: attaches (a reconnect's too) leave the shared pty's size alone */
+  /** A hidden pane: attaches (a reconnect's too) leave the shared pty's size alone */
   keepSize: boolean;
   /** This connection has sized the terminal since its last grid release. */
   releaseSizeOwed: boolean;
@@ -114,10 +110,6 @@ export class HerdrSocket {
   private readonly attached = new Map<string, AttachState>();
   /** panes this tab views read-only while out of use (feature "watch"), at the grid it asked for; replayed after each snapshot */
   private readonly watched = new Map<string, { cols: number; rows: number }>();
-  /** Panes whose mounted, visible chat asks for transcript invalidations. The server drops interest
-   * with the attachment, so each attach of a pane listed here (a reconnect's, or a tab back in use
-   * after letting go of it) asks again; only the chat taking its interest back removes it. */
-  private readonly conversationWanted = new Set<string>();
   private retries = 0;
   /** When this connection opened; a brief open must not restart a flapping connection's retries. */
   private openedAt: number | null = null;
@@ -175,7 +167,7 @@ export class HerdrSocket {
   };
   /**
    * A page navigated away from can be kept whole in the browser's back/forward cache, its socket
-   * still open: the server would go on delivering this connection's queued messages into a page
+   * still open: the server would go on typing this connection's submitted lines into a page
    * nobody sees, while the page that replaced it shows them as not confirmed. Leaving ends the
    * connection for real, so the disconnect handlers run and the server drops its pending input.
    * No retry is armed and nothing connects until the page comes back (pageshow), not an `online`
@@ -218,7 +210,7 @@ export class HerdrSocket {
   /** submits waiting for their submit-result, by id */
   private readonly submits = new Map<number, (result: SubmitResult) => void>();
   /** Receipts match the operation and captured target on this connection, never an ID alone. */
-  private readonly requests = new Map<number, { type: "submit" | "pending-action" | "secret"; paneId: string; queued?: boolean; pendingId?: string }>();
+  private readonly requests = new Map<number, { type: "submit" | "secret"; paneId: string }>();
 
   private readonly trace: ConnectionTrace;
   private connectionEpoch = 0;
@@ -352,13 +344,7 @@ export class HerdrSocket {
         // its connection is trusted as before rather than dropped at the deadline or left paused
         if (!this.pingKnown && this.probing) this.endProbe();
         if (!this.features.has("input-ready")) for (const pane of this.outputSeen) if (this.attached.has(pane)) this.inputReady.add(pane);
-        // Capabilities arrive after open's role/attach replay. Restore only current interest,
-        // never send an unknown frame to an older bridge or replay a hidden/detached chat.
-        if (this.features.has("conversation-watch")) {
-          for (const paneId of this.attached.keys()) {
-            if (this.conversationWanted.has(paneId)) this.rawSend({ type: "conversation-watch", pane_id: paneId, enabled: true });
-          }
-        }
+        // Capabilities arrive after open's role/attach replay: never send an unknown frame to an older bridge.
         if (this.features.has("watch")) {
           for (const [paneId, grid] of this.watched) this.rawSend({ type: "watch", pane_id: paneId, cols: grid.cols, rows: grid.rows });
         } else {
@@ -375,21 +361,8 @@ export class HerdrSocket {
       }
       if ((message.type === "input-ready" && message.ready === false) || message.type === "pty-exit" || (message.type === "error" && message.pane_id && ["attach_held", "input_not_ready"].includes(message.code))) this.inputReady.delete(message.pane_id!);
       if (message.type === "submit-result" && this.matchesRequest(message.id, "submit", message.pane_id)) {
-        this.resolveRequest(message.id, message.ok ? { ok: true, ...(message.pending ? { pending: message.pending } : {}) }
-          : { ok: false, code: message.code ?? "submit_failed", message: message.message ?? "the pane did not take the message", ...(message.draft ? { draft: message.draft } : {}),
-            ...(!message.draft && typeof message.box === "string" ? { box: message.box } : {}) });
-      }
-      if (message.type === "pending-messages") {
-        // The owner-only live queue is also an acceptance receipt if its submit ACK
-        // was lost. A reconnect's empty list never implies that an old item was sent.
-        for (const pending of message.messages) {
-          const request = this.requests.get(pending.request_id);
-          if (request?.type !== "submit" || !request.queued || request.paneId !== message.pane_id) continue;
-          this.resolveRequest(pending.request_id, { ok: true, pending });
-        }
-      }
-      if (message.type === "pending-result" && this.matchesRequest(message.id, "pending-action", message.pane_id, message.pending_id)) {
-        this.resolveRequest(message.id, message.ok ? { ok: true } : { ok: false, code: message.code ?? "pending_failed", message: message.message ?? "the pending message was not changed" });
+        this.resolveRequest(message.id, message.ok ? { ok: true }
+          : { ok: false, code: message.code ?? "submit_failed", message: message.message ?? "the pane did not take the message" });
       }
       if (message.type === "secret-result" && this.matchesRequest(message.id, "secret", message.pane_id)) {
         this.resolveRequest(message.id, message.ok ? { ok: true } : { ok: false, code: message.code ?? "secret_failed", message: "Secret was not sent. Check the prompt and enter it again." });
@@ -680,9 +653,6 @@ export class HerdrSocket {
     this.inputReady.delete(paneId);
     this.attached.set(paneId, { cols, rows, keepSize, releaseSizeOwed: !keepSize });
     this.send({ type: "attach", pane_id: paneId, cols, rows, flow_control: "ack", ...(keepSize ? { keep_size: true } : {}) });
-    if (this.conversationWanted.has(paneId) && this.features.has("conversation-watch")) {
-      this.send({ type: "conversation-watch", pane_id: paneId, enabled: true });
-    }
     if (this.stopped) {
       this.stopped = false;
       this.stoppedHidden = false;
@@ -690,22 +660,6 @@ export class HerdrSocket {
       this.shownAt = 0;
       this.connect();
     }
-  }
-
-  /** Retained control state, not queued input: kept across detach, asked again by the next attach. */
-  watchConversation(paneId: string, enabled: boolean): void {
-    if (this.conversationWanted.has(paneId) === enabled) return;
-    if (enabled) this.conversationWanted.add(paneId);
-    else this.conversationWanted.delete(paneId);
-    // a detached pane has no interest on the server: its next attach asks
-    if (this.attached.has(paneId) && this.features.has("conversation-watch")) {
-      this.send({ type: "conversation-watch", pane_id: paneId, enabled });
-    }
-  }
-
-  /** Whether this connection's bridge pushes transcript changes to a watching chat. */
-  conversationPushes(): boolean {
-    return this.connected && this.features.has("conversation-watch");
   }
 
   /** Capture connection AND subscription before xterm's asynchronous write. Never queue ACKs. */
@@ -816,75 +770,40 @@ export class HerdrSocket {
     return this.connected && !this.probing && this.mode === "interact" && this.inputReady.has(paneId);
   }
 
-  /** Whether this connection can accept and manage pending messages on the bridge. */
-  canQueueMessages(): boolean {
-    return this.connected && this.mode === "interact" && this.features.has("submit") && this.features.has("pending-input");
-  }
-
-  /** Whether the bridge can keep a pending message for Send now alone (`delivery: "hold"`). */
-  canHoldMessages(): boolean {
-    return this.canQueueMessages() && this.features.has("pending-hold");
-  }
-
-  /** `stop`: the composer's Stop, a lone ESC the bridge keeps ahead of the next message. */
-  sendInput(paneId: string, text: string, stop = false): boolean {
+  sendInput(paneId: string, text: string): boolean {
     if (!this.canInput(paneId)) { this.traceProbeRefusal(); return false; }
-    try { this.rawSend(stop ? { type: "input", pane_id: paneId, text, stop: true } : { type: "input", pane_id: paneId, text }); return true; } catch { return false; }
+    try { this.rawSend({ type: "input", pane_id: paneId, text }); return true; } catch { return false; }
   }
 
   /**
-   * Types a composer message and submits it, straight to the socket: a Ctrl armed on the
-   * terminal key bar must not turn a one-letter message into a control key. A server
-   * listing "submit" sends Enter itself, after a gap, and says how it went; an older
-   * bridge gets the payload and its Enter in one frame, as before. Queue delivery
-   * requires "pending-input": it never falls back to an immediate send. `text` is the message
-   * as written, `payload` the same shaped for the pane's paste mode. null, sending
-   * nothing, when offline.
+   * Types the input line's text and submits it, straight to the socket: a Ctrl armed on the
+   * terminal key bar must not turn a one-letter line into a control key. A server listing
+   * "submit" sends Enter itself, after a gap, and says how it went; an older bridge gets the
+   * payload and its Enter in one frame, as before. `text` is the line as written, `payload`
+   * the same shaped for the pane's paste mode; `typed` types it into the pane like the
+   * keyboard (see ClientMessage). null, sending nothing, when offline.
    */
-  /** `typed`: from the terminal's input line, typed into the pane like the keyboard (see ClientMessage).
-   * `clearDraft`: an immediate send over the draft an input_draft refusal named (ClientMessage `clear_draft`)
-   * `sendAnyway`: an immediate send after a refusal that showed the box (ClientMessage `send_anyway`) */
-  submit(paneId: string, text: string, payload: string, typed = false, delivery: SubmitDelivery = "immediate", clearDraft?: string, sendAnyway = false, resendId?: string, generation?: number): Promise<SubmitResult> | null {
+  submit(paneId: string, text: string, payload: string, typed = false): Promise<SubmitResult> | null {
     const socket = this.socket;
     if (!this.connected || socket === null || this.mode === "observe") return null;
-    if (resendId !== undefined && sendAnyway) return Promise.resolve({ ok: false, code: "invalid_delivery", message: "Use a held-copy resend id only for an immediate chat message" });
     return (async (): Promise<SubmitResult> => {
       await Promise.race([this.snapshotSeen, new Promise((resolve) => window.setTimeout(resolve, SNAPSHOT_WAIT_MS))]);
       // a liveness probe in flight is waited out: nothing is sent on a socket that may be dead
       if (!(await this.probeSettled(socket))) return NOT_TRANSMITTED;
       if (this.mode === "observe") return { ok: false, code: "read_only", message: "Observe connections cannot submit messages." };
-      // hold is decided once the snapshot said what the bridge supports: one too old to hold queues it as before
-      if (delivery === "hold" && !this.canHoldMessages()) delivery = "queue";
-      if (delivery === "queue" && !this.canQueueMessages()) return { ok: false, code: "pending_input_unsupported", message: "Update this PC to queue messages." };
       if (!this.features.has("submit")) {
-        if (clearDraft !== undefined || sendAnyway) return { ok: false, code: "unsupported", message: "Update this PC to clear a terminal draft before sending. Nothing was sent." };
         this.rawSend({ type: "input", pane_id: paneId, text: `${payload}\r` });
         return { ok: true };
       }
       const id = this.nextSubmit++;
-      return this.submitRequest({ type: "submit", id, pane_id: paneId, text, payload, ...(typed ? { typed: true } : {}), ...(delivery !== "immediate" ? { delivery } : {}),
-        ...(clearDraft !== undefined ? { clear_draft: clearDraft } : {}), ...(sendAnyway ? { send_anyway: true as const } : {}), ...(resendId !== undefined ? { resend_id: resendId, resend_generation: generation ?? 0 } : {}) });
-    })();
-  }
-
-  /** Explicitly steer or discard one server-owned pending item. Never queued or replayed. */
-  pendingAction(paneId: string, pendingId: string, action: "steer" | "discard", generation?: number): Promise<SubmitResult> | null {
-    const socket = this.socket;
-    if (!this.connected || socket === null || this.mode === "observe") return null;
-    return (async (): Promise<SubmitResult> => {
-      await Promise.race([this.snapshotSeen, new Promise((resolve) => window.setTimeout(resolve, SNAPSHOT_WAIT_MS))]);
-      if (!(await this.probeSettled(socket))) return NOT_TRANSMITTED;
-      if (this.mode === "observe") return { ok: false, code: "read_only", message: "Observe connections cannot change pending messages." };
-      if (!this.canQueueMessages()) return { ok: false, code: "pending_input_unsupported", message: "Update this PC to manage pending messages." };
-      return this.submitRequest({ type: "pending-action", id: this.nextSubmit++, pane_id: paneId, pending_id: pendingId, action,
-        ...(generation !== undefined ? { resend_generation: generation } : {}) });
+      return this.submitRequest({ type: "submit", id, pane_id: paneId, text, payload, ...(typed ? { typed: true } : {}) });
     })();
   }
 
   /** Only an acknowledgement callback is retained, never a frame to resend. */
-  private submitRequest(message: Extract<ClientMessage, { type: "submit" | "pending-action" }>): Promise<SubmitResult> {
+  private submitRequest(message: Extract<ClientMessage, { type: "submit" }>): Promise<SubmitResult> {
     const id = message.id;
-    this.requests.set(id, { type: message.type, paneId: message.pane_id, ...(message.type === "submit" ? { queued: message.delivery === "queue" || message.delivery === "hold" } : { pendingId: message.pending_id }) });
+    this.requests.set(id, { type: message.type, paneId: message.pane_id });
     const result = new Promise<SubmitResult>((resolve) => {
       this.submits.set(id, resolve);
       window.setTimeout(() => {
@@ -931,9 +850,9 @@ export class HerdrSocket {
     })();
   }
 
-  private matchesRequest(id: number, type: "submit" | "pending-action" | "secret", paneId: string, pendingId?: string): boolean {
+  private matchesRequest(id: number, type: "submit" | "secret", paneId: string): boolean {
     const request = this.requests.get(id);
-    return request?.type === type && request.paneId === paneId && (type !== "pending-action" || request.pendingId === pendingId);
+    return request?.type === type && request.paneId === paneId;
   }
 
   private resolveRequest(id: number, result: SubmitResult): void {

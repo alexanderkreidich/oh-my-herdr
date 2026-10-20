@@ -1,33 +1,25 @@
 import { describe, expect, it } from "bun:test";
 
-import { fileFromLink, isNavigation, linkSearch, linksSomewhere, readLink, resolveLink, slugOf, workspacePane } from "./deepLink.ts";
+import { isNavigation, linkSearch, linksSomewhere, readLink, resolveLink, slugOf, workspacePane } from "./deepLink.ts";
 
 describe("deep links", () => {
-  it("keeps an absolute file on its PC without requiring a live pane", () => {
-    for (const file of ["/tmp/한글 #1 & notes.MD", "C:\\docs\\notes.markdown"]) {
-      const link = { machine: "remote-box", workspace: null, pane: null, view: null, file, settings: null };
-      expect(readLink(linkSearch(link))).toMatchObject(link);
-      expect(fileFromLink(link)).toBe(file);
-    }
-    expect(linkSearch({ machine: "local", workspace: null, pane: null, view: null, file: "relative.md", settings: null })).toBe("");
-    expect(fileFromLink({ pane: null, file: "relative.md" })).toBeNull();
-    expect(fileFromLink({ pane: "w1:p1", file: "relative.md" })).toBe("relative.md");
-  });
   it("reads every place an address can name, with the local PC by default", () => {
-    expect(readLink("?ws=w2&pane=w2%3Ap1&view=chat&settings=appearance")).toEqual({ machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", view: "chat", file: null, settings: "appearance", section: null, create: null, sidebar: null });
-    expect(readLink("?machine=box&pane=w1:p3")).toMatchObject({ machine: "box", pane: "w1:p3", workspace: null, view: null });
-    expect(readLink("?view=sideways&pane=%20%20")).toMatchObject({ view: null, pane: null });
-    expect(readLink("")).toEqual({ machine: "local", workspace: null, workspaceSlug: null, pane: null, view: null, file: null, settings: null, section: null, create: null, sidebar: null });
+    // an older link's lens and file are read as nothing
+    expect(readLink("?ws=w2&pane=w2%3Ap1&view=chat&file=a.md&settings=appearance")).toEqual({ machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", settings: "appearance", section: null, create: null, sidebar: null });
+    expect(readLink("?machine=box&pane=w1:p3")).toMatchObject({ machine: "box", pane: "w1:p3", workspace: null });
+    expect(readLink("?pane=%20%20")).toMatchObject({ pane: null });
+    expect(readLink("")).toEqual({ machine: "local", workspace: null, workspaceSlug: null, pane: null, settings: null, section: null, create: null, sidebar: null });
   });
 
   it("writes the shortest address, keeps what is not its own, and reads back what it wrote", () => {
-    const link = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", view: "terminal" as const, file: null, settings: null, section: null, create: null, sidebar: null };
-    expect(linkSearch(link)).toBe("?ws=w2&pane=w2%3Ap1&view=terminal");
+    const link = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", settings: null, section: null, create: null, sidebar: null };
+    expect(linkSearch(link)).toBe("?ws=w2&pane=w2%3Ap1");
     expect(readLink(linkSearch(link))).toEqual(link);
-    expect(linkSearch({ ...link, machine: "box" }, "?debug=1&pane=old")).toBe("?debug=1&machine=box&ws=w2&pane=w2%3Ap1&view=terminal");
-    // a lens means nothing without a pane; nothing to say is no query at all
-    expect(linkSearch({ machine: "local", workspace: null, pane: null, view: "chat", settings: null })).toBe("");
-    expect(linkSearch({ machine: "local", workspace: null, pane: null, view: null, settings: "about" })).toBe("?settings=about");
+    // an older link's lens and file are dropped from the address
+    expect(linkSearch({ ...link, machine: "box" }, "?debug=1&pane=old&view=chat&file=a.md")).toBe("?debug=1&machine=box&ws=w2&pane=w2%3Ap1");
+    // nothing to say is no query at all
+    expect(linkSearch({ machine: "local", workspace: null, pane: null, settings: null })).toBe("");
+    expect(linkSearch({ machine: "local", workspace: null, pane: null, settings: "about" })).toBe("?settings=about");
   });
 
   it("tells an address that names a place from the app's plain start", () => {
@@ -71,16 +63,16 @@ describe("workspace slugs", () => {
   });
 
   it("writes and reads the id and the slug as one ws value", () => {
-    const link = { machine: "local", workspace: "w2K", workspaceSlug: "herdr-web-ui", pane: "w2K:p1", view: "chat" as const, file: null, settings: null, section: null, create: null, sidebar: null };
-    expect(linkSearch(link)).toBe("?ws=w2K-herdr-web-ui&pane=w2K%3Ap1&view=chat");
+    const link = { machine: "local", workspace: "w2K", workspaceSlug: "herdr-web-ui", pane: "w2K:p1", settings: null, section: null, create: null, sidebar: null };
+    expect(linkSearch(link)).toBe("?ws=w2K-herdr-web-ui&pane=w2K%3Ap1");
     expect(readLink(linkSearch(link))).toEqual(link);
     expect(readLink("?ws=w2K")).toMatchObject({ workspace: "w2K", workspaceSlug: null });
   });
 
-  it("carries a file over its pane and a section on its Settings page, and nothing without them", () => {
-    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", view: null, file: "src/App.tsx", settings: "about", section: "updates" };
-    expect(linkSearch(base)).toBe("?ws=w2&pane=w2%3Ap1&file=src%2FApp.tsx&settings=about&section=updates");
-    expect(readLink(linkSearch(base))).toMatchObject({ file: "src/App.tsx", section: "updates" });
+  it("carries a section on its Settings page, and nothing without it", () => {
+    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", settings: "about", section: "updates" };
+    expect(linkSearch(base)).toBe("?ws=w2&pane=w2%3Ap1&settings=about&section=updates");
+    expect(readLink(linkSearch(base))).toMatchObject({ section: "updates" });
     expect(linkSearch({ ...base, pane: null, settings: null })).toBe("?ws=w2");
     expect(readLink("?section=updates").section).toBeNull();
   });
@@ -127,7 +119,7 @@ describe("the New workspace dialog", () => {
   });
 
   it("writes the dialog and its fields, and nothing of it once it is closed", () => {
-    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", view: null, file: null, settings: null, section: null };
+    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", settings: null, section: null };
     const open = { ...base, create: { kind: "workspace" as const, cwd: "/srv/app", name: "Billing fix", agent: "codex" } };
     expect(linkSearch(open)).toBe("?ws=w2&pane=w2%3Ap1&new=workspace&cwd=%2Fsrv%2Fapp&name=Billing+fix&agent=codex");
     expect(readLink(linkSearch(open)).create).toEqual(open.create);
@@ -145,7 +137,7 @@ describe("the sidebar", () => {
   });
 
   it("writes it beside the place, and nothing when it is as the screen opens it", () => {
-    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", view: null, file: null, settings: null, section: null, create: null };
+    const base = { machine: "local", workspace: "w2", workspaceSlug: null, pane: "w2:p1", settings: null, section: null, create: null };
     expect(linkSearch({ ...base, sidebar: "hidden" })).toBe("?ws=w2&pane=w2%3Ap1&sidebar=hidden");
     expect(linkSearch({ ...base, sidebar: null }, "?sidebar=hidden")).toBe("?ws=w2&pane=w2%3Ap1");
   });

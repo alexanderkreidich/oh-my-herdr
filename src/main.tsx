@@ -7,9 +7,7 @@ import "./fonts/fonts.css";
 import "./styles.css";
 import { App } from "./App.tsx";
 import { AppCrash, CrashProbe } from "./components/AppCrash.tsx";
-import { FileReader } from "./components/FileReader.tsx";
 import { RenderBoundary } from "./components/RenderBoundary.tsx";
-import { readerFromSearch } from "./lib/fileReader.ts";
 import { SettingsProvider } from "./lib/settings.ts";
 import { isReportableWindowError } from "./lib/uncaughtErrors.ts";
 import "./lib/viewport.ts";
@@ -20,9 +18,6 @@ watchSheetExits();
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root is missing from index.html");
-
-// a markdown file opened in a tab of its own is that page alone, not the app (FileReader)
-const reader = readerFromSearch(window.location.search);
 
 // an error nothing else caught still reaches the console under one name, where a bug report can find it
 // (but not the browser's benign ResizeObserver loop notice: lib/uncaughtErrors.ts)
@@ -39,7 +34,7 @@ createRoot(container).render(
     <RenderBoundary resetKey={null} fallback={(_retry, error) => <AppCrash error={error} />}>
       <CrashProbe region="root" />
       <SettingsProvider>
-        {reader !== null ? <FileReader target={reader} /> : <App />}
+        <App />
       </SettingsProvider>
     </RenderBoundary>
   </StrictMode>,

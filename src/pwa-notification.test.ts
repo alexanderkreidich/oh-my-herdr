@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-type Selection = { type: string; pane_id: string; machine_id: string; view?: "chat" | "terminal"; workspace_id?: string };
-type SelectedPane = Omit<Selection, "view">;
+type Selection = { type: string; pane_id: string; machine_id: string; workspace_id?: string };
+type SelectedPane = Selection;
 type WindowClient = { url: string; focused: boolean; postMessage: (data: Selection) => void; focus: () => Promise<void> };
 
 function deferred() {
@@ -53,32 +53,23 @@ function notifications(
 
 function client(focus = async () => {}, focused = false, url = APP) {
   const selected: SelectedPane[] = [];
-  const views: Array<Selection["view"]> = [];
   return {
     url,
     focused,
     focus,
     selected,
-    views,
-    postMessage: (data: Selection) => {
-      const { view, ...pane } = data;
-      selected.push(pane);
-      views.push(view);
-    },
+    postMessage: (data: Selection) => { selected.push(data); },
   };
 }
 
 describe("notification clicks", () => {
-  it("tells app windows from the reader, raw file and static tabs the app also opens", () => {
+  it("tells app windows from the raw file and static tabs the app also opens", () => {
     const { isAppWindow } = loadWorker({ addEventListener: () => {} });
     expect(isAppWindow(APP)).toBe(true);
     expect(isAppWindow(`${APP}?machine=pc2&pane=w1%3Ap1&view=chat`)).toBe(true);
     expect(isAppWindow(`${APP}?settings=general`)).toBe(true);
     // the shell answers any other path too
     expect(isAppWindow(`${APP}index.html`)).toBe(true);
-    expect(isAppWindow(`${APP}?read=docs%2Fguide.md&machine=local`)).toBe(false);
-    // an empty `read` is no reader (lib/fileReader.ts readerFromSearch): App runs there
-    expect(isAppWindow(`${APP}?read=%20`)).toBe(true);
     expect(isAppWindow(`${APP}api/fs/file?path=notes.md&pane=w1%3Ap1`)).toBe(false);
     expect(isAppWindow(`${APP}api/machines/pc2/fs/file?path=index.html&render=1`)).toBe(false);
     expect(isAppWindow(`${APP}icons/icon-192.png`)).toBe(false);
@@ -92,10 +83,10 @@ describe("notification clicks", () => {
     expect(isAppWindow("not a url")).toBe(false);
   });
 
-  it("never focuses a markdown reader tab: the app window takes the pane, else it opens", async () => {
-    const reader = client(undefined, false, `${APP}?read=notes.md&machine=local`);
+  it("never focuses a raw file tab: the app window takes the pane, else it opens", async () => {
+    const reader = client(undefined, false, `${APP}api/fs/file?path=notes.md&pane=w1%3Ap1`);
     const app = client();
-    // matchAll lists the most recently focused first: the reader was used last
+    // matchAll lists the most recently focused first: the file tab was used last
     const worker = notifications([reader, app]);
     await worker.click("pane-a");
     expect(reader.selected).toEqual([]);
@@ -103,14 +94,14 @@ describe("notification clicks", () => {
     expect(worker.opened).toEqual([]);
 
     let focused = 0;
-    const lone = client(async () => { focused++; }, true, `${APP}?read=notes.md&machine=local`);
+    const lone = client(async () => { focused++; }, true, `${APP}icons/icon-192.png`);
     const raw = client(undefined, false, `${APP}api/fs/file?path=notes.md`);
     const cold = notifications([lone, raw]);
     await cold.click("pane-b", "pc2");
     expect(focused).toBe(0);
     expect(lone.selected).toEqual([]);
     expect(raw.selected).toEqual([]);
-    expect(cold.opened).toEqual(["/?machine=pc2&pane=pane-b&view=chat"]);
+    expect(cold.opened).toEqual(["/?machine=pc2&pane=pane-b"]);
   });
 
   it("names the workspace an alert's pane was last seen in, to an open window and a cold start", async () => {
@@ -131,7 +122,7 @@ describe("notification clicks", () => {
     ]);
     const cold = notifications([]);
     await cold.click("w1:p9", "pc2", "w1");
-    expect(cold.opened).toEqual(["/?machine=pc2&ws=w1&pane=w1%3Ap9&view=chat"]);
+    expect(cold.opened).toEqual(["/?machine=pc2&ws=w1&pane=w1%3Ap9"]);
   });
 
   it("selects the pane before a delayed focus and repeats after the page resumes", async () => {
@@ -155,7 +146,7 @@ describe("notification clicks", () => {
     const worker = notifications([target]);
     await worker.click("remote pane/?", "remote&pc");
     expect(target.selected).toEqual([{ type: "select-pane", pane_id: "remote pane/?", machine_id: "remote&pc" }]);
-    expect(worker.opened).toEqual(["/?machine=remote%26pc&pane=remote%20pane%2F%3F&view=chat"]);
+    expect(worker.opened).toEqual(["/?machine=remote%26pc&pane=remote%20pane%2F%3F"]);
   });
 
   it("chooses the focused window and does not open another after a successful focus", async () => {
@@ -172,19 +163,19 @@ describe("notification clicks", () => {
     const worker = notifications([]);
     await worker.click("pane-b", "remote");
     await worker.click(null);
-    expect(worker.opened).toEqual(["/?machine=remote&pane=pane-b&view=chat", "/"]);
+    expect(worker.opened).toEqual(["/?machine=remote&pane=pane-b", "/"]);
   });
 
-  it("opens a pane notification in the Agent chat view in existing and cold windows", async () => {
+  it("opens a pane notification on its terminal, naming no lens, in existing and cold windows", async () => {
     const existing = client();
     const openWorker = notifications([existing]);
     await openWorker.click("pi-pane", "local");
-    expect(existing.views).toEqual(["chat", "chat"]);
+    expect(existing.selected.every((selection) => !("view" in selection))).toBe(true);
     expect(openWorker.opened).toEqual([]);
 
     const coldWorker = notifications([]);
     await coldWorker.click("pi-pane", "local");
-    expect(coldWorker.opened).toEqual(["/?machine=local&pane=pi-pane&view=chat"]);
+    expect(coldWorker.opened).toEqual(["/?machine=local&pane=pi-pane"]);
   });
 
   it("focuses a generic notification without sending an empty pane selection", async () => {
@@ -340,7 +331,7 @@ describe("notification clicks", () => {
       expect(foreground).toBe("opened");
       expect(opened.selected.at(-1)).toEqual(selection);
       expect(newer.selected.at(-1)).toEqual(selection);
-      expect(worker.opened).toEqual(["/?machine=first%26pc&pane=older%20pane%2F%3F&view=chat"]);
+      expect(worker.opened).toEqual(["/?machine=first%26pc&pane=older%20pane%2F%3F"]);
       expect(focuses).toBe(fallback ? 2 : 1);
     });
   }
@@ -372,6 +363,6 @@ describe("notification clicks", () => {
     lookup.resolve();
     await second;
     expect(newer.selected.at(-1)).toEqual(selection);
-    expect(worker.opened).toEqual(["/?machine=local&pane=pane-a&view=chat"]);
+    expect(worker.opened).toEqual(["/?machine=local&pane=pane-a"]);
   });
 });
