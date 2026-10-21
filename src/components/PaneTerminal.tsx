@@ -464,6 +464,7 @@ export function PaneTerminal({
     let selectionActive = false;
     onKey = (event) => {
       if (isAppShortcut(event, shortcutSettings.current)) return false;
+      if (event.type === "keydown" && event.keyCode === 229 && keyboardNeedsText(navigator)) restoreDeleteRepeatCaret(textarea);
       const composing = composingRef.current || event.isComposing || event.keyCode === 229;
       // restty has already sent compositionend's text before the next key reaches this hook.
       // While composition is active, no key (including WebKit's keyCode 229) reaches its keymap.
@@ -521,6 +522,8 @@ export function PaneTerminal({
         return false;
       }
       if (term.inputDisabled || composing) return true;
+      // A non-composing delete is terminal input, not an edit of stale Gboard DOM context.
+      if (event.key === "Backspace" || event.key === "Delete") textarea.value = "";
       // macOS Option+arrows move by word, as in the native terminal's readline bindings.
       if (isMac && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
         && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {

@@ -11,6 +11,8 @@ import { createResttyRuntime, type ResttyFontInput, type ResttyRuntime } from "r
 import type { GhosttyTheme, PtyCallbacks, PtyTransport } from "restty";
 import { fallbackFonts, loadFallbacks, missingFallbacks, onFallbacks } from "./fonts.ts";
 import { resttySession } from "./session.ts";
+import { replacementIme } from "./replacementIme.ts";
+import { nativeIme } from "./nativeIme.ts";
 
 export type TerminalRenderer = "auto" | "webgpu" | "webgl2";
 
@@ -52,6 +54,8 @@ export class ResttyTerminal {
   /** typing reaches nothing while set (observing, a held or ended pane): keys, pastes and reports alike */
   inputDisabled = false;
   private runtime: ResttyRuntime | null = null;
+  private readonly replacement: ReturnType<typeof replacementIme>;
+  private readonly composition: ReturnType<typeof nativeIme>;
   /** restty's side of the "pty": output goes in through it */
   private connection: PtyCallbacks | null = null;
   private lifecycleReady = false;
@@ -104,6 +108,10 @@ export class ResttyTerminal {
     this.textarea.setAttribute("aria-hidden", "true");
     this.element.append(canvas, this.textarea);
     parent.append(this.element);
+    this.replacement = replacementIme(this.element, this.textarea);
+    this.composition = nativeIme(this.element, this.textarea, (data) => {
+      if (!this.disposed && !this.inputDisabled) this.onData(data);
+    });
     this.paintBackground();
     const estimate = this.proposeGrid(this.fontSize);
     this.gridCols = estimate?.cols ?? 80;
@@ -195,6 +203,7 @@ export class ResttyTerminal {
   private becomeReady(): void {
     if (this.isReady || this.disposed || !this.lifecycleReady || !this.connection || !this.runtime) return;
     this.isReady = true;
+    this.element.dataset.ready = "true";
     // how long a terminal takes to come up, for the browser's performance tools (and the PR's numbers)
     performance.mark("restty:ready", { detail: { since: performance.now() - this.createdAt, backend: this.runtime.render.getBackend() } });
     // a grid set before the runtime could draw it (an adopted one) is applied now
@@ -212,7 +221,10 @@ export class ResttyTerminal {
 
   /** Data as if the user typed it (the key bar, a chord): it goes where restty's own input goes. */
   input(data: string): void {
-    if (!this.disposed && !this.inputDisabled && data) this.onData(data);
+    if (!this.disposed && !this.inputDisabled && data) {
+      this.replacement.flush();
+      if (this.composition.input(data)) this.onData(data);
+    }
   }
 
   /** Pastes text as a paste from the clipboard is: bracketed when the screen asked for it, line breaks as Enter. */
@@ -248,6 +260,8 @@ export class ResttyTerminal {
 
   /** A full reset (RIS); the colours are the app's again, since a reset puts the terminal's own back. */
   reset(): void {
+    this.composition.reset();
+    this.replacement.reset();
     this.write("\x1bc");
     this.runtime?.terminal.resetTheme();
     this.runtime?.terminal.applyTheme(this.theme, "app");
@@ -414,6 +428,8 @@ export class ResttyTerminal {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.composition.dispose();
+    this.replacement.dispose();
     this.offFallbacks();
     this.element.removeEventListener("keydown", this.onKeyEvent);
     this.element.removeEventListener("keyup", this.onKeyEvent);
