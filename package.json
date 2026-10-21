@@ -10,6 +10,7 @@
     "url": "git+https://github.com/devswha/herdr-web-ui.git"
   },
   "scripts": {
+    "postinstall": "bun scripts/build-restty.ts",
     "dev": "bun --bun vite",
     "build": "bun --bun vite build",
     "server": "bun run server/index.ts",
@@ -31,10 +32,6 @@
     "@lydell/node-pty": "1.1.0",
     "@pierre/diffs": "1.5.2",
     "@tanstack/highlight": "^1.0.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-unicode-graphemes": "0.4.0",
-    "@xterm/addon-web-links": "0.11.0",
-    "@xterm/xterm": "5.5.0",
     "jsonc-parser": "3.3.1",
     "katex": "^0.18.9",
     "lucide-react": "^1.47.0",
@@ -42,7 +39,7 @@
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "restty": "0.3.0",
+    "restty": "github:alexanderkreidich/restty#a39be73",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
@@ -58,9 +55,6 @@
     "typescript": "^7.0.2",
     "typescript-api": "npm:typescript@^6.0.3",
     "vite": "^8.3.4"
-  },
-  "patchedDependencies": {
-    "@xterm/xterm@5.5.0": "patches/@xterm%2Fxterm@5.5.0.patch"
   },
   "packageManager": "bun@1.4.2"
 }

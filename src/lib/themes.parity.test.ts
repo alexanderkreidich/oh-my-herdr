@@ -40,7 +40,7 @@ describe("legacy palette parity", () => {
     expect(drift("resolved")).toEqual([]);
   });
 
-  it("terminal and theme-color: xterm and the <meta> color of every legacy combo are unchanged", () => {
+  it("terminal and theme-color: the terminal's colours and the <meta> color of every legacy combo are unchanged", () => {
     for (const { palette, mode } of LEGACY_COMBOS) {
       const key = comboKey(palette, mode);
       // Additions (light ANSI colours) are allowed; every frozen value stays unchanged.

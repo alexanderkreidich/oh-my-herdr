@@ -9,7 +9,7 @@
  * settings load; `[data-palette]` blocks override them for the opt-in
  * charcoal and catppuccin palettes. These theme blocks are the single source of
  * theme colors: `bun run generate:themes` (scripts/generate-themes.ts) reads them
- * and writes src/lib/themes.generated.ts (xterm's --term-* colors and the panel
+ * and writes src/lib/themes.generated.ts (the terminal's --term-* colors and the panel
  * color), DESIGN.md's amber table, index.html's theme-color and the web manifest's
  * colors. Edit a color here and regenerate; never edit those copies.
  * Component-scoped rules live beside their component (Sidebar.css,
@@ -80,7 +80,7 @@
      that drew one is gone; the token stays with the theme set) */
   --pdf-page: #ffffff;
 
-  /* terminal theme: copied into src/lib/themes.generated.ts by `bun run generate:themes` for xterm */
+  /* terminal theme: copied into src/lib/themes.generated.ts by `bun run generate:themes` for the terminal */
   --term-bg: #181613;
   --term-fg: #d8d0c3;
   --term-cursor: #f0a830;
@@ -1493,8 +1493,8 @@ html:is(:lang(ja), :lang(zh)) body {
 }
 
 /* Code, keys, the terminal and the input line keep the browser's breaking, and their children
-   inherit this reset: a path or a command is not a word, and xterm lays out its own cells. */
-:is(pre, code, kbd, samp, .xterm, .terminal-input-text) {
+   inherit this reset: a path or a command is not a word. */
+:is(pre, code, kbd, samp, .terminal-input-text) {
   word-break: normal;
   line-break: auto;
 }

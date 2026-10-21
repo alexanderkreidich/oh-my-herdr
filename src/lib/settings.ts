@@ -1,8 +1,8 @@
 /**
  * User preferences: one localStorage record, one React context, applied to the
  * document as `data-theme` / `data-density` / `data-chat-width` attributes that src/styles.css keys
- * its token overrides on. xterm reads no CSS, so `terminalTheme()` mirrors the
- * `--term-*` tokens of each theme for PaneTerminal's theme object.
+ * its token overrides on. The terminal reads no CSS, so `terminalTheme()` mirrors the
+ * `--term-*` tokens of each theme for PaneTerminal's colours (lib/restty/theme.ts).
  */
 
 import { mirrorPalette, SHARED_SETTING_KEYS, type SharedSettingKey } from "../../shared/preferences.ts";
@@ -83,12 +83,18 @@ export interface Settings {
   paletteDark: Palette;
   darkTheme: ThemeId;
   lightTheme: ThemeId;
-  /** xterm font size in px */
+  /** the terminal's font size in px */
   terminalFontSize: number;
-  /** mouse reports sent to herdr per wheel event in the terminal: 1 is what xterm sends by itself */
+  /** mouse reports sent to herdr per wheel event in the terminal: 1 is what the terminal sends by itself */
   terminalWheelSpeed: number;
-  /** fonts tried before the built-in terminal stack, as a CSS font-family list; "" keeps the built-in one */
+  /** fonts tried before the built-in JetBrains Mono, as a CSS font-family list; "" keeps the built-in one */
   terminalFontFamily: string;
+  /** programming ligatures (->, !=, =>) drawn as one glyph where the font has them, as Ghostty does */
+  terminalLigatures: boolean;
+  /** the GPU interface the terminal draws with: auto takes WebGPU where the browser has it, else WebGL2 */
+  terminalRenderer: TerminalRenderer;
+  /** one of Ghostty's themes (restty's built-in set) for the terminal's colours; "" follows the app's theme */
+  terminalThemeName: string;
   /** let a pane's OSC 52 sequence write the clipboard (lib/osc52.ts), as vim, tmux and Claude Code copy;
    *  on unless chosen off, since any process in the pane can then plant text the user pastes elsewhere.
    *  Stored under this key, not 0.4.1's `terminalOsc52`: settings are saved whole, so a `false` there
@@ -168,6 +174,8 @@ export interface Settings {
   codexLaunchMode: CodexLaunchMode;
 }
 
+export const TERMINAL_RENDERERS = ["auto", "webgpu", "webgl2"] as const;
+export type TerminalRenderer = (typeof TERMINAL_RENDERERS)[number];
 export const MARKDOWN_WIDTHS = ["readable", "full"] as const;
 export type MarkdownWidth = (typeof MARKDOWN_WIDTHS)[number];
 export const DIFF_STYLES = ["unified", "split"] as const;
@@ -185,7 +193,8 @@ export const SETTING_SCOPE = {
   usageGlance: "shared", usageOrder: "shared", usageHidden: "shared", defaultView: "device", suggestionChip: "device",
   terminalInputMode: "device", keyBarExtras: "device", keyBarItems: "device", shortcutOverrides: "device", density: "device",
   terminalFontSize: "device",
-  terminalWheelSpeed: "device", terminalFontFamily: "device", paneClipboard: "device", releasePaneAway: "device",
+  terminalWheelSpeed: "device", terminalFontFamily: "device", terminalLigatures: "device", terminalRenderer: "device", terminalThemeName: "device",
+  paneClipboard: "device", releasePaneAway: "device",
   chatFontSize: "device", chatFontFamily: "device", uiFontSize: "device", chatWidth: "device", enterSends: "device",
   keepScreenOn: "device", alertsOn: "device", alertInput: "device", alertDone: "device", alertInApp: "device", alertSound: "device",
   paletteLight: "device", paletteDark: "device", statusIndicators: "device",
@@ -220,6 +229,9 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalFontSize: 13,
   terminalWheelSpeed: 1,
   terminalFontFamily: "",
+  terminalLigatures: true,
+  terminalRenderer: "auto",
+  terminalThemeName: "",
   paneClipboard: true,
   releasePaneAway: false,
   chatFontSize: null,
@@ -359,6 +371,10 @@ export function sanitizeSettings(raw: unknown): Settings {
       ? Math.min(CHAT_FONT_MAX, Math.max(CHAT_FONT_MIN, Math.round(chatFont)))
       : DEFAULT_SETTINGS.chatFontSize,
     terminalFontFamily: sanitizeFontFamily(record["terminalFontFamily"]),
+    terminalLigatures: typeof record["terminalLigatures"] === "boolean" ? record["terminalLigatures"] : DEFAULT_SETTINGS.terminalLigatures,
+    terminalRenderer: TERMINAL_RENDERERS.includes(record["terminalRenderer"] as TerminalRenderer) ? record["terminalRenderer"] as TerminalRenderer : DEFAULT_SETTINGS.terminalRenderer,
+    // a name restty does not know draws the app's colours (lib/restty/theme.ts)
+    terminalThemeName: typeof record["terminalThemeName"] === "string" && record["terminalThemeName"].length <= 100 ? record["terminalThemeName"] : DEFAULT_SETTINGS.terminalThemeName,
     uiFontSize: sanitizeUiFontSize(record["uiFontSize"]),
     paneClipboard: typeof record["paneClipboard"] === "boolean" ? record["paneClipboard"] : DEFAULT_SETTINGS.paneClipboard,
     releasePaneAway: typeof record["releasePaneAway"] === "boolean" ? record["releasePaneAway"] : DEFAULT_SETTINGS.releasePaneAway,

@@ -7,7 +7,7 @@ export function secretPrompt(screen: string, columns = Infinity): string | null 
     const candidate = line.trimStart();
     if (!candidate || candidate.length > 120 || /\?|y\s*\/\s*n/i.test(candidate)) return null;
     if (/^(?:\[sudo\] password for [^:]+|[^\s@]+@[^\s:]+['’]s password|password(?: for [^:]+)?|enter passphrase(?: for key ['’][^\r\n]+['’])?|enter pin(?: for [^:]+)?|(?:repeat|verify|confirm) password):$/i.test(candidate)) return candidate;
-    // herdr's screen-diff stream does not preserve xterm's soft-wrap flags. Only
+    // herdr's screen-diff stream does not preserve a terminal's soft-wrap flags. Only
     // continue a row that reached the right edge (a final space can be trimmed).
     const previous = lines.pop()?.trimEnd();
     if (!previous || previous.length < columns - 1 || previous.length > columns) return null;

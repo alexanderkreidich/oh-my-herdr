@@ -39,7 +39,7 @@ export function themeColor(id: string, mode: Mode): string {
   return rowFor(id, mode).bgPanel;
 }
 
-/** The xterm colors of the row drawn for `mode`: its `--term-*` tokens. */
+/** The terminal colors of the row drawn for `mode`: its `--term-*` tokens. */
 export function terminalColors(id: string, mode: Mode): TerminalColors {
   return rowFor(id, mode).terminal;
 }

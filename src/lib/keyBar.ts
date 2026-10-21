@@ -28,7 +28,7 @@ function isScalarKey(key: string): boolean {
     && !(code >= 0xd800 && code <= 0xdfff) && (key === " " || key.trim() !== "");
 }
 
-/** Feed xterm once; PaneTerminal selects a logical chord or the attach bytes afterwards. */
+/** Feed the terminal's input once; PaneTerminal selects a logical chord or the attach bytes afterwards. */
 export function keyBarInputSequence(key: string, applicationCursorKeys: boolean): string | null {
   if (isScalarKey(key)) return key;
   if (/^F(?:[1-9]|1[0-2])$/.test(key)) {

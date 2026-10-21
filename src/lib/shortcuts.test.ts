@@ -57,7 +57,7 @@ describe("keepsArrowsForText", () => {
   });
 
   it("switches panes from the terminal and anywhere that is no text field", () => {
-    expect(keepsArrowsForText({ tagName: "TEXTAREA", classList: classes("xterm-helper-textarea") })).toBe(false);
+    expect(keepsArrowsForText({ tagName: "TEXTAREA", classList: classes("terminal-ime") })).toBe(false);
     expect(keepsArrowsForText({ tagName: "TEXTAREA", value: "", classList: classes("composer-text") })).toBe(false);
     expect(keepsArrowsForText({ tagName: "INPUT", type: "text", value: "", classList: classes() })).toBe(false);
     expect(keepsArrowsForText({ tagName: "INPUT", type: "checkbox", classList: classes() })).toBe(false);
@@ -71,7 +71,7 @@ describe("keepsArrowsForText", () => {
     expect(keepsKeyForText({ key: "End", target: draft })).toBe(true);
     expect(keepsKeyForText({ key: "ArrowUp", target: draft })).toBe(true);
     expect(keepsKeyForText({ key: "k", target: draft })).toBe(false);
-    expect(keepsKeyForText({ key: "Home", target: { tagName: "TEXTAREA", classList: classes("xterm-helper-textarea") } })).toBe(false);
+    expect(keepsKeyForText({ key: "Home", target: { tagName: "TEXTAREA", classList: classes("terminal-ime") } })).toBe(false);
   });
 });
 

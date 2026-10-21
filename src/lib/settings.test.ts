@@ -489,7 +489,7 @@ describe("palette", () => {
     expect(failures).toEqual([]);
   });
 
-  it("mirrors every entry's --term-* tokens of styles.css for xterm and its --bg-panel for the title bar", () => {
+  it("mirrors every entry's --term-* tokens of styles.css for the terminal and its --bg-panel for the title bar", () => {
     const failures: string[] = [];
     for (const { id, mode, key } of entries) {
       checked(failures, () => {
@@ -522,7 +522,7 @@ describe("palette", () => {
     expect({ theme_color: manifest.theme_color, background_color: manifest.background_color }).toEqual({ theme_color: resolved["--bg-panel"], background_color: resolved["--bg"] });
   });
 
-  it("declares all sixteen readable ANSI colours only in light rows and passes them to xterm", () => {
+  it("declares all sixteen readable ANSI colours only in light rows and passes them to the terminal", () => {
     const failures: string[] = [];
     const blocks = parseThemeBlocks(css);
     const hex = (value: string): Rgb => {
@@ -545,7 +545,7 @@ describe("palette", () => {
           const value = resolved[token] ?? "(missing)";
           const contrast = ratio(hex(value), hex(resolved["--term-bg"] ?? "(missing)"));
           if (contrast < 4.5) failures.push(`${key} ${role}: ${contrast}:1 on term-bg`);
-          if (Reflect.get(terminal, name) !== value) failures.push(`${key} ${role}: not passed to xterm`);
+          if (Reflect.get(terminal, name) !== value) failures.push(`${key} ${role}: not passed to the terminal`);
         }
       });
     }

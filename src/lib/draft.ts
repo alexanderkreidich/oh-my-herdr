@@ -50,7 +50,7 @@ function isPrintableChar(data: string): boolean {
   return data.length > 0 && !/[\x00-\x1f\x7f-\x9f]/u.test(data);
 }
 
-/** xterm's bracketed paste: the pasted text between the frames, which is what the user gave. */
+/** A terminal's bracketed paste: the pasted text between the frames, which is what the user gave. */
 const BRACKETED_PASTE = /^\x1b\[200~([\s\S]*)\x1b\[201~$/;
 
 /** Backspace as the terminal sends it: DEL, or BS for Ctrl+H. */
@@ -67,7 +67,7 @@ const LINE_BREAKS = /[\r\n]+/g;
  * draft. An Enter or a line break is never held, because Send must never run a command: the text
  * on either side is kept, a space where the break was, and the draft says that a break was left
  * out. A break with no text to separate (Enter on an empty draft) changes nothing. A chunk with
- * other controls is left out and not told: arrows and the answers xterm gives a program by itself
+ * other controls is left out and not told: arrows and the answers the terminal gives a program by itself
  * (cursor position, focus, mouse) are not text the user typed, and neither is a typed chunk with
  * ESC in it even when it ends in CR (Shift+Enter, Alt+Enter); a paste or a multi-line chunk with
  * other controls is told as left out. Text the draft has no room for is left out whole, never cut in the middle of what was

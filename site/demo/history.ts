@@ -1,8 +1,22 @@
 /** Fictional, in-memory terminal history for the demo transport only. */
 import type { PaneFindMatch, PaneFindRequest, PaneFindResponse, PaneScrollInfo } from "../../shared/protocol.ts";
-import { herdrWidthProvider } from "../../src/lib/terminalWidths.ts";
 
-const widths = herdrWidthProvider();
+/** East Asian Wide and Fullwidth: Hangul jamo and syllables, CJK, kana, fullwidth forms */
+const WIDE: readonly (readonly [number, number])[] = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xa000, 0xa4cf],
+  [0xa960, 0xa97f], [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe10, 0xfe19], [0xfe30, 0xfe6f], [0xff00, 0xff60],
+  [0xffe0, 0xffe6], [0x20000, 0x3fffd],
+];
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/** A grapheme's cells as herdr's terminal counts them: two for wide text and emoji, none for a lone mark. */
+function graphemeWidth(text: string): number {
+  if (/\p{Emoji_Presentation}|\p{Extended_Pictographic}\ufe0f/u.test(text)) return 2;
+  const cp = text.codePointAt(0)!;
+  if (WIDE.some(([from, to]) => cp >= from && cp <= to)) return 2;
+  return /^[\p{M}\p{Default_Ignorable_Code_Point}]+$/u.test(text) ? 0 : 1;
+}
+
 interface Cell { text: string; from: number; to: number; width: number }
 interface Span extends Cell { start: { row: number; col: number }; end: { row: number; col: number } }
 interface Layout { rows: string[]; lines: Array<{ text: string; spans: Span[] }> }
@@ -10,18 +24,12 @@ const compare = (a: { row: number; col: number }, b: { row: number; col: number 
 
 function cells(text: string): Cell[] {
   const result: Cell[] = [];
-  let preceding = 0;
-  let index = 0;
-  for (const char of text) {
-    const property = widths.charProperties!(char.codePointAt(0)!, preceding);
-    const width = (property >> 1) & 3;
-    // UnicodeCharProperties packs shouldJoin in bit 0 and cell width in bits 1–2.
+  for (const { segment, index } of graphemes.segment(text)) {
+    const width = graphemeWidth(segment);
+    // a mark that stands apart from the letter before it is drawn in that letter's cell
     const last = result.at(-1);
-    if ((property & 1) !== 0 && last) {
-      last.text += char; last.to += char.length; last.width = width;
-    } else result.push({ text: char, from: index, to: index + char.length, width });
-    index += char.length;
-    preceding = property;
+    if (width === 0 && last) { last.text += segment; last.to += segment.length; }
+    else result.push({ text: segment, from: index, to: index + segment.length, width });
   }
   return result;
 }
@@ -102,7 +110,7 @@ export class DemoHistory {
     const scroll = this.scroll();
     const top = scroll.max_offset_from_bottom - scroll.offset_from_bottom;
     const visible = this.layout.rows.slice(top, top + this.rows);
-    // Absolute row positioning avoids a full-width last row scrolling xterm's zero-history grid.
+    // Absolute row positioning avoids a full-width last row scrolling the terminal's zero-history grid.
     const output = visible.map((line, row) => `\x1b[${row + 1};1H${line}`).join("");
     const last = visible.at(-1) ?? "";
     const cursor = Math.min(this.cols, cells(last).reduce((sum, cell) => sum + cell.width, 0) + 1);

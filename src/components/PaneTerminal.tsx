@@ -1,9 +1,5 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Eye, SendHorizontal, Trash2, TriangleAlert } from "lucide-react";
-import "@xterm/xterm/css/xterm.css";
 import "./PaneTerminal.css";
 
 import { HerdrSocket } from "../lib/ws.ts";
@@ -11,15 +7,13 @@ import { MachineSession } from "../lib/machineSession.ts";
 import { useMachineSessions } from "../lib/machineSessionContext.tsx";
 import { ViewportIntentGate } from "../lib/viewportIntent.ts";
 import { PaneCachedContext, PanePresentedContext, PaneFollowContext, PaneShownContext, PaneSubmitContext } from "../lib/paneSubmitContext.ts";
-import { disposeAfterPendingFrame } from "../lib/terminalDispose.ts";
-import { clipboardKey, hasModifiers, physicalKey, terminalChord, navigationSequence, keyFromData, ctrlEnterSequence, mirroredCtrlEnterKey, modifyOtherKeysLevel, NO_STICKY_MODIFIERS, type StickyModifiers } from "../lib/keys.ts";
+import { clipboardKey, hasModifiers, physicalKey, terminalChord, navigationSequence, keyFromData, ctrlEnterSequence, mirroredCtrlEnterKey, NO_STICKY_MODIFIERS, type StickyModifiers } from "../lib/keys.ts";
 import { keyBarInputSequence, type KeyBarKeyItem } from "../lib/keyBar.ts";
 import { EMPTY_DRAFT, applyToDraft, draftIsEmpty, restoreDraft, type InputDraft } from "../lib/draft.ts";
 import { composerMessage, composerPayload, submitNote } from "../lib/compose.ts";
-import { AttachmentTooLargeError, assertAttachable, fetchPaneScroll, fetchPaneSelection, scrollPane } from "../lib/api.ts";
+import { AttachmentTooLargeError, assertAttachable } from "../lib/api.ts";
 import { userErrorMessage } from "../lib/userError.ts";
 import { parseOsc52 } from "../lib/osc52.ts";
-import { matchHerdrWidths } from "../lib/terminalWidths.ts";
 import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
 import { paneStorageId } from "../../shared/machines.ts";
 import { KeyBar } from "./KeyBar.tsx";
@@ -31,12 +25,15 @@ import { secretPrompt } from "../../shared/secret-prompt.ts";
 import type { AgentStatus, ClientRole, ServerMessage } from "../../shared/protocol.ts";
 import type { PaneControls } from "../lib/actions.ts";
 import { useSettings, terminalTheme, type Palette, type ResolvedTheme } from "../lib/settings.ts";
-import { loadFontStack, TERMINAL_FONT_STACK, terminalFontStack } from "../lib/fontFamily.ts";
+import { sanitizeFontFamily } from "../lib/fontFamily.ts";
+import { terminalFonts } from "../lib/restty/fonts.ts";
+import { terminalColorsTheme } from "../lib/restty/theme.ts";
+import { ResttyTerminal } from "../lib/restty/terminal.ts";
+import type { TerminalScreen } from "../lib/terminalScreen.ts";
 import { useT } from "../lib/i18n.ts";
 import { isAppShortcut } from "../lib/shortcuts.ts";
 import { keyboardHoldsGrid, keyboardUp } from "../lib/keyboard.ts";
-import { hyperlinkFilter, isWebLink, openWebLink } from "../lib/terminalLinks.ts";
-import { adjustTerminalGlyphs } from "../lib/terminalGlyphs.ts";
+import { isWebLink } from "../lib/terminalLinks.ts";
 import { keepDeleteRepeatText, keyboardNeedsText, restoreDeleteRepeatCaret } from "../lib/deleteRepeat.ts";
 import { terminalLabel } from "../lib/terminalLabel.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
@@ -47,6 +44,7 @@ import { narrowPaneFontSize } from "../lib/narrowPaneFont.ts";
 import { finalStep, HERDR_MOUSE_SCROLL_LINES, wheelSteps } from "../lib/wheelSteps.ts";
 import { attachTerminalWheel } from "../lib/terminalWheel.ts";
 import { SspView } from "../lib/ssp/view.ts";
+import { decodeRow } from "../../shared/ssp.ts";
 
 /** How long a resize must rest before the grid refits and the pty follows it. */
 const RESIZE_SETTLE_MS = 120;
@@ -95,15 +93,15 @@ export interface PaneTerminalProps {
   active?: boolean;
   /** App selected this pane itself (the selected one closed): switching to it must not take the keyboard */
   autoSelected?: boolean;
-  /** xterm font size (settings) */
+  /** the terminal's font size (settings) */
   terminalFontSize: number;
   /** one of several panes drawn side by side: under 80 columns its font shrinks to reach them */
   split?: boolean;
-  /** mouse reports sent per wheel event (settings): 1 is xterm's own one report */
+  /** mouse reports sent per wheel event (settings): 1 is the terminal's own one report */
   terminalWheelSpeed: number;
   /** fonts tried before the built-in stack (settings); "" keeps the built-in one */
   terminalFontFamily: string;
-  /** the resolved UI theme: the xterm theme object mirrors it */
+  /** the resolved UI theme: the terminal's colours mirror it */
   theme: ResolvedTheme;
   /** the chrome palette (settings.ts): the terminal cursor and selection follow it */
   palette: Palette;
@@ -165,7 +163,7 @@ export function PaneTerminal({
   const uploadFileRef = useRef(uploadPaneImage);
   uploadFileRef.current = uploadPaneImage;
   const [findOpen, setFindOpen] = useState(false);
-  const [terminal, setTerminal] = useState<Terminal | null>(null);
+  const [terminal, setTerminal] = useState<TerminalScreen | null>(null);
   const [searchState, setSearchState] = useState<TerminalSearchState | null>(null);
   const viewportIntent = useMemo(() => new ViewportIntentGate(), [machineId, paneId]);
   const viewportSearching = useSyncExternalStore(viewportIntent.subscribe, viewportIntent.isSearching, viewportIntent.isSearching);
@@ -195,12 +193,11 @@ export function PaneTerminal({
   const stackRef = useRef<HTMLDivElement | null>(null);
   const pageScroll = useRef<((direction: -1 | 1) => void) | null>(null);
   const lineScroll = useRef<((lines: number) => void) | null>(null);
-  const termRef = useRef<Terminal | null>(null);
+  const termRef = useRef<ResttyTerminal | null>(null);
   /** the pane's screen as the bridge syncs it, drawn into the terminal with local echo on top (lib/ssp) */
   const viewRef = useRef<SspView | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-  /** OSC 8 links this app cannot open are not drawn (#739); its state ends with `term.reset()` */
-  const hyperlinksRef = useRef(hyperlinkFilter());
+  /** fits the grid to the mount (the narrow-pane font first): false while the cell is not measured yet */
+  const fitRef = useRef<(() => boolean) | null>(null);
   const socketRef = useRef<HerdrSocket | null>(null);
   const paneRef = useRef<string | null>(paneId);
   const onConnectionChangeRef = useRef(onConnectionChange);
@@ -387,60 +384,33 @@ export function PaneTerminal({
     const host = hostRef.current;
     if (!host) return;
 
-    // xterm activates a link whenever a press and its release land on it: a drag that selects
-    // part of a path and a right click do too, and neither means "open this"
-    const linkPressed = (event: MouseEvent): boolean => event.button === 0 && !term.hasSelection();
-    const term = new Terminal({
-      convertEol: false,
-      // a program's own DECSCUSR still changes the cursor
-      cursorStyle: "block",
-      cursorBlink: true,
-      // xterm keeps no scrollback: the attach stream lives in the alternate screen and herdr
-      // owns scrollback (wheel and touch go to it). With scrollback on, the fit addon reserves
-      // a scrollbar column - 15px by fallback wherever scrollbars are overlays - and the last
-      // columns of the hero surface go dead.
-      scrollback: 0,
-      allowProposedApi: true,
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+    // what the terminal sends the program (onData, set once the socket is known below) and the keys
+    // it is about to encode (onKey): restty calls these for the terminal's whole life
+    let onData: (data: string) => void = () => undefined;
+    let onKey: (event: KeyboardEvent) => boolean = () => true;
+    const term = new ResttyTerminal(host, {
       fontSize: terminalFontSize,
-      // a chosen family follows in the font effect below, once its faces have loaded
-      fontFamily: TERMINAL_FONT_STACK,
-      theme: terminalTheme(theme, palette),
-      // a program's own colors suit one background (Claude Code's question titles are #ffffff, near
-      // 1:1 on a light palette): xterm moves a foreground under 4.5:1 toward black or white. Dim text
-      // needs half that, and box, block and powerline glyphs keep their color.
-      minimumContrastRatio: 4.5,
-      linkHandler: {
-        activate: (event, uri) => {
-          if (linkPressed(event) && isWebLink(uri)) openWebLink(uri);
-        },
-        allowNonHttpProtocols: true,
-      },
-      // Option+drag selects on macOS, as Shift+drag does elsewhere; a plain drag is forced below
-      macOptionClickForcesSelection: true,
+      fonts: terminalFonts(terminalFontFamily),
+      fontKey: sanitizeFontFamily(terminalFontFamily),
+      theme: terminalColorsTheme(settings.terminalThemeName, terminalTheme(theme, palette)),
+      ligatures: settings.terminalLigatures,
+      renderer: settings.terminalRenderer,
+      onData: (data) => onData(data),
+      onKey: (event) => onKey(event),
     });
-    const fit = new FitAddon();
     // Every fit first settles the font: a split pane under 80 columns draws smaller to reach
     // them (btop refuses a narrower screen), and returns to the user's size once it is wide enough.
-    const fitGrid = fit.fit.bind(fit);
-    fit.fit = (): void => {
+    const fitGrid = (): boolean => {
       // Every local fit (lens, font, resume or initial attach) shares this entry point.
       // A following half keeps the adopted PTY grid, even when its viewport changes.
-      if (followRef.current) return;
+      if (followRef.current) return true;
       const base = baseFontRef.current;
-      const colsAt = (size: number): number | null => {
-        term.options.fontSize = size;
-        const cols = fit.proposeDimensions()?.cols;
-        return cols !== undefined && Number.isFinite(cols) ? cols : null;
-      };
       // a grid this client does not drive gains no columns from a smaller font
-      term.options.fontSize = narrowFontRef.current && !observeRef.current && !fixedGridRef.current ? narrowPaneFontSize(base, colsAt) : base;
-      fitGrid();
+      term.setFontSize(narrowFontRef.current && !observeRef.current && !fixedGridRef.current
+        ? narrowPaneFontSize(base, (size) => term.proposeGrid(size)?.cols ?? null) : base);
+      return term.fit();
     };
-    term.loadAddon(fit);
-    matchHerdrWidths(term);
-    // the same policy as the linkHandler above: an http(s) address or nothing (S10)
-    term.loadAddon(new WebLinksAddon((_event, uri) => { if (isWebLink(uri)) openWebLink(uri); }));
-    term.open(host);
     let compositionEndTimer: number | null = null;
     compositionCommitPendingRef.current = false;
     const compositionStart = () => {
@@ -451,8 +421,8 @@ export function PaneTerminal({
     };
     const compositionEnd = () => {
       if (compositionEndTimer !== null) window.clearTimeout(compositionEndTimer);
-      // xterm's textarea listener queues its commit before this bubbling host listener.
-      // Keep that commit on the text path; a new composition cancels this clear.
+      // restty's listener on its field sent the commit before this bubbling host listener.
+      // Keep a key of the same task on the text path; a new composition cancels this clear.
       compositionCommitPendingRef.current = true;
       setComposing(false);
       compositionEndTimer = window.setTimeout(() => {
@@ -462,34 +432,40 @@ export function PaneTerminal({
     };
     host.addEventListener("compositionstart", compositionStart);
     host.addEventListener("compositionend", compositionEnd);
-    // iOS repeats a held ⌫ only while the field has text and wraps (#862). These run after
-    // xterm's own capturing listeners on its textarea, so they refill it once xterm emptied it.
+    // iOS repeats a held ⌫ only while the field has text and wraps (#862). restty empties its field
+    // after every edit; these bubble to the host after restty's own listeners and refill it.
     const textarea = term.textarea;
     const keepText = (event: Event): void => {
-      if (!textarea || composingRef.current) return;
+      if (event.target !== textarea || composingRef.current) return;
       if ((event instanceof KeyboardEvent || event instanceof InputEvent) && event.isComposing) return;
-      if (event.type === "focus" || event.type === "keydown") restoreDeleteRepeatCaret(textarea);
+      if (event.type === "focusin" || event.type === "keydown") restoreDeleteRepeatCaret(textarea);
       if (event instanceof KeyboardEvent && event.keyCode === 229) return;
       keepDeleteRepeatText(textarea);
     };
-    const keepTextOn = textarea && keyboardNeedsText(navigator) ? ["focus", "keydown", "input"] : [];
-    for (const type of keepTextOn) textarea?.addEventListener(type, keepText, true);
-    if (textarea && keepTextOn.length) textarea.style.whiteSpace = "pre-wrap";
-    const stopGlyphs = adjustTerminalGlyphs(term);
-    // Let the browser emit a paste event, which xterm already handles (including
-    // bracketed paste). Otherwise Ctrl+V becomes 0x16, triggering the agent's
-    // image-paste shortcut against the server's clipboard and canceling text paste.
-    // Returning false skips xterm's key handling without preventing browser defaults.
-    // With text selected, Ctrl+C (and Ctrl+Shift+C) copies it instead of interrupting the pane.
+    const keepTextOn = keyboardNeedsText(navigator) ? ["focusin", "keydown", "beforeinput", "input"] : [];
+    for (const type of keepTextOn) host.addEventListener(type, keepText);
+    if (keepTextOn.length) textarea.style.whiteSpace = "pre-wrap";
+
+    // A key goes through here before restty encodes it; false keeps it from restty.
+    // Ctrl+V lets the browser paste (restty sends the text, bracketed when the program asked):
+    // as a key it would be 0x16, the agent's image-paste shortcut against the server's clipboard.
+    // With text selected, Ctrl+C copies it instead of interrupting the pane.
     // A non-Latin layout (Korean, Russian...) reports its own character as the key, so the
     // physical key names the letter then; a Latin layout keeps its own (Dvorak's C is not KeyC).
-    // An app shortcut is the app's alone: xterm would still type it, and Ctrl+Shift+↓ reached the
+    // An app shortcut is the app's alone: restty would still type it, and Ctrl+Shift+↓ reached the
     // pane it had just switched to as ESC[1;6B.
     let typedChord: string | null = null;
-    term.attachCustomKeyEventHandler((event) => {
+    /** Shift+Enter and Ctrl+Enter as the next Enter is to be sent (onData), and the key herdr sends for a mirror's Ctrl+Enter */
+    let enterAs: string | null = null;
+    let enterKey: string | null = null;
+    /** Cmd+Backspace: the next DEL is the line's Ctrl+U on macOS */
+    let commandBackspace = false;
+    /** restty holds a selection: a drag made one; a click or a key ends it */
+    let selectionActive = false;
+    onKey = (event) => {
       if (isAppShortcut(event, shortcutSettings.current)) return false;
-      if (hasModifiers(modifiersRef.current) && !term.options.disableStdin && !composingRef.current && !compositionCommitPendingRef.current
-          && !event.isComposing && event.keyCode !== 229 && !event.metaKey) {
+      const composing = composingRef.current || compositionCommitPendingRef.current || event.isComposing || event.keyCode === 229;
+      if (hasModifiers(modifiersRef.current) && !term.inputDisabled && !composing && !event.metaKey) {
         const combined = {
           ctrl: modifiersRef.current.ctrl || event.ctrlKey,
           alt: modifiersRef.current.alt || event.altKey,
@@ -506,7 +482,7 @@ export function PaneTerminal({
         // (the held button plus a typed v) is a terminal chord, not a paste.
         const letter = clipboardKey(event.key, event.code);
         const clipboard = event.ctrlKey && !event.altKey && /^(c|v)$/.test(letter)
-          && (letter === "v" || term.hasSelection());
+          && (letter === "v" || selectionActive);
         if (chord !== null && !clipboard) {
           if (event.type === "keydown") {
             event.preventDefault();
@@ -518,33 +494,70 @@ export function PaneTerminal({
           return false;
         }
       }
-      if (!event.ctrlKey || event.altKey || event.metaKey) return true;
-      const key = clipboardKey(event.key, event.code);
-      if (key === "v") return false;
-      if (key === "c" && term.hasSelection()) {
-        if (event.type === "keydown") {
-          event.preventDefault();
-          copySelection();
-          term.clearSelection();
+      if (event.type !== "keydown") return true;
+      if (!["Shift", "Control", "Alt", "Meta"].includes(event.key)) selectionActive &&= event.metaKey || event.ctrlKey;
+      if (event.ctrlKey && !event.altKey && !event.metaKey) {
+        const key = clipboardKey(event.key, event.code);
+        if (key === "v") {
+          // the paste lands on restty's field, which sends it
+          if (document.activeElement !== textarea) textarea.focus({ preventScroll: true });
+          return false;
         }
+        if (key === "c" && selectionActive) {
+          event.preventDefault();
+          selectionActive = false;
+          copySelection();
+          return false;
+        }
+      }
+      if (term.inputDisabled || composing) return true;
+      // restty types Shift+Enter and Ctrl+Enter as plain Enter while the program has not asked for
+      // the kitty keyboard protocol: Shift+Enter becomes the Alt+Enter newline chord, Ctrl+Enter
+      // what modifyOtherKeys makes it (Claude Code's "send now") while the program has asked for
+      // that, and stays Enter otherwise. A mirrored pane never hears that request, so its Ctrl+Enter
+      // goes as herdr's key, which herdr encodes as the program asked.
+      const kitty = (viewRef.current?.screen?.modes.kittyKeyboard ?? 0) !== 0;
+      if (event.key === "Enter" && !event.altKey && !event.metaKey && !kitty && event.shiftKey !== event.ctrlKey) {
+        event.preventDefault();
+        if (event.shiftKey) enterAs = "\x1b\r";
+        else {
+          enterKey = mirroredCtrlEnterKey(fixedGridRef.current, modifyOtherKeysRef.current);
+          enterAs = enterKey !== null ? "\r" : ctrlEnterSequence(modifyOtherKeysRef.current);
+        }
+        term.input("\r");
+        enterAs = null;
+        enterKey = null;
         return false;
       }
-      return true;
-    });
-    attachTerminalWheel(term, wheelStateRef, {
-      drag: (event) => { if (!drag) return false; dragWheel(event); return true; },
+      if (!isMac || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return true;
+      // Cmd+Backspace uses the terminal's Ctrl+U line-deletion shortcut on macOS
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        commandBackspace = true;
+        term.input("\x7f");
+        commandBackspace = false;
+        return false;
+      }
+      // Cmd+arrows move to the line's start and end, as in a macOS text field
+      const sequence = event.key === "ArrowLeft" ? "\x01" : event.key === "ArrowRight" ? "\x05" : null;
+      if (sequence === null) return true;
+      event.preventDefault();
+      term.input(sequence);
+      return false;
+    };
+    const stopWheel = attachTerminalWheel(host, wheelStateRef, {
       adopted: () => adopted(),
       scroll: (lines) => lineScroll.current?.(lines),
+      reporting: () => term.mouseReporting(),
     });
     termRef.current = term;
-    setTerminal(term);
-    fitRef.current = fit;
+    fitRef.current = fitGrid;
 
     // A grid that is not this browser's own (observing, or mirrored from a PC that cannot
     // attach) may be larger than the mount. The mount then scrolls (PaneTerminal.css) and a
     // drag pans it. Until the user pans, the view keeps the cursor's row in sight: the top of
     // the grid while the row fits there, else the bottom rows, where a prompt sits. A mirror
-    // has no cursor; xterm's own rests on the last row with text, which serves the same.
+    // has no cursor; the last row stands for it, where a prompt sits too.
     // the split's other half drawing the active half's tab follows the grid that half gives the pty
     const adopted = (): boolean => observeRef.current || fixedGridRef.current || followRef.current;
     // The soft keyboard takes the bottom of the screen, not the pane: a fit to what is left above
@@ -560,10 +573,10 @@ export function PaneTerminal({
     let panned = false;
     const followCursor = (): void => {
       host.toggleAttribute("data-adopted-grid", adopted());
-      const screen = term.element?.querySelector<HTMLElement>(".xterm-screen");
-      if (!(adopted() || keyboardHeld) || panned || !screen) return;
-      const row = screen.offsetHeight / term.rows;
-      const cursorBottom = screen.offsetTop + (term.buffer.active.cursorY + 1) * row;
+      if (!(adopted() || keyboardHeld) || panned) return;
+      const row = term.cellSize().height;
+      const cursorRow = viewRef.current?.screen?.cursor.row ?? term.rows - 1;
+      const cursorBottom = (Math.min(cursorRow, term.rows - 1) + 1) * row;
       const max = host.scrollHeight - host.clientHeight;
       host.scrollTop = cursorBottom <= host.clientHeight ? 0 : cursorBottom - row >= max ? max : cursorBottom - host.clientHeight;
     };
@@ -589,299 +602,109 @@ export function PaneTerminal({
       fittedWidth = host.clientWidth;
       keyboardHeld = false;
       heldForce = false;
-      // xterm's helper textarea can sit at the old grid's cursor row for a while and keep the host
-      // scrollable: a view panned under the keyboard would stay panned past the grid's top
+      // a view panned under the keyboard would stay panned past the grid's top
       host.scrollTop = 0;
     };
     keyboardHoldsRef.current = keyboardHolds;
     fittedRef.current = fitted;
 
-    /** herdr's text for the last drag, while its highlight is still the selection */
-    let copiedText: string | null = null;
-    let selectionGeneration = 0;
     let disposed = false;
-    // Run after xterm's own copy listener, including for Cmd+C and context-menu
-    // Copy. Its buffer contains only the visible part of a scrolled selection.
-    const onCopy = (event: ClipboardEvent): void => {
-      if (!term.hasSelection() || copiedText === null || !event.clipboardData) return;
-      event.clipboardData.setData("text/plain", copiedText);
-      event.preventDefault();
-    };
-    host.addEventListener("copy", onCopy);
+    /** Copies restty's selection, as the user's own Copy would. */
     const copySelection = (): void => {
-      const text = copiedText ?? term.getSelection();
-      if (!text) return;
-      // Native copy still works in a user gesture when a Chromium/PWA site has
-      // denied the async clipboard permission, or plain HTTP has no clipboard API.
-      if (document.execCommand("copy")) {
-        noteClipboard("copied to clipboard");
-        return;
-      }
-      if (!navigator.clipboard) {
-        noteClipboard("clipboard write blocked by the browser");
-        return;
-      }
-      void navigator.clipboard.writeText(text).then(
-        () => { if (!disposed) noteClipboard("copied to clipboard"); },
+      void term.copySelection().then(
+        (copied) => { if (!disposed) noteClipboard(copied ? "copied to clipboard" : "clipboard write blocked by the browser"); },
         () => { if (!disposed) noteClipboard("clipboard write blocked by the browser"); },
       );
     };
-    const selectionChange = term.onSelectionChange(() => {
-      if (!term.hasSelection()) {
-        copiedText = null;
-        selectionGeneration++;
-      }
-    });
 
-    // herdr's attach stream turns mouse reporting on, so xterm hands every click to the
-    // pty and selects only with Shift (Option on macOS) held. Selection lives in herdr's
-    // own TUI client, not in `herdr terminal attach`, so a left drag here selects as if the
-    // modifier were held, and letting go copies, as the herdr TUI does; a press let go in
-    // place is a click and goes to the program (forwardClick). Touch keeps its drag-to-scroll.
-    //
-    // xterm keeps no scrollback (herdr owns it), so a drag that outlives one screen is
-    // tracked in herdr's history rows: a wheel, or dragging past the top or bottom edge,
-    // scrolls the pane through the API, the highlight is repainted over the visible part,
-    // and letting go copies herdr's own text for the range, soft-wrapped lines joined.
-    // Without the API (plain HTTP, observe mode, an older remote bridge, a failed read)
-    // only the visible selection is copied, as xterm has it.
-    interface Cell { row: number; col: number }
-    interface Drag {
+    // herdr's attach stream turns mouse reporting on, so restty hands every press to the program
+    // and selects only with Shift held. Selection lives in herdr's own TUI client, not in
+    // `herdr terminal attach`, so a left drag here selects as if Shift were held (Option on macOS
+    // too), and letting go copies, as the herdr TUI does; a press let go in place is a click and
+    // goes to the program (forwardClick), and a press on a link opens it. Touch keeps its
+    // drag-to-scroll (below).
+    interface ClickKeys { ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }
+    interface Press {
       pane: string;
-      /** the pressed cell on screen */
-      anchor: Cell;
-      /** the cell under the pointer on screen, its row clamped to the screen */
-      cursor: Cell;
-      /** the history row at the top of the screen, once herdr has told us */
-      top: number | null;
-      /** the pressed cell's history row */
-      anchorRow: number;
-      offset: number;
-      maxOffset: number;
-      /** the drag left the first screen: it is painted here, not by xterm */
-      scrolled: boolean;
-      /** pointer beyond the top (-1) or bottom (1) edge, which keeps scrolling */
-      edge: -1 | 0 | 1;
-      wheelPixels: number;
-      sentOffset: number;
-      sending: boolean;
+      /** the pressed cell */
+      row: number;
+      col: number;
+      /** the press left its cell: a drag, even one that comes back */
+      moved: boolean;
+      /** Shift was added for restty: its release must carry it too */
+      forced: boolean;
       /** a press the program would have had but for the forced selection, with the keys the user held: let go in place, it is a click */
       click: ClickKeys | null;
     }
-    interface ClickKeys { ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }
-    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-    let drag: Drag | null = null;
-    let edgeTimer: number | null = null;
-    const cellAt = (event: MouseEvent): { cell: Cell; edge: -1 | 0 | 1 } => {
-      const rect = (term.element?.querySelector(".xterm-screen") ?? host).getBoundingClientRect();
-      const col = Math.floor((event.clientX - rect.left) / (rect.width / term.cols));
-      const row = Math.floor((event.clientY - rect.top) / (rect.height / term.rows));
-      return {
-        cell: { row: Math.max(0, Math.min(term.rows - 1, row)), col: Math.max(0, Math.min(term.cols - 1, col)) },
-        edge: row < 0 ? -1 : row >= term.rows ? 1 : 0,
-      };
+    let press: Press | null = null;
+    const cellAt = (event: { clientX: number; clientY: number }): { row: number; col: number } => {
+      const rect = (term.canvas ?? host).getBoundingClientRect();
+      const cell = term.cellSize();
+      return { row: Math.floor((event.clientY - rect.top) / cell.height), col: Math.floor((event.clientX - rect.left) / cell.width) };
     };
-    const ordered = (a: Cell, b: Cell): [Cell, Cell] =>
-      a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a];
-    /** the drag's range in history rows, both ends inclusive */
-    const historyRange = (d: Drag): [Cell, Cell] =>
-      ordered({ row: d.anchorRow, col: d.anchor.col }, { row: d.top! + d.cursor.row, col: d.cursor.col });
-    const repaint = (d: Drag): void => {
-      const [start, end] = historyRange(d);
-      const first = d.top!;
-      const last = first + term.rows - 1;
-      if (end.row < first || start.row > last) {
-        term.clearSelection();
-        return;
-      }
-      const from = start.row < first ? { row: 0, col: 0 } : { row: start.row - first, col: start.col };
-      const to = end.row > last ? { row: term.rows - 1, col: term.cols - 1 } : { row: end.row - first, col: end.col };
-      term.select(from.col, from.row, to.row * term.cols + to.col + 1 - (from.row * term.cols + from.col));
+    const forceSelection = (event: PointerEvent): void => {
+      Object.defineProperty(event, "shiftKey", { value: true });
     };
-    /** one request at a time; the latest wanted offset wins */
-    const sendScroll = (d: Drag): void => {
-      if (d.sending || d.sentOffset === d.offset) return;
-      d.sending = true;
-      const target = d.offset;
-      void scrollPane(d.pane, target, machineId).catch(() => {}).finally(() => {
-        d.sending = false;
-        d.sentOffset = target;
-        sendScroll(d);
-      });
-    };
-    /** one row's height on screen, in CSS pixels (a selecting drag's wheel and a finger's travel) */
-    const cellHeight = (): number =>
-      (term.element?.querySelector(".xterm-screen")?.getBoundingClientRect().height ?? term.rows) / term.rows;
-    /** positive lines show older text */
-    const scrollDrag = (d: Drag, lines: number): void => {
-      if (d.top === null) return;
-      const offset = Math.max(0, Math.min(d.maxOffset, d.offset + lines));
-      if (offset === d.offset) return;
-      d.offset = offset;
-      d.top = d.maxOffset - offset;
-      d.scrolled = true;
-      repaint(d);
-      sendScroll(d);
-    };
-    const dragWheel = (event: WheelEvent): void => {
-      const d = drag;
-      if (!d || d.top === null) return;
-      const lineHeight = cellHeight();
-      const { steps: lines, rest } = wheelSteps(
-        d.wheelPixels + (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * lineHeight : event.deltaY), lineHeight);
-      d.wheelPixels = rest;
-      if (lines === 0) return;
-      scrollDrag(d, -lines);
-    };
-    const stopEdge = (): void => {
-      if (edgeTimer !== null) window.clearInterval(edgeTimer);
-      edgeTimer = null;
-    };
-    const onMouseDown = (event: MouseEvent): void => {
-      // a click handed on to the program (forwardClick) is not a new drag
-      if (event.button !== 0 || !event.isTrusted) return;
-      if ((event as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } }).sourceCapabilities?.firesTouchEvents) return;
-      if (!term.element?.contains(event.target as Node)) return;
-      // with reporting off xterm already selects on a plain drag; only the history tracking is ours
-      const reporting = term.modes.mouseTrackingMode !== "none";
-      // the modifier that asks xterm for a selection, held by the user rather than added here
-      const selecting = isMac ? event.altKey : event.shiftKey;
-      // a press that clears a selection, or opens a link, is not the program's click
-      const onLink = term.element?.querySelector(".xterm-screen")?.classList.contains("xterm-cursor-pointer") === true;
-      const click: ClickKeys | null = reporting && !selecting && !onLink && !term.hasSelection()
+    const onPointerDown = (event: PointerEvent): void => {
+      // a click handed on to the program (forwardClick) is not a new press
+      if (event.pointerType !== "mouse" || event.button !== 0 || !event.isTrusted) return;
+      if (!term.element.contains(event.target as Node)) return;
+      const reporting = term.mouseReporting();
+      // restty shows a pointer over a link; a press there opens it and is not the program's click
+      const onLink = term.canvas?.style.cursor === "pointer";
+      const click: ClickKeys | null = reporting && !onLink && !selectionActive
         ? { ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey } : null;
-      if (reporting) Object.defineProperty(event, isMac ? "altKey" : "shiftKey", { value: true });
-      copiedText = null;
-      selectionGeneration++;
-      const pane = paneRef.current;
-      const { cell } = cellAt(event);
-      const d: Drag = {
-        pane: pane ?? "", anchor: cell, cursor: cell, top: null, anchorRow: 0, offset: 0, maxOffset: 0,
-        scrolled: false, edge: 0, wheelPixels: 0, sentOffset: 0, sending: false, click,
-      };
-      drag = d;
-      if (!pane || !navigator.clipboard || observeRef.current) return;
-      void fetchPaneScroll(pane, machineId).then((scroll) => {
-        if (!scroll || drag !== d || d.scrolled) return;
-        d.offset = d.sentOffset = scroll.offset_from_bottom;
-        d.maxOffset = scroll.max_offset_from_bottom;
-        d.top = d.maxOffset - d.offset;
-        d.anchorRow = d.top + d.anchor.row;
-      }, () => {});
+      if (reporting) forceSelection(event);
+      const { row, col } = cellAt(event);
+      press = { pane: paneRef.current ?? "", row, col, moved: false, forced: reporting, click };
     };
-    // capture on window: ahead of xterm's own document listener, which would repaint a
-    // scrolled drag from its stale screen anchor
-    const onMouseMove = (event: MouseEvent): void => {
-      const d = drag;
-      if (!d) return;
-      const { cell, edge } = cellAt(event);
-      // a press that left its cell is a drag, even one that comes back: it is no click (cellAt clamps
-      // a pointer beside the grid to the edge column, so leaving sideways counts too)
-      const grid = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
-      const beside = grid !== undefined && (event.clientX < grid.left || event.clientX >= grid.right);
-      if (beside || edge !== 0 || cell.row !== d.anchor.row || cell.col !== d.anchor.col) d.click = null;
-      // past an edge the edge row is taken whole, as xterm does
-      d.cursor = edge < 0 ? { row: 0, col: 0 } : edge > 0 ? { row: term.rows - 1, col: term.cols - 1 } : cell;
-      if (d.top === null) return;
-      if (edge !== d.edge) {
-        d.edge = edge;
-        stopEdge();
-        if (edge !== 0) edgeTimer = window.setInterval(() => scrollDrag(d, -d.edge), 60);
-      }
-      if (d.scrolled || edge !== 0) {
-        event.stopPropagation();
-        // painted here from now on, even where herdr has no further to scroll
-        d.scrolled = true;
-        repaint(d);
-      }
+    const onPointerMove = (event: PointerEvent): void => {
+      const p = press;
+      if (!p || event.pointerType !== "mouse" || p.moved) return;
+      const { row, col } = cellAt(event);
+      if (row !== p.row || col !== p.col) p.moved = true;
+    };
+    // the release of a forced press carries the Shift restty selected with, or it would report a
+    // release the program never saw pressed
+    const onPointerRelease = (event: PointerEvent): void => {
+      if (press?.forced && event.pointerType === "mouse" && event.isTrusted) forceSelection(event);
     };
     // A press that became no selection was a click, and a program that reads the mouse (a
     // close button in Claude Code's diff, a TUI's menu) expects it: herdr's attach forwards
     // left clicks to it, as a phone's tap already showed (#621). The press and release are
-    // replayed without the selection modifier so xterm encodes them in the reporting mode
-    // herdr asked for; xterm sends nothing while stdin is disabled (observing, a held pane).
-    const forwardClick = (event: MouseEvent, keys: ClickKeys): void => {
-      const target = event.target;
-      if (!(target instanceof Element) || !term.element?.contains(target)) return;
-      const init = { ...keys, bubbles: true, cancelable: true, view: window, button: 0, detail: 1, clientX: event.clientX, clientY: event.clientY, screenX: event.screenX, screenY: event.screenY };
-      target.dispatchEvent(new MouseEvent("mousedown", { ...init, buttons: 1 }));
-      target.dispatchEvent(new MouseEvent("mouseup", { ...init, buttons: 0 }));
+    // replayed without the added Shift so restty encodes them in the reporting mode herdr asked
+    // for; nothing is sent while input is off (observing, a held pane).
+    const forwardClick = (at: { clientX: number; clientY: number }, keys: ClickKeys): void => {
+      const target = term.canvas;
+      if (!target) return;
+      const init = { ...keys, bubbles: true, cancelable: true, view: window, button: 0, detail: 1, clientX: at.clientX, clientY: at.clientY, pointerId: 1, pointerType: "mouse", isPrimary: true };
+      target.dispatchEvent(new PointerEvent("pointerdown", { ...init, buttons: 1 }));
+      target.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
     };
-    // a release outside the window never arrives: stop scrolling the shared pane
-    const onBlur = (): void => {
-      stopEdge();
-      drag = null;
-    };
-    const onMouseUp = (event: MouseEvent): void => {
-      const d = drag;
-      if (!d || event.button !== 0) return;
-      drag = null;
-      stopEdge();
-      // Window bubble runs after xterm's document listener, still inside the
-      // release gesture. A timer here loses clipboard permission in some browsers.
-      if (d.scrolled) repaint(d);
-      const released = cellAt(event).cell;
+    // a release outside the window never arrives
+    const onBlur = (): void => { press = null; };
+    const onPointerUp = (event: PointerEvent): void => {
+      const p = press;
+      if (!p || event.pointerType !== "mouse" || event.button !== 0) return;
+      press = null;
       // released on the pane it was pressed on: a pane switched meanwhile gets no click of this press
-      if (d.click && d.pane !== "" && d.pane === paneRef.current && !d.scrolled && !term.hasSelection()
-        && released.row === d.anchor.row && released.col === d.anchor.col) {
-        forwardClick(event, d.click);
+      if (p.click && !p.moved && p.pane !== "" && p.pane === paneRef.current) {
+        forwardClick(event, p.click);
         return;
       }
-      if (!term.hasSelection()) return;
-      const visibleText = term.getSelection();
-      copiedText = visibleText;
-      copySelection();
-      const generation = selectionGeneration;
-      const current = (): boolean => !disposed && paneRef.current === d.pane && generation === selectionGeneration;
-      let range: [Cell, Cell] | null = null;
-      if (d.scrolled) range = historyRange(d);
-      else if (d.top !== null) {
-        const position = term.getSelectionPosition();
-        if (position) {
-          // xterm's end column is exclusive, herdr's inclusive
-          const end = position.end.x > 0
-            ? { row: d.top + position.end.y, col: position.end.x - 1 }
-            : { row: d.top + position.end.y - 1, col: term.cols - 1 };
-          range = [{ row: d.top + position.start.y, col: position.start.x }, end];
-        }
-      }
-      if (!range) return;
-      const text = fetchPaneSelection(d.pane, range[0], range[1], machineId).catch(() => {
-        if (current() && d.scrolled) noteClipboard("could not read the selection from herdr");
-        return visibleText;
-      }).then((value) => {
-        if (!current()) throw new Error("selection changed");
-        // A redraw can remove the range before herdr reads it. Keep what the user
-        // actually selected instead of replacing a successful copy with nothing.
-        copiedText = value || visibleText;
-        return copiedText;
-      });
-      // Reserve the write NOW, supplying the server text when it arrives. Never
-      // start a fresh clipboard write from a delayed response or an older drag.
-      if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
-        const blob = text.then((value) => new Blob([value], { type: "text/plain" }));
-        void blob.catch(() => {});
-        // Denied (the case native copy covers), the clipboard keeps only the visible rows of a
-        // scrolled drag: say so, since the whole text waits for an explicit Copy or Ctrl+C
-        void navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]).catch(() => {
-          if (current() && d.scrolled) noteClipboard("copied the visible part; Copy or Ctrl+C copies the whole selection");
-        });
-      } else {
-        // Native copy already captured the visible text; the full text stays
-        // available for the next explicit Copy where delayed items are unsupported.
-        void text.then(() => {
-          if (current() && d.scrolled) noteClipboard("copied the visible part; Copy or Ctrl+C copies the whole selection");
-        }, () => {});
-      }
+      // a drag selected, and letting go copies; a click in place ended any selection
+      selectionActive = p.moved;
+      if (p.moved) copySelection();
     };
-    host.addEventListener("mousedown", onMouseDown, { capture: true });
-    window.addEventListener("mousemove", onMouseMove, { capture: true });
+    host.addEventListener("pointerdown", onPointerDown, { capture: true });
+    host.addEventListener("pointerup", onPointerRelease, { capture: true });
+    window.addEventListener("pointermove", onPointerMove, { capture: true });
+    window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("blur", onBlur);
-    window.addEventListener("mouseup", onMouseUp);
 
-    // OSC 52: the pane program asked the terminal to set the clipboard - the pty
-    // cannot reach the browser clipboard by itself, so xterm hands us the sequence and
-    // navigator.clipboard completes the hop (text only; queries are ignored).
+    // OSC 52: the pane program asked the terminal to set the clipboard - the pty cannot reach the
+    // browser clipboard by itself, so the synced screen carries the write as an event (the view
+    // hands it over) and navigator.clipboard completes the hop (text only; queries are ignored).
     // On unless turned off in Settings -> Terminal -> Clipboard from a pane: vim, tmux and Claude Code
     // copy this way, but any process in the pane, an agent's tool calls included, can plant text the
     // user then pastes somewhere else.
@@ -894,22 +717,6 @@ export function PaneTerminal({
         () => noteClipboard("clipboard write blocked by the browser"),
       );
     };
-    // a synced screen carries the write as an event (the view hands it over); the raw stream of an
-    // older bridge carries the sequence itself
-    const osc52 = term.parser.registerOscHandler(52, (payload) => {
-      writeClipboard(payload);
-      return true;
-    });
-    // OSC 8: a hyperlink this app cannot open (OmO's `omo-panel:` rows) is not drawn as one (#739)
-    const osc8 = term.parser.registerOscHandler(8, (payload) => hyperlinksRef.current.handler(payload));
-    // modifyOtherKeys (CSI > 4 ; level m): xterm.js has no handler for it, so this one only
-    // listens, and Ctrl+Enter is sent as the program asked (see onModifiedEnter)
-    const modifyOtherKeys = (final: "m" | "n") => term.parser.registerCsiHandler({ prefix: ">", final }, (params) => {
-      modifyOtherKeysRef.current = modifyOtherKeysLevel(modifyOtherKeysRef.current, final, params);
-      return false;
-    });
-    const modifyOtherKeysSet = modifyOtherKeys("m");
-    const modifyOtherKeysOff = modifyOtherKeys("n");
 
     // The authenticated app owns the PC connection; this mount owns only one pane's attach.
     const session = machineSessions?.get(machineId) ?? new MachineSession(machineId);
@@ -918,21 +725,58 @@ export function PaneTerminal({
     // a socket this page was connected to before this mount (a switch back to the PC): a wait is a reconnect
     setConnectedBefore(connectedSockets.has(socket));
     // The screen comes as differences from the bridge's own (shared/ssp.ts): the view keeps it,
-    // guesses at what typing will show, and draws both into xterm, which shows nothing else.
+    // guesses at what typing will show, and draws both into restty, which shows nothing else.
+    const outputListeners = new Set<() => void>();
     const view = new SspView({
       write: (data) => term.write(data),
       ack: (stream, num) => { const pane = paneRef.current; if (pane) socket.sspAck(pane, stream, num); },
       clipboard: writeClipboard,
       linkAllowed: isWebLink,
+      // the modes the program asked for, as the bridge's screen has them (Ctrl+Enter reads modifyOtherKeys)
+      screen: (frame) => { modifyOtherKeysRef.current = frame.modes.modifyOtherKeys; },
     });
     viewRef.current = view;
     view.setSize(term.cols, term.rows);
-    const onViewResize = term.onResize(({ cols, rows }) => view.setSize(cols, rows));
-    let outputGeneration = 0;
-    // Bumped by readiness receipts: revokes only the proof that queued output is current, never
-    // the parse itself (a masked prompt must still keep typing out of every draft).
-    let outputLifetime = 0;
+    const offViewResize = term.onResize((cols, rows) => view.setSize(cols, rows));
+    // what the tools over the grid read (TerminalViewportTools): the synced screen's cells
+    const decoded = new WeakMap<object, ReturnType<typeof decodeRow>>();
+    setTerminal({
+      element: term.element,
+      get cols() { return term.cols; },
+      get rows() { return term.rows; },
+      cellSize: () => term.cellSize(),
+      cell: (row, col) => {
+        const frame = view.screen;
+        const line = frame?.lines[row];
+        if (!frame || !line) return undefined;
+        let cells = decoded.get(line);
+        if (!cells) decoded.set(line, cells = decodeRow(line.wire, frame.cols));
+        const cell = cells[col];
+        return cell ? { chars: cell.text, width: cell.width } : undefined;
+      },
+      onOutput: (listener) => { outputListeners.add(listener); return () => { outputListeners.delete(listener); }; },
+      onResize: (listener) => term.onResize(() => listener()),
+    });
+    // the grid is measured once the fonts load: the estimate the attach was sized with may be off
+    const offReady = term.onReady(() => {
+      if (adopted()) {
+        const shared = sharedGridRef.current;
+        if (shared) term.resize(shared.cols, shared.rows);
+        followCursor();
+        return;
+      }
+      if (!sizesPty() || keyboardHolds(false)) return;
+      const before = `${term.cols}x${term.rows}`;
+      fitGrid();
+      fitted();
+      const pane = paneRef.current;
+      if (pane && inUse() && `${term.cols}x${term.rows}` !== before) socket.resize(pane, term.cols, term.rows);
+    });
+    // a readiness receipt that says the output is recovering: the next stream, not input permission
+    // (which observers never have), proves the screen is current again
     let outputRecovering = false;
+    /** the pane (and terminal) whose first screen was drawn */
+    let shownTarget: string | null = null;
     let deferredAttach = false;
     const off = session.on((message) => {
       onServerMessageRef.current?.(message);
@@ -944,7 +788,7 @@ export function PaneTerminal({
         stalledRef.current = false;
         setOutputError(null);
         setEnded(false);
-        term.options.disableStdin = observeRef.current || heldRef.current;
+        term.inputDisabled = observeRef.current || heldRef.current;
       }
       // A provisional watch must not strand an initial/reconnected pane on an older bridge.
       // An ordinary opt-in release still keeps its existing paused fallback.
@@ -953,70 +797,53 @@ export function PaneTerminal({
       if (message.type === "input-ready") {
         if (message.ready === false) {
           outputRecovering = true;
-          outputLifetime++;
           setOutputReady(false);
           setParsedTarget(undefined);
         } else if (outputRecovering) {
-          // Recovery revokes parses queued before this receipt too. The new stream, not
-          // input permission (which observers never have), proves the screen is current.
           outputRecovering = false;
-          outputLifetime++;
         }
       }
       if (message.type === "ssp" || message.type === "pty-data") {
         if (message.pane_id !== paneRef.current || releasedRef.current) return;
         const owner = message.pane_id;
-        const generation = outputGeneration;
-        const lifetime = outputLifetime;
         const target = outputTargetRef.current;
-        let screenText: () => string;
+        let screenText: string;
         let columns: number;
         if (message.type === "ssp") {
           view.receive(message);
           const screen = view.screen;
           if (!screen) return;
-          screenText = () => view.text();
+          screenText = view.text();
           columns = screen.cols;
         } else {
-          // an older bridge streams raw pty bytes: append, never repaint, and the view's drawing is gone
+          // an older bridge streams raw pty bytes: append, never repaint, and the view's drawing is
+          // gone. Its screen is restty's alone, so no masked prompt is found in it
           view.invalidate();
           term.write(message.data);
-          screenText = () => {
-            const lines: string[] = [];
-            const buffer = term.buffer.active;
-            for (let row = 0; row < buffer.length; row++) {
-              const line = buffer.getLine(row);
-              const text = line?.translateToString(!buffer.getLine(row + 1)?.isWrapped) ?? "";
-              if (line?.isWrapped && lines.length) lines[lines.length - 1] += text;
-              else lines.push(text);
-            }
-            return lines.join("\n");
-          };
+          screenText = "";
           columns = term.cols;
         }
-        // after xterm parsed what was just written
-        term.write("", () => {
-          if (disposed) return;
-          if (paneRef.current !== owner || generation !== outputGeneration) {
-            // output of a pane left behind, or of a dropped connection, was still queued in xterm
-            // when the switch reset the level: whatever its parse just set, the level is off again
-            // (writes are parsed in order, so no newer output has been read yet)
-            modifyOtherKeysRef.current = 0;
-            return;
-          }
-          if (lifetime === outputLifetime && !outputRecovering) {
+        // restty parses a write at once (or, before its first frame, in order once it is up)
+        {
+          if (!outputRecovering) {
             setOutputReady(true);
             setParsedTarget(target);
           }
+          // a pane's first screen, for the browser's performance tools (and the PR's numbers)
+          if (shownTarget !== target) {
+            shownTarget = target;
+            performance.mark("terminal:first-screen", { detail: { pane: owner, ready: term.ready } });
+          }
+          for (const listener of [...outputListeners]) listener();
           followCursor();
           // A masked prompt does not close the grid: a desktop answers it there, as in any terminal,
           // and the masked input stands by for a phone (#1031). onData keeps what is typed then out
           // of every draft.
-          const prompt = secretPrompt(screenText(), columns);
+          const prompt = secretPrompt(screenText, columns);
           secretRef.current = prompt;
-          term.options.disableStdin = observeRef.current || heldRef.current;
+          term.inputDisabled = observeRef.current || heldRef.current;
           setSecret((previous) => previous?.pane === owner && previous.prompt === prompt ? previous : prompt ? { pane: owner, prompt } : null);
-        });
+        }
       } else if (message.type === "watch-data") {
         // a read-only view drawn for this grid: written as it comes, never acknowledged
         if (message.pane_id !== paneRef.current || !releasedRef.current || !watchingRef.current) return;
@@ -1028,13 +855,13 @@ export function PaneTerminal({
       } else if (message.type === "attach-resumed") {
         if (message.pane_id === paneRef.current) {
           setHeld(false);
-          term.options.disableStdin = observeRef.current;
+          term.inputDisabled = observeRef.current;
         }
       } else if (message.type === "pty-exit") {
         // an ended pane takes no input: a file dropped on it must not upload and paste either
         // held input stays: the server also says pty-exit when herdr restarts or an attach fails,
         // and the same pane comes back; only the user sends or discards it
-        if (message.pane_id === paneRef.current) { setEnded(true); term.options.disableStdin = true; }
+        if (message.pane_id === paneRef.current) { setEnded(true); term.inputDisabled = true; }
       } else if (message.type === "role-ack") {
         // the server is the authority on the role; only after this ack may an
         // interact client reclaim the shared grid it stopped owning (a tab out of use
@@ -1042,17 +869,13 @@ export function PaneTerminal({
         const nowObserving = message.mode === "observe";
         observeRef.current = nowObserving;
         // no fit runs while observing: a font shrunk for this client's own grid would stay
-        if (nowObserving) term.options.fontSize = baseFontRef.current;
+        if (nowObserving) term.setFontSize(baseFontRef.current);
         setObserving(nowObserving);
-        term.options.disableStdin = nowObserving || heldRef.current;
+        term.inputDisabled = nowObserving || heldRef.current;
         onRoleAckRef.current?.(message.mode);
         if (!nowObserving && !fixedGridRef.current && inUse() && !keyboardHolds(true)) {
-          try {
-            fit.fit();
-            fitted();
-          } catch {
-            /* not laid out yet */
-          }
+          fitGrid();
+          fitted();
           const pane = paneRef.current;
           if (pane && sizesPty()) socket.resize(pane, term.cols, term.rows, true);
         }
@@ -1065,7 +888,7 @@ export function PaneTerminal({
         if (message.fixed) {
           fixedGridRef.current = true;
           // nor while the grid is fixed (a mirrored pane): back to the user's size
-          term.options.fontSize = baseFontRef.current;
+          term.setFontSize(baseFontRef.current);
         }
         // kept while this terminal ignores it: another device may drive the grid
         sharedGridRef.current = { cols: message.cols, rows: message.rows };
@@ -1089,7 +912,7 @@ export function PaneTerminal({
           // not an end: the server attaches as soon as the other bridge lets go
           setHeld(true);
           setOutputReady(false);
-          term.options.disableStdin = true;
+          term.inputDisabled = true;
           setConnected(socket.connected);
           return;
         }
@@ -1098,14 +921,14 @@ export function PaneTerminal({
           // the server could not start herdr: nothing is coming, so say why instead of waiting
           setOutputError(t("herdr could not be started on the server, so this terminal cannot attach. Put herdr on the server's PATH or set HERDR_WEB_HERDR_BIN to its full path."));
           setEnded(true);
-          term.options.disableStdin = true;
+          term.inputDisabled = true;
           setConnected(socket.connected);
           return;
         }
         if (message.code === "terminal_unsupported") {
           if (message.pane_id !== undefined && message.pane_id !== paneRef.current) return;
           setUnsupported(true);
-          term.options.disableStdin = true;
+          term.inputDisabled = true;
           setConnected(socket.connected);
           return;
         }
@@ -1114,7 +937,7 @@ export function PaneTerminal({
           setOutputError(message.message);
           setEnded(true);
           setConnected(false);
-          term.options.disableStdin = true;
+          term.inputDisabled = true;
           // a frozen page reads the close after it is shown again, often after back() ran: the
           // stop belongs to the time it was put away, so attach again now (see back())
           if (message.code === "output_stalled" && socket.stoppedWhileHidden && inUse()) {
@@ -1124,13 +947,14 @@ export function PaneTerminal({
           }
           return;
         }
-        term.writeln(`\r\n\u001b[31m[herdr-web-ui] ${message.code}: ${message.message}\u001b[0m`);
+        // said in the grid itself, over the view's drawing: the next frame is drawn whole
+        term.write(`\r\n\u001b[31m[herdr-web-ui] ${message.code}: ${message.message}\u001b[0m\r\n`);
+        view.invalidate();
       }
       setConnected(socket.connected);
     });
     const offDisconnect = session.onDisconnect(() => {
       clearModifiers();
-      outputGeneration++;
       outputRecovering = false;
       setOutputReady(false);
       setInputReady(false);
@@ -1149,57 +973,20 @@ export function PaneTerminal({
       if (paneRef.current) setInputReady(socket.canInput(paneRef.current));
     }, 1000);
 
-    // onKey runs after xterm drains a pending IME commit, immediately before the
-    // key's onData. Remap only that CR, preserving composition text and its order.
-    // xterm.js types Shift+Enter and Ctrl+Enter as plain Enter: Shift+Enter becomes the Alt+Enter
-    // newline chord, Ctrl+Enter what modifyOtherKeys makes it (Claude Code's "send now") while
-    // the program has asked for that, and stays Enter otherwise. A mirrored pane never hears that
-    // request, so its Ctrl+Enter goes as herdr's key, which herdr encodes as the program asked.
-    let enterAs: string | null = null;
-    let enterKey: string | null = null;
-    const onModifiedEnter = term.onKey(({ key, domEvent: event }) => {
-      enterAs = null;
-      enterKey = null;
-      if (term.options.disableStdin || key !== "\r" || event.key !== "Enter" || event.altKey || event.metaKey
-        || event.isComposing || event.keyCode === 229) return;
-      if (event.shiftKey && !event.ctrlKey) enterAs = "\x1b\r";
-      else if (event.ctrlKey && !event.shiftKey) {
-        enterKey = mirroredCtrlEnterKey(fixedGridRef.current, modifyOtherKeysRef.current);
-        enterAs = enterKey !== null ? "\r" : ctrlEnterSequence(modifyOtherKeysRef.current);
-      }
-    });
-    // Let xterm finish pending IME text before remapping the key's following data.
-    // Cmd+Backspace uses the terminal's Ctrl+U line-deletion shortcut on macOS.
-    let commandBackspace = false;
-    const onCommandBackspace = term.onKey(({ key, domEvent: event }) => {
-      commandBackspace = !term.options.disableStdin && isMac && key === "\x7f" && event.type === "keydown"
-        && event.key === "Backspace" && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-        && !event.isComposing && event.keyCode !== 229;
-    });
-    // A paste is text, even when it happens to contain just one letter. xterm
+    // A paste is text, even when it happens to contain just one letter. restty
     // handles the DOM paste synchronously after this capture-phase listener.
     let pasting = false;
     const onPaste = () => { pasting = true; queueMicrotask(() => { pasting = false; }); };
     host.addEventListener("paste", onPaste, true);
-    // File paths and dropped text use xterm's programmatic paste without a DOM paste event.
+    // File paths and dropped text are pasted as the program asked: bracketed when it did, with
+    // line breaks as Enter, as a terminal pastes.
     const pasteText = (text: string): void => {
       const previous = pasting;
       pasting = true;
-      try { term.paste(text); } finally { pasting = previous; }
+      const body = text.replace(/\r?\n/g, "\r");
+      try { term.input(viewRef.current?.screen?.modes.bracketedPaste ? `\x1b[200~${body.replaceAll("\x1b[201~", "")}\x1b[201~` : body); } finally { pasting = previous; }
     };
-    // xterm ignores Cmd+arrows. Handle them on the bubble phase, after its textarea
-    // keydown listener drains pending IME text, so movement never precedes that text.
-    const onCommandArrow = (event: KeyboardEvent): void => {
-      if (!isMac || event.target !== term.textarea || event.defaultPrevented || term.options.disableStdin
-        || composingRef.current || event.isComposing || event.keyCode === 229
-        || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      const sequence = event.key === "ArrowLeft" ? "\x01" : event.key === "ArrowRight" ? "\x05" : null;
-      if (sequence === null) return;
-      event.preventDefault();
-      term.input(sequence);
-    };
-    host.addEventListener("keydown", onCommandArrow);
-    const onData = term.onData((data) => {
+    onData = (data) => {
       // the split half following the other half's grid of the same tab draws it only: the active
       // half's terminal answers the program's queries (a second answer would reach it as typing),
       // and a press or key here makes this half the active one before anything is typed
@@ -1218,7 +1005,7 @@ export function PaneTerminal({
       if (commandBackspace && data === "\x7f") data = "\x15";
       commandBackspace = false;
       const current = paneRef.current;
-      // Hiding a cached pane blurs xterm, which may commit its pending IME text.
+      // Hiding a cached pane blurs the terminal, which may commit its pending IME text.
       // That abandoned input must reach neither the old PTY nor its held draft.
       if (!current || !presentedRef.current || !shownRef.current || observeRef.current || heldRef.current) return;
       // while a masked prompt is on screen, what is typed goes to the program or nowhere: never
@@ -1254,10 +1041,9 @@ export function PaneTerminal({
           return;
         }
       }
-      // Herdr, rather than xterm's legacy encoder, preserves all modifier bits
-      // in the keyboard protocol requested by the program in this pane.
-      // herdr's attach stream never tells xterm that the program asked for application cursor
-      // keys (DECCKM), so xterm's `ESC [ A` misses in less, git log and other full-screen
+      // Herdr preserves all modifier bits in the keyboard protocol requested by the program in
+      // this pane. herdr's attach stream never says that the program asked for application cursor
+      // keys (DECCKM), so a terminal's `ESC [ A` misses in less, git log and other full-screen
       // programs. herdr encodes a named key in the program's own mode (#621). A key the socket
       // cannot take now goes the way typing does below, as an arrow always did.
       const arrow = chord === null && !pasting && !composingRef.current && !compositionCommitPendingRef.current && key?.startsWith("Arrow")
@@ -1293,7 +1079,7 @@ export function PaneTerminal({
       }
       setDraft((prev) => applyToDraft(prev, input));
       if (!draftIsEmpty(applyToDraft(EMPTY_DRAFT, input))) draftHeldForRef.current = current;
-    });
+    };
 
     // Browsers expose dropped files as bytes, not local paths. Save them beside
     // the pane and paste the returned paths; never send Enter with a drop.
@@ -1301,18 +1087,18 @@ export function PaneTerminal({
     let fileQueue: Promise<void> = Promise.resolve();
     const uploadFiles = (files: File[]): void => {
       const pane = paneRef.current;
-      if (!pane || !socket.connected || term.options.disableStdin) return;
+      if (!pane || !socket.connected || term.inputDisabled) return;
       fileQueue = fileQueue.then(() => uploadBatch(pane, files));
     };
     const uploadBatch = async (pane: string, files: File[]): Promise<void> => {
-      if (paneRef.current !== pane || !socket.connected || term.options.disableStdin) return;
+      if (paneRef.current !== pane || !socket.connected || term.inputDisabled) return;
       try {
         // the paths of a batch are pasted together: one file too large and none is uploaded
         for (const file of files) assertAttachable(file);
         const paths: string[] = [];
         for (const file of files) paths.push(await uploadFileRef.current(pane, file));
         // An upload can finish after the user has switched panes or lost input access.
-        if (paneRef.current !== pane || !activeRef.current || !socket.connected || term.options.disableStdin) return;
+        if (paneRef.current !== pane || !activeRef.current || !socket.connected || term.inputDisabled) return;
         pasteText(paths.map((path) => `'${path.replaceAll("'", "'\\''")}'`).join(" ") + " ");
         if (activeRef.current && !findOpenRef.current) term.focus();
       } catch (error) {
@@ -1321,7 +1107,7 @@ export function PaneTerminal({
       }
     };
     const onFilePaste = (event: ClipboardEvent): void => {
-      // xterm handles text (and bracketed paste) itself. A file-only clipboard
+      // restty pastes text (bracketed when the program asked) itself. A file-only clipboard
       // needs the upload route instead; copied paths must remain native text.
       if (event.clipboardData?.getData("text/plain")) return;
       const files = Array.from(event.clipboardData?.files ?? []);
@@ -1334,11 +1120,11 @@ export function PaneTerminal({
       if (!event.dataTransfer) return;
       if (!event.dataTransfer.types.some((type) => type === "Files" || type === "text/plain")) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = term.options.disableStdin ? "none" : "copy";
+      event.dataTransfer.dropEffect = term.inputDisabled ? "none" : "copy";
     };
     const onDrop = (event: DragEvent): void => {
       event.preventDefault();
-      if (!event.dataTransfer || !socket.connected || term.options.disableStdin) return;
+      if (!event.dataTransfer || !socket.connected || term.inputDisabled) return;
       const files = Array.from(event.dataTransfer.files);
       if (files.length > 0) {
         uploadFiles(files);
@@ -1376,12 +1162,8 @@ export function PaneTerminal({
         if (keyboardHolds(false)) return;
         // a fit the keyboard held back re-asserts the grid as it would have (a lens or role return)
         const force = heldForce;
-        try {
-          fit.fit();
-          fitted();
-        } catch {
-          return;
-        }
+        fitGrid();
+        fitted();
         // a window the system moves or resizes in the background fits its own grid only
         const current = paneRef.current;
         if (current && inUse()) socket.resize(current, term.cols, term.rows, force);
@@ -1389,13 +1171,13 @@ export function PaneTerminal({
     });
     observer.observe(host);
 
-    // Touch screens never emit wheel events and xterm.js has no touch scrolling:
-    // translate a single-finger drag on the terminal into wheel events, so the
-    // normal buffer scrolls its own viewport and the alternate buffer (with mouse
-    // reporting on) forwards the gesture to herdr, exactly like a mouse wheel.
+    // Touch screens never emit wheel events: a single-finger drag on the terminal becomes wheel
+    // events, which restty reports to herdr (mouse reporting is on) exactly like a mouse wheel.
     // The text follows the finger, as everywhere on a phone: dragging down brings
-    // older lines in. Each event carries the finger's position, since xterm reports
+    // older lines in. Each event carries the finger's position, since restty reports
     // a wheel at the cell under it (without one, every report said row 1, column 1).
+    // restty never sees a finger itself: its press would reach the program as a mouse press with
+    // no release. A tap is a click, replayed as the mouse's (forwardClick).
     // An adopted grid has no history to send a wheel to (an observer's reports are dropped, a
     // mirror reports nothing): there the drag pans the mount, both ways, to the cells past its edge.
     // Two fingers pinch the font size: the font follows them locally, and the shared pty resizes once when one lifts.
@@ -1416,15 +1198,11 @@ export function PaneTerminal({
     const applyLiveFont = (size: number): void => {
       if (baseFontRef.current === size) return;
       baseFontRef.current = size;
-      term.options.fontSize = size;
+      term.setFontSize(size);
       if (adopted()) return;
       // a pinch under the keyboard fits what the finger sees: the keyboard going refits the rows
-      try {
-        fit.fit();
-        fitted();
-      } catch {
-        return;
-      }
+      fitGrid();
+      fitted();
     };
     const finishPinch = (save: boolean): void => {
       const finished = pinch;
@@ -1450,10 +1228,12 @@ export function PaneTerminal({
     };
     const claimPinch = (event: Event): void => {
       event.preventDefault();
-      // the host listens in the capture phase: xterm's own touch listeners on its element must not
-      // scroll its viewport with the first finger of a pinch
+      // the host listens in the capture phase: nothing under it takes the first finger of a pinch
       event.stopPropagation();
     };
+    /** a finger down and not moved yet: lifted so, it is a tap, the mouse's click */
+    let tap: { x: number; y: number } | null = null;
+    const TAP_SLOP_PX = 8;
     const onTouchStart = (event: TouchEvent): void => {
       if (event.touches.length === 1 && pinchStroke) {
         finishPinch(false);
@@ -1489,12 +1269,15 @@ export function PaneTerminal({
         touchX = first.clientX;
         touchY = first.clientY;
       }
+      tap = tracking && first ? { x: first.clientX, y: first.clientY } : null;
     };
     const onTouchMove = (event: TouchEvent): void => {
       if (!pinchStroke && event.touches.length > 1) {
         tracking = false;
         pinchStroke = true;
       }
+      const moved = event.touches[0];
+      if (tap && (!moved || Math.hypot(moved.clientX - tap.x, moved.clientY - tap.y) > TAP_SLOP_PX)) tap = null;
       if (pinchStroke) {
         claimPinch(event);
         if (pinch && event.touches.length === 2) {
@@ -1530,10 +1313,10 @@ export function PaneTerminal({
         host.scrollBy(across, delta);
         return;
       }
-      // xterm sends herdr one report per wheel event however far it went, and herdr scrolls a
+      // restty sends herdr one report per wheel event however far it went, and herdr scrolls a
       // few lines per report: one line-mode wheel per that many rows of finger travel keeps a
       // swipe as far as a slow drag, and the text under the finger
-      const { steps, rest } = wheelSteps(touchPixels + delta, cellHeight() * HERDR_MOUSE_SCROLL_LINES);
+      const { steps, rest } = wheelSteps(touchPixels + delta, term.cellSize().height * HERDR_MOUSE_SCROLL_LINES);
       touchPixels = rest;
       sendTouchWheels(steps);
     };
@@ -1543,7 +1326,7 @@ export function PaneTerminal({
         lineScroll.current?.(-steps * HERDR_MOUSE_SCROLL_LINES);
         return;
       }
-      const target = term.element ?? host;
+      const target = term.canvas ?? host;
       for (let sent = 0; sent < Math.abs(steps); sent += 1) {
         target.dispatchEvent(new WheelEvent("wheel", {
           bubbles: true, cancelable: true, deltaY: Math.sign(steps), deltaMode: WheelEvent.DOM_DELTA_LINE,
@@ -1555,7 +1338,14 @@ export function PaneTerminal({
       // a lifted one-finger drag sends what is left once it reaches half a step: a flick shorter
       // than one step still scrolls, and a long drag loses at most half a step at its end
       if (tracking && event.type === "touchend" && !pinchStroke && !adopted()) {
-        sendTouchWheels(finalStep(touchPixels, cellHeight() * HERDR_MOUSE_SCROLL_LINES));
+        sendTouchWheels(finalStep(touchPixels, term.cellSize().height * HERDR_MOUSE_SCROLL_LINES));
+      }
+      // a tap is the program's click where it reads the mouse, and puts the keyboard in the grid
+      const tapped = tap;
+      tap = null;
+      if (tapped && tracking && event.type === "touchend" && !pinchStroke && event.touches.length === 0) {
+        if (term.mouseReporting() && !adopted() && paneRef.current) forwardClick({ clientX: tapped.x, clientY: tapped.y }, { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false });
+        if (activeRef.current && !findOpenRef.current) term.focus();
       }
       touchPixels = 0;
       tracking = false;
@@ -1564,8 +1354,12 @@ export function PaneTerminal({
       if (event.type === "touchcancel" || event.touches.length < 2) finishPinch(event.type === "touchend");
       if (event.touches.length === 0) pinchStroke = false;
     };
-    // Safari zooms inside an overflow region (xterm's viewport) despite touch-action: none
+    // Safari zooms inside an overflow region (an adopted grid's mount) despite touch-action: none
     const onGesture = (event: Event): void => { event.preventDefault(); };
+    // restty never sees a finger (above): its own pointer handling stays the mouse's
+    const keepTouchFromRestty = (event: PointerEvent): void => { if (event.pointerType === "touch") event.stopPropagation(); };
+    const touchPointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel"] as const;
+    for (const type of touchPointerEvents) host.addEventListener(type, keepTouchFromRestty, { capture: true });
     host.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
     host.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
     host.addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
@@ -1582,12 +1376,8 @@ export function PaneTerminal({
     const refit = (): void => {
       const current = paneRef.current;
       if (!current || observeRef.current || fixedGridRef.current || !sizesPty() || keyboardHolds(true)) return;
-      try {
-        fit.fit();
-        fitted();
-      } catch {
-        return;
-      }
+      fitGrid();
+      fitted();
       socket.resize(current, term.cols, term.rows, true);
     };
     // herdr holds a pane at the size of a `terminal attach` for as long as one is attached, and its
@@ -1632,14 +1422,10 @@ export function PaneTerminal({
     };
     // the pane's screen starts again from the view, as on a pane switch; the view's first frame is whole
     const watch = (pane: string): void => {
-      const generation = ++outputGeneration;
-      // Reset in stream order: the attach's queued writes must not draw over the view.
+      // Reset in stream order: the attach's earlier writes must not draw over the view.
       view.reset();
       view.invalidate();
-      term.write("\x1bc", () => {
-        if (disposed || paneRef.current !== pane || generation !== outputGeneration) return;
-        modifyOtherKeysRef.current = 0;
-      });
+      term.reset();
       modifyOtherKeysRef.current = 0;
       setWatching(socket.watch(pane, term.cols, term.rows));
     };
@@ -1665,7 +1451,7 @@ export function PaneTerminal({
     });
     releaseRef.current = () => { if (queueHeld) release(); };
     // a window resized while watched: the view is drawn for a grid, so it starts again at the new one
-    const onWatchedResize = term.onResize(({ cols, rows }) => {
+    const offWatchedResize = term.onResize((cols, rows) => {
       const current = paneRef.current;
       if (!current || !releasedRef.current || !watchingRef.current) return;
       if (pinch) pinchWatchPending = true;
@@ -1683,31 +1469,23 @@ export function PaneTerminal({
       }
       // A fresh attach says attach_held again if needed; success does not send attach-resumed.
       setHeld(false);
-      // the pane's screen starts again from the new attach, as on a pane switch
-      const generation = ++outputGeneration;
+      // the pane's screen starts again from the new attach, as on a pane switch.
       // A new attach owns a new output lifetime. The server's readiness receipt precedes
       // replay, so a recovering attach will revoke this again before any retained bytes.
       outputRecovering = false;
-      // Reset in stream order: synchronous reset would let old queued writes draw afterward.
+      // Reset in stream order: the old attach's writes are all drawn already, the new one's follow.
       if (!cachedReleaseRef.current) {
         view.reset();
         view.invalidate();
-        term.write("\x1bc", () => {
-          if (disposed || paneRef.current !== current || generation !== outputGeneration) return;
-          modifyOtherKeysRef.current = 0;
-        });
+        term.reset();
         modifyOtherKeysRef.current = 0;
       }
       cachedReleaseRef.current = false;
       setInputReady(false);
       setOutputReady(false);
       if (!observeRef.current && shownRef.current && !keyboardHolds(true)) {
-        try {
-          fit.fit();
-          fitted();
-        } catch {
-          /* not laid out yet; the ResizeObserver will follow up */
-        }
+        fitGrid();
+        fitted();
       }
       const away = !inUse();
       // under the keyboard the attach adopts the pane's size (keep_size) and the catch-up fit takes it
@@ -1738,7 +1516,7 @@ export function PaneTerminal({
       setOutputError(null);
       setEnded(false);
       resume();
-      term.options.disableStdin = observeRef.current || heldRef.current;
+      term.inputDisabled = observeRef.current || heldRef.current;
     };
     reattachRef.current = reattach;
     const back = (): void => {
@@ -1787,7 +1565,7 @@ export function PaneTerminal({
     };
     reassertIfStaleRef.current = reassertIfStale;
     const reclaim = (event: Event): void => {
-      if (!(event.target instanceof Node) || !term.element?.contains(event.target)) return;
+      if (!(event.target instanceof Node) || !term.element.contains(event.target)) return;
       // an IME's first key comes before compositionstart, with isComposing still false (keyCode 229)
       if (event instanceof KeyboardEvent && (event.repeat || event.isComposing || event.keyCode === 229 || composingRef.current || compositionCommitPendingRef.current)) return;
       if (event instanceof PointerEvent && event.button !== 0) return;
@@ -1807,7 +1585,7 @@ export function PaneTerminal({
 
     return () => {
       disposed = true;
-      term.options.disableStdin = true;
+      term.inputDisabled = true;
       window.clearInterval(poll);
       observer.disconnect();
       if (resizeTimer !== null) window.clearTimeout(resizeTimer);
@@ -1819,13 +1597,13 @@ export function PaneTerminal({
       host.removeEventListener("gesturechange", onGesture);
       finishPinch(false);
       if (pinchStatusFrame !== null) cancelAnimationFrame(pinchStatusFrame);
-      host.removeEventListener("mousedown", onMouseDown, { capture: true });
-      window.removeEventListener("mousemove", onMouseMove, { capture: true });
+      for (const type of touchPointerEvents) host.removeEventListener(type, keepTouchFromRestty, { capture: true });
+      host.removeEventListener("pointerdown", onPointerDown, { capture: true });
+      host.removeEventListener("pointerup", onPointerRelease, { capture: true });
+      window.removeEventListener("pointermove", onPointerMove, { capture: true });
+      window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("blur", onBlur);
-      window.removeEventListener("mouseup", onMouseUp);
-      host.removeEventListener("copy", onCopy);
-      stopEdge();
-      selectionChange.dispose();
+      stopWheel();
       if (releaseTimer !== null) window.clearTimeout(releaseTimer);
       releaseRef.current = () => {};
       presentationRef.current = () => {};
@@ -1836,87 +1614,86 @@ export function PaneTerminal({
       fittedRef.current = () => {};
       deferAttachRef.current = () => false;
       offBeforeReplay();
-      onWatchedResize.dispose();
+      offWatchedResize();
+      offReady();
       window.removeEventListener("focus", back);
       window.removeEventListener("blur", leave);
       window.removeEventListener("pointerdown", onPointer, { capture: true });
       window.removeEventListener("keydown", reclaim, { capture: true });
       reassertIfStaleRef.current = () => undefined;
       document.removeEventListener("visibilitychange", onVisibility);
-      onModifiedEnter.dispose();
-      onCommandBackspace.dispose();
-      for (const type of keepTextOn) textarea?.removeEventListener(type, keepText, true);
-      host.removeEventListener("keydown", onCommandArrow);
-      onData.dispose();
+      for (const type of keepTextOn) host.removeEventListener(type, keepText);
+      onData = () => undefined;
+      onKey = () => true;
       host.removeEventListener("paste", onPaste, true);
       host.removeEventListener("paste", onFilePaste, { capture: true });
       host.removeEventListener("dragover", onDragOver);
       host.removeEventListener("drop", onDrop);
       offDisconnect();
-      osc52.dispose();
-      osc8.dispose();
-      onViewResize.dispose();
+      offViewResize();
+      outputListeners.clear();
       view.dispose();
       viewRef.current = null;
-      modifyOtherKeysSet.dispose();
-      modifyOtherKeysOff.dispose();
       if (clipboardTimerRef.current !== null) window.clearTimeout(clipboardTimerRef.current);
       off();
       if (!machineSessions) session.close();
-      stopGlyphs();
       host.removeEventListener("compositionstart", compositionStart);
       host.removeEventListener("compositionend", compositionEnd);
       if (compositionEndTimer !== null) window.clearTimeout(compositionEndTimer);
       compositionCommitPendingRef.current = false;
       // A replacement mount must not share its host with the retiring terminal.
-      term.element?.remove();
-      disposeAfterPendingFrame(term);
+      term.dispose();
       termRef.current = null;
-      setTerminal((current) => current === term ? null : current);
+      fitRef.current = null;
+      setTerminal(null);
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one terminal for the mount; theme/font follow in their own effect
   }, []);
 
   // the theme follows the settings without a remount
+  const ghosttyBackground = useMemo(() => {
+    const bg = settings.terminalThemeName === "" ? undefined : terminalColorsTheme(settings.terminalThemeName, terminalTheme(theme, palette)).colors.background;
+    return bg ? `rgb(${bg.r}, ${bg.g}, ${bg.b})` : null;
+  }, [settings.terminalThemeName, theme, palette]);
+  const colors = useMemo(() => terminalColorsTheme(settings.terminalThemeName, terminalTheme(theme, palette)), [settings.terminalThemeName, theme, palette]);
   useEffect(() => {
-    const term = termRef.current;
-    if (!term) return;
-    term.options.theme = terminalTheme(theme, palette);
-  }, [theme, palette]);
+    termRef.current?.setTheme(colors);
+  }, [colors]);
 
-  // the font follows too, and a font change moves the grid. xterm measures the cell (and the DOM
-  // renderer its glyph widths) when fontFamily or fontSize changes, and setting the same value
-  // again changes nothing: so a chosen family is set only once its faces loaded, or the cell would
-  // stay measured from a fallback
-  const fontFamily = terminalFontStack(terminalFontFamily);
+  // and the renderer's own settings: shaping across cells, and the GPU interface it draws with
+  useEffect(() => { termRef.current?.setLigatures(settings.terminalLigatures); }, [settings.terminalLigatures]);
+  useEffect(() => { termRef.current?.setRenderer(settings.terminalRenderer); }, [settings.terminalRenderer]);
+
+  // the font follows too, and a font change moves the grid: a new size is measured at once, a new
+  // family once its faces loaded (restty measures the cell from the first face of the list)
+  const fontKey = sanitizeFontFamily(terminalFontFamily);
+  const appliedFontKey = useRef(fontKey);
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
     let superseded = false;
-    const apply = (): void => {
+    const refit = (): void => {
       // a newer font, or an unmounted terminal, took over while the faces loaded
       if (superseded || termRef.current !== term) return;
-      baseFontRef.current = terminalFontSize;
-      if (term.options.fontSize === terminalFontSize && term.options.fontFamily === fontFamily) return;
-      term.options.fontSize = terminalFontSize;
-      term.options.fontFamily = fontFamily;
       if (observeRef.current || fixedGridRef.current || keyboardHoldsRef.current(true)) return;
-      try {
-        fitRef.current?.fit();
-        fittedRef.current();
-      } catch {
-        return;
-      }
+      fitRef.current?.();
+      fittedRef.current();
       // a chosen font loads after every attach: out of use (a reload behind another app), only
       // this grid fits, and the refit takes the pane once the user is here
       const pane = paneRef.current;
       if (pane && sizesPty() && inUse()) socketRef.current?.resize(pane, term.cols, term.rows, true);
     };
-    if (fontFamily === TERMINAL_FONT_STACK) apply();
-    else void loadFontStack(fontFamily, terminalFontSize).then(apply);
+    // a pinch has set and fitted its size already: the setting only follows it
+    const sizeChanged = baseFontRef.current !== terminalFontSize;
+    baseFontRef.current = terminalFontSize;
+    if (appliedFontKey.current !== fontKey) {
+      appliedFontKey.current = fontKey;
+      void terminalFonts(terminalFontFamily).then((fonts) => superseded ? undefined : term.setFonts(fonts, fontKey)).then(refit);
+    } else if (sizeChanged) refit();
     return () => { superseded = true; };
-  }, [terminalFontSize, fontFamily]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the family is fontKey's
+  }, [terminalFontSize, fontKey]);
 
   // the setting, a zoom or the last sibling closing need not resize the host: the observer may stay silent
   useEffect(() => {
@@ -1924,12 +1701,8 @@ export function PaneTerminal({
     narrowFontFitted.current = narrowFont;
     const term = termRef.current;
     if (!term || observeRef.current || fixedGridRef.current || keyboardHoldsRef.current(false)) return;
-    try {
-      fitRef.current?.fit();
-      fittedRef.current();
-    } catch {
-      return;
-    }
+    fitRef.current?.();
+    fittedRef.current();
     const pane = paneRef.current;
     if (pane && sizesPty() && inUse()) socketRef.current?.resize(pane, term.cols, term.rows);
   }, [narrowFont]);
@@ -1940,12 +1713,8 @@ export function PaneTerminal({
     // a soft keyboard may be up as the terminal appears: its grid waits for it to go
     if (keyboardHoldsRef.current(true)) return;
     const term = termRef.current;
-    try {
-      fitRef.current?.fit();
-      fittedRef.current();
-    } catch {
-      return;
-    }
+    fitRef.current?.();
+    fittedRef.current();
     // this runs on every load too, right after the attach: out of use (a reload behind another
     // app), only this grid fits, and the refit takes the pane once the user is here
     const pane = paneRef.current;
@@ -1965,12 +1734,8 @@ export function PaneTerminal({
     if (!shown) { socketRef.current?.keepSize(pane); return; }
     if (keyboardHoldsRef.current(true)) return;
     const term = termRef.current;
-    try {
-      fitRef.current?.fit();
-      fittedRef.current();
-    } catch {
-      return;
-    }
+    fitRef.current?.();
+    fittedRef.current();
     if (term && sizesPty() && inUse()) socketRef.current?.resize(pane, term.cols, term.rows, true);
   }, [shown]);
 
@@ -1992,12 +1757,8 @@ export function PaneTerminal({
     }
     followCursorRef.current();
     if (keyboardHoldsRef.current(true)) return;
-    try {
-      fitRef.current?.fit();
-      fittedRef.current();
-    } catch {
-      return;
-    }
+    fitRef.current?.();
+    fittedRef.current();
     if (sizesPty() && inUse()) socketRef.current?.resize(pane, term.cols, term.rows, true);
   }, [follow]);
 
@@ -2023,7 +1784,7 @@ export function PaneTerminal({
     hostRef.current?.toggleAttribute("data-adopted-grid", observeRef.current);
     secretRef.current = null;
     setSecret(null);
-    term.options.disableStdin = observeRef.current;
+    term.inputDisabled = observeRef.current;
     // a record past its TTL, an undated one, and a hand-edited one all restore as nothing held
     let saved = EMPTY_DRAFT;
     try {
@@ -2034,7 +1795,6 @@ export function PaneTerminal({
     term.reset();
     viewRef.current?.reset();
     viewRef.current?.invalidate();
-    hyperlinksRef.current.reset();
     modifyOtherKeysRef.current = 0;
     if (!paneId) return;
     const leavePane = (): void => {
@@ -2060,12 +1820,8 @@ export function PaneTerminal({
     // the pane's size meanwhile
     const held = keyboardHoldsRef.current(true);
     if (!held) {
-      try {
-        fit?.fit();
-        fittedRef.current();
-      } catch {
-        /* not laid out yet; the ResizeObserver will follow up */
-      }
+      fit?.();
+      fittedRef.current();
     }
     // A pane exempt from watching still asks to keep an existing attachment's size while away.
     const away = !inUse();
@@ -2094,7 +1850,7 @@ export function PaneTerminal({
     if (activeRef.current && wasAuto && !autoSelected && !coarseRef.current && !modalOpen() && !findOpenRef.current) termRef.current?.focus();
   }, [autoSelected]);
 
-  // key-bar taps go through xterm so the onData -> socket path above is reused
+  // key-bar taps go through the terminal's input so the onData -> socket path above is reused
   const pressKey = useCallback((item: KeyBarKeyItem) => {
     const term = termRef.current;
     if (!term) return;
@@ -2105,7 +1861,7 @@ export function PaneTerminal({
     const modified = (item.key !== "ctrl-c" || item.modifiers !== undefined) && (hasModifiers(active) || item.modifiers !== undefined);
     const chord = modified ? terminalChord(item.key, active) : null;
     const input = (modified ? navigationSequence(item.key, active) : null)
-      ?? keyBarInputSequence(item.key, term.modes.applicationCursorKeysMode);
+      ?? keyBarInputSequence(item.key, viewRef.current?.screen?.modes.cursorKeys ?? false);
     if (input === null) return;
     reassertIfStaleRef.current();
     barKeyRef.current = { key: item.key, chord };
@@ -2156,12 +1912,11 @@ export function PaneTerminal({
     // its text and Enter would land beside the held draft: Send or Discard that first
     if (draftHeldForRef.current === pane) return Promise.resolve(tRef.current("Not sent: send or discard the held input first."));
     const message = composerMessage(text);
-    const payload = message.includes("\n") ? composerPayload(text, term.modes.bracketedPasteMode) : message;
+    const payload = message.includes("\n") ? composerPayload(text, viewRef.current?.screen?.modes.bracketedPaste ?? false) : message;
     reassertIfStaleRef.current();
     const sent = socket.submit(pane, message, payload, true);
     if (sent === null) return false;
     const releaseSubmit = submitRetention?.retain(pane);
-    term.scrollToBottom();
     return sent.then((result) => (result.ok ? true : submitNote(result.code, result.message))).finally(() => {
       releaseSubmit?.();
       if (paneRef.current === pane && socketRef.current === socket) releaseRef.current();
@@ -2180,7 +1935,6 @@ export function PaneTerminal({
     reassertIfStaleRef.current();
     const sent = hasModifiers(modifiersRef.current)
       ? socket.sendKeys(pane, [terminalChord("Enter", modifiersRef.current)!]) : socket.sendInput(pane, "\r");
-    termRef.current?.scrollToBottom();
     return sent;
   }, []);
 
@@ -2195,7 +1949,7 @@ export function PaneTerminal({
   useEffect(() => {
     const turnedOn = directTyping && !directTypingRef.current;
     directTypingRef.current = directTyping;
-    const textarea = hostRef.current?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
+    const textarea = termRef.current?.textarea;
     if (!textarea) return;
     if (inputLine) {
       textarea.setAttribute("inputmode", "none");
@@ -2272,8 +2026,10 @@ export function PaneTerminal({
   const waitingWords = useAnnouncedText(paneId !== null && !observing && connected && !inputReady && !held && !ended && !released ? t("Waiting for terminal input…") : null);
 
   return (
-    // data-direct-typing: xterm's own field raises the soft keyboard here (lib/viewport.ts)
-    <div ref={stackRef} className="terminal-stack" data-pane-owner={paneId === null ? undefined : paneStorageId(machineId, paneId)} data-direct-typing={coarse && directTyping ? "" : undefined}
+    // data-direct-typing: the terminal's own field raises the soft keyboard here (lib/viewport.ts)
+    // a Ghostty theme's background reaches past the grid's last cells, as the app theme's --term-bg does
+    <div ref={stackRef} className="terminal-stack" style={ghosttyBackground === null ? undefined : { "--term-bg": ghosttyBackground } as CSSProperties}
+      data-pane-owner={paneId === null ? undefined : paneStorageId(machineId, paneId)} data-direct-typing={coarse && directTyping ? "" : undefined}
       data-pane-content={paneId !== null && active && presented && shown && connected && outputReady && parsedTarget === outputTarget && !held && !ended && !released && !unsupported && !outputError ? presentationKey : undefined}>
       {paneId === null && restoreError !== null && (
         <div className="terminal-placeholder is-restore-error" role="status">
@@ -2368,9 +2124,9 @@ export function PaneTerminal({
           onClose={() => { setFindOpen(false); if (activeRef.current && !coarse) termRef.current?.focus(); }} />
       )}
       <div className="terminal-surface">
-        {/* xterm hides its rendered rows from assistive technology, so the region around the
+        {/* the grid is a canvas, which assistive technology cannot read, so the region around the
             visible grid carries the pane's name: a screen reader announces which pane
-            this is. No tabIndex: xterm's helper textarea takes the keyboard here on attach, so a
+            this is. No tabIndex: the terminal's own field takes the keyboard here on attach, so a
             stop on the wrapper would only be an empty one ahead of it. */}
         <div className={`pane-terminal${paneId === null ? " is-idle" : ""}`} ref={hostRef} role="region" aria-roledescription={t("Terminal")} aria-label={terminalName} />
         <span className="terminal-font-size" ref={pinchBadgeRef} hidden aria-hidden="true" />

@@ -972,7 +972,7 @@ export function App() {
     showDropTarget(box && point && inside ? dropSide(point.x, box.left, box.width, dropAtRef.current) : null);
   }, [tabDrag, splitDragOn, showDropTarget]);
   // dragenter too: a drop hit-tests once more, and when the node under the pointer was replaced since
-  // the last dragover (xterm redraws its rows, a transcript renders again) the new node gets a
+  // the last dragover (a transcript renders again) the new node gets a
   // dragenter instead. Chromium refuses a drop whose last drag event nobody accepted.
   const paneDragOver = (event: DragEvent<HTMLDivElement>): void => {
     if (!splitDragOn || !event.dataTransfer.types.includes(PANE_DRAG_TYPE)) return;

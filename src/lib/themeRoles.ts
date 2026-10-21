@@ -48,7 +48,7 @@ export const ROLES = {
   "shadow-card": "shadow",
 } as const;
 
-/** Light-only terminal roles, keyed by xterm's ITheme names. Dark rows use xterm defaults. */
+/** Light-only terminal roles, keyed by ANSI colour name. Dark rows keep Ghostty's palette (lib/restty/theme.ts). */
 export const LIGHT_ANSI_ROLES = {
   black: "term-black",
   red: "term-red",

@@ -1,11 +1,11 @@
 /**
  * The iOS keyboard repeats a held ⌫ only while the focused field has text: in an empty field it
- * sends one keydown and stops. xterm's helper textarea is empty almost all the time:
- * a typed key is sent on keydown and cancelled, and xterm empties the field after Backspace,
- * Enter, ^C and blur. So a held ⌫ deleted one character and stopped (#862). Leaving one
- * character in the empty field keeps the repeat going: each repeat is a keydown xterm sends as
- * DEL and cancels, so the character itself is never deleted and never reaches the pty.
- * The field must also wrap: with xterm's `white-space: nowrap` the iOS 27 keyboard sent one ⌫
+ * sends one keydown and stops. The terminal's field (restty's) is empty almost all the time:
+ * a typed key is sent and cancelled, and restty empties the field after every edit. So a held ⌫
+ * deleted one character and stopped (#862). Leaving one character in the empty field keeps the
+ * repeat going: each repeat is a keydown the terminal sends as DEL and cancels, so the character
+ * itself is never deleted and never reaches the pty.
+ * The field must also wrap: with `white-space: nowrap` the iOS 27 keyboard sent one ⌫
  * and stopped even with text in it (measured in the simulator's Safari).
  */
 export const DELETE_REPEAT_TEXT = " ";
@@ -32,7 +32,7 @@ export function keepDeleteRepeatText(field: Pick<HTMLTextAreaElement, "value" | 
   return true;
 }
 
-/** Before the next edit, keep the placeholder outside the range xterm will commit. */
+/** Before the next edit, keep the placeholder outside the range the field will commit. */
 export function restoreDeleteRepeatCaret(field: Pick<HTMLTextAreaElement, "value" | "selectionStart" | "selectionEnd" | "setSelectionRange">): boolean {
   if (field.value !== DELETE_REPEAT_TEXT
     || (field.selectionStart === DELETE_REPEAT_TEXT.length && field.selectionEnd === DELETE_REPEAT_TEXT.length)) return false;

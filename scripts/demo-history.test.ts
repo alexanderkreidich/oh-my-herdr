@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { Terminal } from "@xterm/xterm";
 import { DemoHistory } from "../site/demo/history.ts";
-import { matchHerdrWidths } from "../src/lib/terminalWidths.ts";
+import { Screen } from "../server/ssp/screen.ts";
+import { decodeRow } from "../shared/ssp.ts";
 import type { PaneFindRequest, PaneFindResponse } from "../shared/protocol.ts";
 
 const request = (query: string, patch: Partial<PaneFindRequest> = {}): PaneFindRequest => ({ pane_id: "demo", query, direction: "forward", jump: false, ...patch });
@@ -25,13 +25,15 @@ describe("demo terminal history", () => {
     expect(found.matches).toEqual([{ start: { row: 0, col: 3 }, end: { row: 1, col: 2 } }]);
     expect(history.find(request("́")).total).toBe(0);
     expect(history.find(request("ERRORready")).total).toBe(0);
-    const term = new Terminal({ cols: 5, rows: 5, allowProposedApi: true, scrollback: 0 });
-    matchHerdrWidths(term);
-    await new Promise<void>((resolve) => term.write(history.render(), resolve));
-    expect(term.buffer.active.getLine(0)?.getCell(3)?.getChars()).toBe("d");
-    expect(term.buffer.active.getLine(1)?.getCell(0)?.getChars()).toBe("界");
-    expect(term.buffer.active.getLine(1)?.getCell(2)?.getChars()).toBe("é");
-    term.dispose();
+    // the terminal (libghostty-vt, as the browser's restty runs it) puts each cell where the demo counted it
+    const screen = await Screen.create(5, 5);
+    screen.write(history.render());
+    const frame = screen.frame();
+    const row = (index: number) => decodeRow(frame.lines[index]!.wire, frame.cols);
+    expect(row(0)[3]?.text).toBe("d");
+    expect(row(1)[0]?.text).toBe("界");
+    expect(row(1)[2]?.text).toBe("é");
+    screen.dispose();
   });
   it("caps the returned window while preserving exact counts and the current match", () => {
     const history = new DemoHistory(80, 20, ["x ".repeat(1500)]);

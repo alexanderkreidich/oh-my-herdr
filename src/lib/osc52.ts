@@ -1,8 +1,8 @@
 /**
  * OSC 52 (clipboard set): a pane program's "copy" button can only emit an escape
- * sequence down the pty - it cannot reach the browser clipboard by itself. xterm
- * hands the sequence to an addOscHandler(52) callback (PaneTerminal), and this
- * module turns the raw payload into text for navigator.clipboard.
+ * sequence down the pty - it cannot reach the browser clipboard by itself. The
+ * bridge's screen carries the write to the browser as an event (lib/ssp/view.ts hands it
+ * to PaneTerminal), and this module turns the raw payload into text for navigator.clipboard.
  *
  * Payload shape: `<selection>;<base64>` - the selection char (c/p/s) is accepted and
  * ignored (one browser clipboard); an empty or `?` payload is a clipboard QUERY,

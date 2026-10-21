@@ -27,7 +27,7 @@ export function upstreamCloseCode(code: number): number {
   return code === OUTPUT_STALLED_CLOSE_CODE ? code : 1012;
 }
 
-/** Relay ACK frames unchanged: only xterm parsing releases remote output credit. */
+/** Relay ACK frames unchanged: only the browser terminal's parsing releases remote output credit. */
 export class MachineRelay {
   private upstream: WebSocket;
   private client?: ServerWebSocket<unknown>;

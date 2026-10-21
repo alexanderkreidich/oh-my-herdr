@@ -26,6 +26,7 @@ const MIME: Record<string, string> = {
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
 };
 
 /** Files whose URL never changes but whose contents decide what the app becomes. */
@@ -56,21 +57,21 @@ function cacheControlFor(pathname: string): string {
  *   fonts (bundled woff2, `src/fonts/`), the PC bundle and the push endpoints are all
  *   same-origin, and the remote PCs are reached through this server's own /api/machines
  *   proxy rather than from the browser.
- * - `script-src 'self'`: both entry points are Vite modules (index.html), nothing in the
- *   app evaluates a string, and there is no inline handler attribute. This is the
- *   directive that matters: KaTeX output and the agent marks are the two places that put
- *   third-party HTML into the page.
+ * - `script-src 'self' 'wasm-unsafe-eval'`: both entry points are Vite modules (index.html),
+ *   nothing in the app evaluates a string, and there is no inline handler attribute. This is
+ *   the directive that matters: KaTeX output and the agent marks are the two places that put
+ *   third-party HTML into the page. 'wasm-unsafe-eval' lets the terminal compile its
+ *   WebAssembly core (restty's libghostty-vt, bundled in the app's own script); it allows no
+ *   JavaScript evaluation.
  * - `style-src 'self' 'unsafe-inline'`: inline style attributes are how measured layout
  *   reaches the DOM (AgentPicker, RowMenu, Droplet, UsageMeters), and KaTeX writes one on
- *   every expression it cannot render. It is also load-bearing for the terminal itself:
- *   xterm.js builds its layers by appending a <style> element to the DOM, and a
- *   DOM-inserted <style> is subject to style-src, so without 'unsafe-inline' the pane
- *   loses its cursor and its layers. The unsafe part is styles, not script.
+ *   every expression it cannot render. The terminal's box takes its measured size the same
+ *   way. The unsafe part is styles, not script.
  * - `img-src 'self' data: blob:`: same-origin icons and pane images;
  *   `blob:` for a pasted image previewed before it is uploaded; `data:` for the inline
  *   agent marks.
  * - `font-src 'self' data:`: every face is bundled (the app's own and KaTeX's, both
- *   through Vite). No font CDN. The `data:` is Vite's own inlining: an asset under ~4 KB
+ *   through Vite; the terminal fetches its own as bytes, under connect-src). No font CDN. The `data:` is Vite's own inlining: an asset under ~4 KB
  *   is emitted as a data: URL inside the CSS rather than as a file, and KaTeX_Size3's
  *   3 KB woff2 is one of them. That data: is app-bundled bytes, never anything an agent
  *   or a transcript can reach. Measured in Chromium: without it the load reports one
@@ -91,7 +92,7 @@ function cacheControlFor(pathname: string): string {
  */
 const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

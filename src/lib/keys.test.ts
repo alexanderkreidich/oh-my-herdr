@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { altSequence, clipboardKey, physicalKey, controlCode, ctrlEnterSequence, mirroredCtrlEnterKey, isPrintable, keySequence, modifyOtherKeysLevel, sanitizeKeyBarExtras, navigationSequence, terminalChord, keyFromData } from "./keys.ts";
+import { altSequence, clipboardKey, physicalKey, controlCode, ctrlEnterSequence, mirroredCtrlEnterKey, isPrintable, keySequence, sanitizeKeyBarExtras, navigationSequence, terminalChord, keyFromData } from "./keys.ts";
 
 describe("clipboardKey", () => {
   it("recognizes native Ctrl+C/V on Korean and Russian layouts without replacing Latin layout letters", () => {
@@ -178,29 +178,9 @@ describe("sanitizeKeyBarExtras", () => {
   });
 });
 
-describe("modifyOtherKeysLevel", () => {
-  it("follows CSI > 4 ; Pv m and turns off on CSI > 4 m and CSI > 4 n", () => {
-    expect(modifyOtherKeysLevel(0, "m", [4, 2])).toBe(2);
-    expect(modifyOtherKeysLevel(0, "m", [4, 1])).toBe(1);
-    // herdr turns it off as CSI > 4 ; 0 m, a program may leave the value out
-    expect(modifyOtherKeysLevel(2, "m", [4, 0])).toBe(0);
-    expect(modifyOtherKeysLevel(2, "m", [4])).toBe(0);
-    expect(modifyOtherKeysLevel(2, "n", [4])).toBe(0);
-    // a bare CSI > m or CSI > n resets every resource; xterm.js reports it as [0] or []
-    expect(modifyOtherKeysLevel(2, "m", [0])).toBe(0);
-    expect(modifyOtherKeysLevel(2, "n", [0])).toBe(0);
-    expect(modifyOtherKeysLevel(2, "m", [])).toBe(0);
-  });
-
-  it("leaves the level alone for the other key modifier resources", () => {
-    expect(modifyOtherKeysLevel(2, "m", [1, 2])).toBe(2);
-    expect(modifyOtherKeysLevel(2, "n", [1])).toBe(2);
-    expect(modifyOtherKeysLevel(0, "m", [[4, 2]])).toBe(0);
-  });
-});
 
 describe("ctrlEnterSequence", () => {
-  it("keeps xterm.js's CR until the program asks for modifyOtherKeys", () => {
+  it("keeps Enter's CR until the program asks for modifyOtherKeys", () => {
     expect(ctrlEnterSequence(0)).toBeNull();
     expect(ctrlEnterSequence(1)).toBe("\u001b[27;5;13~");
     expect(ctrlEnterSequence(2)).toBe("\u001b[27;5;13~");
@@ -213,7 +193,7 @@ describe("mirroredCtrlEnterKey", () => {
     expect(mirroredCtrlEnterKey(true, 0)).toBe("ctrl+enter");
   });
 
-  it("leaves an attached pane's Ctrl+Enter to xterm and to what its stream asked for", () => {
+  it("leaves an attached pane's Ctrl+Enter to the terminal and to what its stream asked for", () => {
     // control: unchanged on an attached pane, with or without modifyOtherKeys
     expect(mirroredCtrlEnterKey(false, 0)).toBeNull();
     expect(mirroredCtrlEnterKey(false, 2)).toBeNull();

@@ -23,13 +23,13 @@ export function paneContextPress(event: { button: number; ctrlKey: boolean }, ap
 
 /**
  * A right-click in a pane's own text field (the composer, the terminal's input line, the find or
- * secret field) is the browser's: its Copy, Paste and spelling menu on that field (#1180). xterm's
- * hidden textarea is the terminal's, so a right-click on the terminal stays the pane menu.
+ * secret field) is the browser's: its Copy, Paste and spelling menu on that field (#1180). The
+ * terminal's hidden field (restty's) is the terminal's, so a right-click on the terminal stays the pane menu.
  */
 export function paneFieldTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   const field = target.closest("input, textarea, [contenteditable=true]");
-  return field !== null && !field.classList.contains("xterm-helper-textarea");
+  return field !== null && !field.classList.contains("terminal-ime");
 }
 
 /** herdr's stable split path, not its preorder number (which changes after another split). */

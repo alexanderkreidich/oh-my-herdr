@@ -28,7 +28,7 @@ export interface KeyBarProps {
 
 /**
  * Cancelling pointerdown AND mousedown keeps focus, and with it the soft
- * keyboard, on xterm's textarea; the click still fires.
+ * keyboard, on the terminal's field; the click still fires.
  */
 function keepFocus(event: PointerEvent<HTMLButtonElement> | MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();

@@ -244,7 +244,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
       const active = !offTab && item.pane_id === selectedPaneId;
       const hidden = offTab || (alone !== null && alone !== item.pane_id);
       const single = offTab ? cell.width === 100 && cell.height === 100 : cells.length === 1 || alone === item.pane_id;
-      // Capture contextmenu before xterm focuses its helper textarea; the menu keeps focus on the original pane.
+      // Capture contextmenu before the terminal focuses its field; the menu keeps focus on the original pane.
       return <section key={item.pane_id} data-layout-pane={item.pane_id}
         className={`pane-frame${active ? " is-current" : ""}${single ? " is-single" : ""}${hidden ? " is-hidden" : ""}`}
         aria-label={displayPaneTitle(item)} aria-current={active ? "true" : undefined} aria-hidden={hidden || undefined} inert={hidden || undefined} tabIndex={-1}
@@ -272,7 +272,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
               ?? frame.querySelector<HTMLElement>(".find-bar input")
               ?? (frame.querySelector(".terminal-stack.is-chat")
                 ? frame.querySelector<HTMLElement>(".composer-text")
-                : frame.querySelector<HTMLElement>(".terminal-input textarea") ?? frame.querySelector<HTMLElement>(".xterm-helper-textarea"));
+                : frame.querySelector<HTMLElement>(".terminal-input textarea") ?? frame.querySelector<HTMLElement>(".terminal-ime"));
             input?.focus({ preventScroll: true });
           }
         }}
@@ -293,7 +293,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
               ?? frame?.querySelector<HTMLElement>(".find-bar input")
               ?? (frame?.querySelector(".terminal-stack.is-chat")
                 ? frame.querySelector<HTMLElement>(".composer-text")
-                : frame?.querySelector<HTMLElement>(".terminal-input textarea") ?? frame?.querySelector<HTMLElement>(".xterm-helper-textarea"));
+                : frame?.querySelector<HTMLElement>(".terminal-input textarea") ?? frame?.querySelector<HTMLElement>(".terminal-ime"));
             input?.focus({ preventScroll: true });
           }}
           onDragStart={(event: DragEvent<HTMLDivElement>) => {
