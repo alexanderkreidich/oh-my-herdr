@@ -630,7 +630,9 @@ SOFTWARE.
 
 `src/fonts/SymbolsNerdFontMono-Regular.woff2` is Symbols Nerd Font Mono from the
 [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) v3.5.1 release (`NerdFontsSymbolsOnly.zip`),
-converted from TrueType to WOFF2 and otherwise unchanged. Nerd Fonts is under the MIT license
+converted from TrueType to WOFF2 and otherwise unchanged; the chat and the interface draw icons with
+it. `src/fonts/SymbolsNerdFont-Regular.ttf` is Symbols Nerd Font from the same release, unchanged;
+the terminal draws icons with it. Nerd Fonts is under the MIT license
 below. The icon sets it gathers keep their own licenses, as Nerd Fonts lists them in
 [src/glyphs/README.md](https://github.com/ryanoasis/nerd-fonts/blob/v3.5.1/src/glyphs/README.md):
 
@@ -1333,8 +1335,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 `src/fonts/JetBrainsMono-Regular.woff2` is `fonts/webfonts/JetBrainsMono-Regular.woff2` from the
 [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) v2.304 release, unchanged. It draws code in
-the chat and the interface (the stylesheet loads it under the family name "JetBrains Mono Web"; the
-terminal does not use it), under the SIL Open Font License 1.1 below (the release's `OFL.txt`).
+the chat and the interface (the stylesheet loads it under the family name "JetBrains Mono Web").
+`src/fonts/JetBrainsMono-Regular.ttf`, `-Bold.ttf`, `-Italic.ttf` and `-BoldItalic.ttf` are the
+`fonts/ttf/` files of the same release, unchanged: the terminal draws with them. All are under the
+SIL Open Font License 1.1 below (the release's `OFL.txt`).
 
 ```
 Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
@@ -1432,41 +1436,16 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-## xterm.js
-
-The browser terminal includes xterm.js 5.5.0 with a local composition-ordering and reset patch.
-The queue/watermark approach follows joonhoekim's MIT-licensed proposal in
-https://github.com/xtermjs/xterm.js/pull/6090.
-
-Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
-Copyright (c) 2014-2016, SourceLair Private Company (https://www.sourcelair.com)
-Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
 ## restty and libghostty-vt
 
-The bridge keeps each attached pane's screen in restty 0.3.0's headless terminal
-(https://github.com/wiedymi/restty), which embeds Ghostty's terminal core, libghostty-vt, compiled
-to WASM (https://github.com/ghostty-org/ghostty). Both are MIT-licensed.
+The browser draws every pane with restty (https://github.com/wiedymi/restty, as this project's
+fork https://github.com/alexanderkreidich/restty, from 0.3.0), and the bridge keeps each attached
+pane's screen in its headless terminal. restty embeds Ghostty's terminal core, libghostty-vt,
+compiled to WASM (https://github.com/ghostty-org/ghostty), and shapes text with text-shaper
+(https://github.com/wiedymi/text-shaper). All three are MIT-licensed.
 
 Copyright (c) 2026 Wiedy Mi
+Copyright (c) 2025 wiedymi (text-shaper)
 Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

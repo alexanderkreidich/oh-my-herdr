@@ -83,7 +83,7 @@ describe("applyToDraft", () => {
   });
 
   it("holds nothing for escape sequences, arrows and control codes: there is nothing to send or to tell", () => {
-    // also what xterm answers a program by itself: a cursor position, a focus or a mouse report
+    // also what the terminal answers a program by itself: a cursor position, a focus or a mouse report
     for (const special of ["\u001b[A", "\u0003", "\u001b", "\t", "\u001b[12;40R", "\u001b[I", "\u001b[<35;10;5M"]) {
       const draft = applyToDraft(EMPTY_DRAFT, special);
       expect(draft).toBe(EMPTY_DRAFT);

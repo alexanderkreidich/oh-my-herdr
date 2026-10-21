@@ -7,6 +7,7 @@ import { appFaces } from "./app-faces.ts";
 import panes from "../site/demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
+import { screenText } from "./terminal-screen.ts";
 
 // Production client over the demo's synthetic transport. Editing and typing stay in this
 // disposable, loopback-only app; no herdr session or user terminal is opened.
@@ -209,7 +210,7 @@ try {
         console.log("PASS legacy extras migrate to the full bar; keys, modifiers and combinations can be added, removed and reordered, and survive reload");
 
         const bar = page.locator(".key-bar");
-        const input = page.locator(".xterm-helper-textarea");
+        const input = page.locator(".terminal-ime");
         await input.focus();
         await bar.locator('[data-key="Control"]').tap();
         await expectFrame(page, () => bar.locator('[data-key="ArrowLeft"]').tap(), { type: "keys", keys: ["ctrl+left"] });
@@ -446,7 +447,7 @@ try {
         await shell.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.shell)}`);
         await ready(shell);
         const shellBar = shell.locator(".key-bar");
-        const screen = (): Promise<string> => shell.evaluate(() => (document.querySelector(".pane-terminal .xterm-rows")?.textContent ?? "").replaceAll("\u00a0", " "));
+        const screen = (): Promise<string> => screenText(shell, ".pane-terminal .restty-terminal");
         const shows = async (wanted: string): Promise<void> => {
           const deadline = Date.now() + 5_000;
           while (!(await screen()).includes(wanted)) {
@@ -465,7 +466,7 @@ try {
           if (now !== replayed || now.trim() === "") { replayed = now; replayedSince = Date.now(); }
           await Bun.sleep(50);
         }
-        await shell.locator(".xterm-helper-textarea").focus();
+        await shell.locator(".terminal-ime").focus();
         await shell.keyboard.insertText("ls");
         await shows("$ ls");
         await shellBar.locator('[data-key="Shift"]').tap();

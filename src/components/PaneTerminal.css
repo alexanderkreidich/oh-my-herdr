@@ -1,14 +1,15 @@
 /*
- * Terminal chrome for PaneTerminal.tsx: the xterm mount, the empty placeholder
+ * Terminal chrome for PaneTerminal.tsx: the restty mount, the empty placeholder
  * and the status banners. The host background equals --term-bg so the canvas
  * edge is invisible; the banners float over the top-right corner so they never
  * steal rows from the pty. The stack is a column: the mount takes every row the
  * key bar (KeyBar.css) leaves, and clips so a pending refit never paints over it.
  */
 
-/* Nerd Font icons (the FONT_STACK note in PaneTerminal.tsx). The range is the private use
-   area alone, so the browser fetches the file only once a pane prints an icon, and a heart,
-   a lightning bolt or a box line keeps the system font's glyph */
+/* Nerd Font icons in the chrome's code stack (--font-mono, lib/fontFamily.ts); the terminal
+   loads the same file as bytes (lib/restty/fonts.ts). The range is the private use area alone,
+   so the browser fetches the file only once a page shows an icon, and a heart, a lightning bolt
+   or a box line keeps the system font's glyph */
 @font-face {
   font-family: "Symbols Nerd Font Mono";
   src: url("../fonts/SymbolsNerdFontMono-Regular.woff2") format("woff2");
@@ -22,9 +23,9 @@
   height: 100%;
 }
 
-/* the grid runs edge to edge: no gutter on the host (styles.css) or on .xterm, so the cells start
-   at the window's edge and under the header's rule. Never pad the mount: the fit addon reads the
-   parent's border-box width, so padding there would overflow the last columns */
+/* the grid runs edge to edge: no gutter on the host (styles.css) or on the terminal, so the cells
+   start at the window's edge and under the header's rule. Never pad the mount: the fit reads its
+   client size, so padding there would overflow the last columns */
 .pane-terminal {
   flex: 1 1 auto;
   min-height: 0;
@@ -45,15 +46,40 @@
   overflow: auto;
 }
 
-/* Chrome's CJK typography (text-spacing-trim, text-autospace) changes how far a glyph advances
-   with what stands beside it, and a cell grid needs every glyph to advance alike. xterm's
-   WidthCache measures a glyph as 32 copies in one span, which Chrome trims to half width when
-   the glyph is fullwidth punctuation (，。（）), so xterm gave every such mark half a glyph too
-   much letter-spacing and the rest of its row drew right of its cells: OmO's side panel stood
-   in a different column on each row, moving as scrolling brought other rows beside it (#739). */
-.pane-terminal .xterm {
-  text-spacing-trim: space-all;
-  text-autospace: no-autospace;
+/* restty's box (lib/restty/terminal.ts): it keeps the size of its last fit while the mount
+   changes, so a drag of the window edge clips or uncovers cells instead of stretching the canvas,
+   and an adopted grid sets it to the grid's own size, which the mount then scrolls */
+.restty-terminal {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.restty-terminal-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+/* the field restty types from: at the cursor (restty moves it there), unseen and untouchable */
+.terminal-ime {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1em;
+  height: 1em;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  overflow: hidden;
+  resize: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* the mount's own box: everything that may overlay the pty (the viewport tools, the pinch
@@ -67,7 +93,7 @@
   min-height: 0;
 }
 
-/* A pinch's target size floats above xterm, without taking rows or touches. */
+/* A pinch's target size floats above the grid, without taking rows or touches. */
 .terminal-font-size {
   position: absolute;
   top: var(--space-3);
@@ -94,20 +120,10 @@
   visibility: hidden;
 }
 
-/* no scrollback (PaneTerminal.tsx), so the viewport never scrolls: hide the track that would
-   otherwise sit over the last columns on platforms with classic scrollbars */
-.pane-terminal .xterm-viewport {
-  scrollbar-width: none;
-}
-
-.pane-terminal .xterm-viewport::-webkit-scrollbar {
-  display: none;
-}
-
 .terminal-placeholder {
   position: absolute;
   inset: 0;
-  z-index: var(--z-banner); /* above the xterm mount, like the banners; pointer-events stay off */
+  z-index: var(--z-banner); /* above the terminal mount, like the banners; pointer-events stay off */
   display: grid;
   place-items: center;
   color: var(--text-dim);
@@ -302,12 +318,3 @@
     border-radius: var(--radius-md);
   }
 }
-
-/* xterm swaps its row elements on every redraw. A touch keeps its first target for the
-   whole gesture, so a finger that landed on a row lost every later move (and its end)
-   as soon as the first scroll redrew that row, and the browser took the drag. On touch
-   screens the rows take no touches: the gesture lands on the screen element, which stays. */
-@media (pointer: coarse) {
-  .pane-terminal .xterm-rows { pointer-events: none; }
-}
-

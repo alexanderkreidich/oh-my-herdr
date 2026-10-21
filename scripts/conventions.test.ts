@@ -19,7 +19,7 @@ describe("imports", () => {
       const code = stripComments(read(file));
       return [...code.matchAll(SPECIFIER)].flatMap((match) => {
         const specifier = match[1] ?? match[2] ?? match[3]!;
-        const bad = specifier.startsWith("@shared/") || (specifier.startsWith(".") && !/\.(?:ts|tsx|mjs|js|css|json|md|svg|png|woff2|html|txt)(?:\?[\w&=-]*)?$/.test(specifier));
+        const bad = specifier.startsWith("@shared/") || (specifier.startsWith(".") && !/\.(?:ts|tsx|mjs|js|css|json|md|svg|png|woff2|ttf|ttc|html|txt)(?:\?[\w&=-]*)?$/.test(specifier));
         return bad ? [`${file}:${lineOf(code, match.index)}: ${specifier}`] : [];
       });
     });
@@ -140,6 +140,7 @@ describe("demo transport", () => {
   /** Client frames the demo needs no case for, each with its reason; any other frame gets a case in site/demo/transport.ts. */
   const DEMO_IGNORES: Record<string, string> = {
     "ssp-ack": "the demo streams raw pty-data (as an older bridge does), which nothing acknowledges; its switch's default branch drops it",
+    "ssp-asset-ack": "the raw-stream demo sends no SSP asset chunks and owes no answer to pixel receipts",
   };
 
   it("answers every /api route the server handles", () => {

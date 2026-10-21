@@ -14,7 +14,7 @@ export function isTakeoverExit(output: string): boolean {
  */
 const STARTUP_PROBES: ReadonlyArray<readonly [query: string, reply: string]> = [
   ["\x1b[?1016$p", "\x1b[?1016;4$y"], // pixel mouse coordinates (DECRQM): permanently off, cells it is
-  ["\x1b[c", "\x1b[?1;2c"], // device attributes (DA1): xterm.js's own answer
+  ["\x1b[c", "\x1b[?1;2c"], // device attributes (DA1): xterm's answer, as the browser's terminal gave it
 ];
 
 /** Takes the startup probes out of an attach's first output, across any read boundary. */

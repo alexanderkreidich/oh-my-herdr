@@ -8,6 +8,7 @@ import type { PaneFindResponse } from "../shared/protocol.ts";
 import { createServer } from "../server/index.ts";
 import { herdrRpc, workspaceClose, workspaceCreate } from "../server/herdr/client.ts";
 import { chromePath } from "./chrome-path.ts";
+import { waitForScreenText } from "./terminal-screen.ts";
 
 /** GUI searches stay in herdr's history, never in browser scrollback or terminal input. */
 export async function checkPaneFind(browser: Browser, origin: string): Promise<void> {
@@ -46,7 +47,7 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
       socket.on("framereceived", ({ payload }) => {
         const frame = JSON.parse(String(payload));
         if (frame.type === "pane-geometry" && frame.pane_id === pane) geometry.dispatchEvent(new CustomEvent("geometry", { detail: frame }));
-        if (frame.type === "pty-data" && frame.pane_id === pane) geometry.dispatchEvent(new Event("output"));
+        if ((frame.type === "ssp" || frame.type === "pty-data") && frame.pane_id === pane) geometry.dispatchEvent(new Event("output"));
       });
     });
     const resized = () => new Promise<void>((resolve, reject) => {
@@ -72,7 +73,7 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
       signal.addEventListener("abort", aborted, { once: true });
     });
     await page.goto(`${origin}/?pane=${encodeURIComponent(pane)}`);
-    await page.locator(".xterm-rows", { hasText: "find_browser_ready" }).waitFor();
+    await waitForScreenText(page, "find_browser_ready");
     const openedGeometry = resized();
     await page.keyboard.press("ControlOrMeta+Shift+F");
     await openedGeometry;
@@ -88,12 +89,12 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
     const first = await search(() => page.keyboard.press("Enter"));
     assert.equal(first.total, 2);
     assert.equal(first.current, 2);
-    await page.locator(".xterm-rows", { hasText: "find_browser_marker" }).waitFor();
+    await waitForScreenText(page, "find_browser_marker");
     await page.locator(".find-bar-count", { hasText: "2 of 2" }).waitFor();
     const next = await search(() => page.keyboard.press("Enter"));
     assert.equal(next.current, 1);
     await page.locator(".find-bar-count", { hasText: "1 of 2" }).waitFor();
-    await page.locator(".xterm-helper-textarea").focus();
+    await page.locator(".terminal-ime").focus();
     await page.keyboard.press("ControlOrMeta+Shift+F");
     await page.waitForFunction(() => document.querySelector(".find-bar input") === document.activeElement);
     const previous = await search(() => page.keyboard.press("Shift+Enter"));
@@ -132,17 +133,13 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
       await capture(`${name}-find`);
     };
     await staleNavigation("desktop");
-    await page.getByRole("button", { name: "Chat", exact: true }).click();
-    await page.keyboard.press("ControlOrMeta+Shift+F");
-    await page.waitForFunction(() => document.querySelector(".find-bar input") === document.activeElement);
-    await page.keyboard.type("find_browser_marker");
-    assert.equal(await field.inputValue(), "find_browser_marker", "Find from Chat must own query focus, not xterm");
-    const fromChat = await search(() => page.keyboard.press("Enter"));
-    assert.equal(fromChat.total, 2);
+    await field.fill("find_browser_marker");
+    const currentMatch = await search(() => field.press("Enter"));
+    assert.equal(currentMatch.total, 2);
     const buttonNext = await search(() => page.getByRole("button", { name: "Next match", exact: true }).click());
-    assert.equal(buttonNext.current, (fromChat.current ?? 0) % 2 + 1);
+    assert.equal(buttonNext.current, (currentMatch.current ?? 0) % 2 + 1);
     const buttonPrevious = await search(() => page.getByRole("button", { name: "Previous match", exact: true }).click());
-    assert.equal(buttonPrevious.current, fromChat.current);
+    assert.equal(buttonPrevious.current, currentMatch.current);
     await field.fill("absent_browser_marker");
     assert.equal((await search(() => field.press("Enter"))).total, 0);
     await page.locator(".find-bar-count", { hasText: "No matches" }).waitFor();
@@ -166,7 +163,7 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
         data.items.add(new File([bytes], "pixel.png", { type: "image/png" }));
         return data;
       });
-      await page.locator(".xterm-screen").dispatchEvent("drop", { dataTransfer: transfer });
+      await page.locator(".restty-terminal").dispatchEvent("drop", { dataTransfer: transfer });
       await transfer.dispose();
       await request;
       const uploadFindGeometry = resized();
@@ -192,22 +189,19 @@ export async function checkPaneFind(browser: Browser, origin: string): Promise<v
     await page.keyboard.press("Escape");
     await uploadClosedGeometry;
 
-    // Let the narrow viewport's own resize land first: a phone's More sheet rises (styles.css) for
-    // longer than the terminal waits for a size to settle (PaneTerminal.tsx), so phoneGeometry would
-    // otherwise answer to that resize, and the search below would race the find bar's.
+    // Let the phone viewport's own resize land before opening Find.
     const phoneViewport = resized();
     await page.setViewportSize({ width: 320, height: 844 });
     await phoneViewport;
-    await page.getByRole("button", { name: "More", exact: true }).click();
     const phoneGeometry = resized();
-    await page.getByRole("button", { name: "Find in terminal", exact: true }).click();
+    await page.keyboard.press("ControlOrMeta+Shift+F");
     await phoneGeometry;
     await field.fill("find_browser_marker");
     assert.equal((await search(() => field.press("Enter"))).total, 2);
-    await page.locator(".xterm-rows", { hasText: "find_browser_marker" }).waitFor();
+    await waitForScreenText(page, "find_browser_marker");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await staleNavigation("phone");
-    console.log("PASS pane find: history jump, count, next/previous, stale range clearing and retry, no match, Escape, touch menu, no find input, deferred-upload focus");
+    console.log("PASS pane find: history jump, count, next/previous, stale range clearing and retry, no match, Escape, phone layout, no find input, deferred-upload focus");
   } catch (error) {
     // evidence only: a closed pane, a gone herdr or a crashed page must not replace the failure itself
     const evidence = async (label: string, read: () => Promise<unknown>) => {

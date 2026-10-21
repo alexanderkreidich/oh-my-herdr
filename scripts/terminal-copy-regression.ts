@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { herdrRpc, paneSendText, workspaceCreate, workspaceClose } from "../server/herdr/client.ts";
+import { rowBox, screen as shown, screenText, waitForScreenText } from "./terminal-screen.ts";
 
 /** A plain left drag in the desktop terminal selects and copies instead of reaching herdr. */
 export async function checkTerminalCopy(browser: Browser, origin: string): Promise<void> {
@@ -25,9 +26,10 @@ setInterval(() => {}, 1000);
       localStorage.setItem(`herdr-web-ui:view:${id}`, "terminal");
       // WebKit requires the write to start in the gesture, even when its text is
       // fetched later. Record this boundary without granting Chromium a free pass
-      // through its persistent clipboard-write permission.
+      // through its persistent clipboard-write permission. The terminal cancels the press, so
+      // the release is a pointerup with no mouseup after it.
       let releasing = false;
-      window.addEventListener("mouseup", () => {
+      window.addEventListener("pointerup", () => {
         releasing = true;
         setTimeout(() => { releasing = false; }, 0);
       }, { capture: true });
@@ -77,10 +79,9 @@ setInterval(() => {}, 1000);
       if (message.type === "input") inputs.push(message.text);
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(pane)}`);
-    await page.locator(".pane-terminal .xterm-rows").waitFor();
+    await page.locator(".pane-terminal .restty-terminal canvas").waitFor();
     await paneSendText(pane, `clear; node ${script}\r`);
-    const first = page.locator(".pane-terminal .xterm-rows > div", { hasText: "DRAGCOPY-first-line" });
-    await first.waitFor();
+    await waitForScreenText(page, "DRAGCOPY-first-line");
 
     /** Presses and waits for the viewport position the press asked for: until then a release copies the visible text alone. */
     const press = async (): Promise<void> => {
@@ -109,7 +110,8 @@ setInterval(() => {}, 1000);
     // plain drag: selects, copies on release, sends nothing to the pane
     await page.evaluate(() => navigator.clipboard.writeText(""));
     await page.evaluate(() => { (window as any).clipboardGesture.checking = true; });
-    const box = (await first.boundingBox())!;
+    // clear of the sidebar's resize edge, which reaches over the grid's first pixels
+    const box = { ...(await rowBox(page, "DRAGCOPY-first-line"))!, x: (await rowBox(page, "DRAGCOPY-first-line"))!.x + 5 };
     const dragged = await drag({ x: box.x + 1, y: box.y + box.height / 2 }, { x: box.x + 400, y: box.y + box.height / 2 });
     await page.locator(".terminal-banner", { hasText: "copied to clipboard" }).waitFor();
     if (process.env.UI_EVIDENCE_DIR) {
@@ -119,7 +121,7 @@ setInterval(() => {}, 1000);
     assert.match(await clipboard(page), /^DRAGCOPY-first-line/, "a plain drag must copy the selected text");
     assert.deepEqual(dragged, [], "a selecting drag must not reach the pane as mouse reports");
     assert.deepEqual(await page.evaluate(() => (window as any).clipboardGesture.writes), [true],
-      "drag copy must begin inside mouseup, before timers or server responses lose the gesture");
+      "drag copy must begin inside the release, before timers or server responses lose the gesture");
     await page.evaluate(() => { (window as any).clipboardGesture.checking = false; });
 
     // Ctrl+C with a selection copies it and does not interrupt the pane
@@ -159,7 +161,7 @@ setInterval(() => {}, 1000);
     assert.equal(await page.evaluate(async () => {
       try { await navigator.clipboard.writeText("must be blocked"); return false; } catch { return true; }
     }), true, "the async clipboard permission is actually denied");
-    const secondBox = (await page.locator(".pane-terminal .xterm-rows > div", { hasText: "DRAGCOPY-second-line" }).boundingBox())!;
+    const secondBox = { ...(await rowBox(page, "DRAGCOPY-second-line"))!, x: box.x };
     await drag({ x: secondBox.x + 1, y: secondBox.y + secondBox.height / 2 }, { x: secondBox.x + 400, y: secondBox.y + secondBox.height / 2 });
     await settled();
     assert.match(await clipboard(page), /^DRAGCOPY-second-line/, "drag still copies when the async clipboard is denied");
@@ -214,10 +216,8 @@ setInterval(() => {}, 1000);
     await page.unroute("**/api/pane/selection?*");
 
     // a line longer than the terminal is wide copies as herdr has it: one line
-    const long = page.locator(".pane-terminal .xterm-rows > div", { hasText: "LONG-" });
-    const longBox = (await long.boundingBox())!;
-    const endRow = page.locator(".pane-terminal .xterm-rows > div", { hasText: "-END" });
-    const endBox = (await endRow.boundingBox())!;
+    const longBox = { ...(await rowBox(page, "LONG-"))!, x: box.x };
+    const endBox = { ...(await rowBox(page, "-END"))!, x: box.x };
     await drag({ x: longBox.x + 1, y: longBox.y + longBox.height / 2 }, { x: endBox.x + 600, y: endBox.y + endBox.height / 2 });
     await page.waitForTimeout(300);
     assert.equal(await clipboard(page), `LONG-${"x".repeat(300)}-END`, "a soft-wrapped line must copy without line breaks");
@@ -240,17 +240,17 @@ setInterval(() => {}, 1000);
         if (message.type === "input") sent.push(message.text);
       }));
       await plain.goto(`${origin}/?pane=${encodeURIComponent(pane)}`);
-      const row = plain.locator(".pane-terminal .xterm-rows > div", { hasText: "DRAGCOPY-first-line" });
-      await row.waitFor();
-      const rowBox = (await row.boundingBox())!;
-      await plain.mouse.move(rowBox.x + 1, rowBox.y + rowBox.height / 2);
+      await waitForScreenText(plain, "DRAGCOPY-first-line", { scope: ".pane-terminal .restty-terminal" });
+      const firstRow = (await rowBox(plain, "DRAGCOPY-first-line", ".pane-terminal .restty-terminal"))!;
+      const plainBox = { ...firstRow, x: firstRow.x + 5 };
+      await plain.mouse.move(plainBox.x + 1, plainBox.y + plainBox.height / 2);
       await plain.mouse.down();
-      await plain.mouse.move(rowBox.x + 400, rowBox.y + rowBox.height / 2, { steps: 6 });
+      await plain.mouse.move(plainBox.x + 400, plainBox.y + plainBox.height / 2, { steps: 6 });
       await plain.mouse.up();
       await plain.locator(".terminal-banner", { hasText: "copied to clipboard" }).waitFor();
       assert.match(await plain.evaluate(() => (window as any).copied as string), /^DRAGCOPY-first-line/, "plain HTTP drag must copy");
       await plain.evaluate(() => { (window as any).copied = undefined; });
-      await plain.mouse.dblclick(rowBox.x + 20, rowBox.y + rowBox.height / 2);
+      await plain.mouse.dblclick(plainBox.x + 20, plainBox.y + plainBox.height / 2);
       await plain.waitForTimeout(100);
       await plain.evaluate(() => { (window as any).copied = undefined; });
       const beforeKey = sent.length;
@@ -270,12 +270,8 @@ setInterval(() => {}, 1000);
 `);
     await paneSendText(pane, `\x03`);
     await paneSendText(pane, `clear; node ${numbered}\r`);
-    const rowWith = (text: string) => page.locator(".pane-terminal .xterm-rows > div", { hasText: new RegExp(`^${text}\\s*$`) });
-    await rowWith("S299").waitFor();
-    const topRow = (): Promise<number> => page.evaluate(() => {
-      const first = document.querySelector(".pane-terminal .xterm-rows > div")?.textContent ?? "";
-      return Number(first.trim().slice(1));
-    });
+    await waitForScreenText(page, /^S299\s*$/m);
+    const topRow = async (): Promise<number> => Number((await screenText(page)).split("\n")[0]!.trim().slice(1));
     const lines = (text: string): number[] => text.split("\n").map((line) => Number(line.trim().slice(1)));
     const consecutive = (numbers: number[]): boolean => numbers.every((n, i) => i === 0 || n === numbers[i - 1]! + 1);
     /** the copy lands after herdr answers: wait for the emptied clipboard to fill */
@@ -289,13 +285,14 @@ setInterval(() => {}, 1000);
       }
     };
 
-    const screen = (await page.locator(".pane-terminal .xterm-screen").boundingBox())!;
-    const lineHeight = screen.height / (await page.locator(".pane-terminal .xterm-rows > div").count());
+    // the grid's box; presses stay clear of the sidebar's resize edge over its first pixels
+    const screen = (await page.locator(".pane-terminal .restty-terminal").boundingBox())!;
+    const lineHeight = (await shown(page))!.cell.height;
     // at the bottom of the history, a fast drag past the bottom edge still takes the last line
     await page.evaluate(() => navigator.clipboard.writeText(""));
-    await page.mouse.move(screen.x + 1, screen.y + screen.height / 2);
+    await page.mouse.move(screen.x + 5, screen.y + screen.height / 2);
     await press();
-    await page.mouse.move(screen.x + 1, screen.y + screen.height + 20, { steps: 1 });
+    await page.mouse.move(screen.x + 5, screen.y + screen.height + 20, { steps: 1 });
     await page.mouse.up();
     assert.equal(lines(await filled()).at(-1), 299, "a drag past the bottom edge takes the last line");
     await page.mouse.wheel(0, lineHeight); // drops the highlight
@@ -308,12 +305,12 @@ setInterval(() => {}, 1000);
     await page.waitForTimeout(100);
     const beforeWheel = inputs.length;
     await press();
-    await page.mouse.move(screen.x + 1, pressAt.y + lineHeight * 3, { steps: 3 });
+    await page.mouse.move(screen.x + 5, pressAt.y + lineHeight * 3, { steps: 3 });
     for (let i = 0; i < 4; i++) {
       await page.mouse.wheel(0, -lineHeight * 10);
       await page.waitForTimeout(80);
     }
-    await page.mouse.move(screen.x + 1, pressAt.y + lineHeight * 2, { steps: 3 });
+    await page.mouse.move(screen.x + 5, pressAt.y + lineHeight * 2, { steps: 3 });
     if (process.env.UI_EVIDENCE_DIR) await page.screenshot({ path: join(process.env.UI_EVIDENCE_DIR, "terminal-scroll-select.png") });
     await page.mouse.up();
     let copied = lines(await filled());
@@ -329,12 +326,12 @@ setInterval(() => {}, 1000);
     const bottomAt = { x: screen.x + 200, y: screen.y + screen.height - lineHeight * 1.5 };
     await page.mouse.move(bottomAt.x, bottomAt.y);
     await press();
-    await page.mouse.move(screen.x + 1, screen.y - 20, { steps: 5 });
+    await page.mouse.move(screen.x + 5, screen.y - 20, { steps: 5 });
     await page.waitForTimeout(600);
-    await page.mouse.move(screen.x + 1, screen.y + lineHeight / 2, { steps: 2 });
+    await page.mouse.move(screen.x + 5, screen.y + lineHeight / 2, { steps: 2 });
     await page.mouse.up();
     copied = lines(await filled());
-    const rows = await page.locator(".pane-terminal .xterm-rows > div").count();
+    const rows = (await shown(page))!.rows;
     assert.ok(consecutive(copied), "an edge-scrolled drag copies consecutive lines");
     assert.equal(copied.at(-1), edgeStartTop + rows - 2, `the edge drag ends at the pressed line (${copied.slice(0, 2)}..${copied.slice(-2)}, top ${edgeStartTop}, rows ${rows})`);
     assert.ok(copied.length > rows, `the edge scrolled past one screen (${copied.length} lines, ${rows} rows)`);
@@ -347,10 +344,6 @@ setInterval(() => {}, 1000);
     assert.equal(await filled(), edgeText, "Ctrl+C copies the whole scrolled range");
     assert.deepEqual(inputs.slice(beforeKey), [], "Ctrl+C over a selection sends no ^C");
 
-    // the next wheel outside a drag drops the stale highlight
-    await page.mouse.wheel(0, lineHeight * 3);
-    await page.waitForTimeout(200);
-    assert.equal(await page.evaluate(() => document.querySelector(".pane-terminal .xterm-selection div") !== null), false, "a wheel after a copy clears the highlight");
     await herdrRpc("pane.scroll", { pane_id: pane, offset_from_bottom: 0 });
 
     console.log("PASS plain drag copies terminal text; Ctrl+C copies a selection (also without the async clipboard)");

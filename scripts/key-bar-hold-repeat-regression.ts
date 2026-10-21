@@ -115,7 +115,7 @@ try {
         await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await page.locator(".conn-live").waitFor({ state: "attached" });
         await page.waitForFunction(() => document.querySelector<HTMLButtonElement>('.key-bar .key[data-key="ArrowLeft"]')?.disabled === false, undefined, { timeout: 5_000 });
-        await page.locator(".xterm-helper-textarea").focus();
+        await page.locator(".terminal-ime").focus();
         const bar = page.locator(".key-bar");
         const left = bar.locator('.key[data-key="ArrowLeft"]');
         const escape = bar.locator('.key[data-key="Escape"]');
@@ -229,7 +229,7 @@ try {
         console.log("PASS a held arrow prevents the contextmenu default");
 
         // 8. Outside iOS the terminal's helper textarea keeps xterm's own empty, unwrapped field.
-        const helper = page.locator(".xterm-helper-textarea");
+        const helper = page.locator(".terminal-ime");
         assert.deepEqual(await helper.evaluate((field: HTMLTextAreaElement) => ({ value: field.value, wrap: getComputedStyle(field).whiteSpace })),
           { value: "", wrap: "nowrap" }, "a non-iOS phone keeps xterm's helper textarea as it was");
         console.log("PASS outside iOS the helper textarea stays empty and unwrapped");
@@ -258,7 +258,7 @@ try {
         await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await page.locator(".conn-live").waitFor({ state: "attached" });
         await page.waitForFunction(() => document.querySelector<HTMLButtonElement>('.key-bar .key[data-key="ArrowLeft"]')?.disabled === false, undefined, { timeout: 5_000 });
-        const helper = page.locator(".pane-frame.is-current .xterm-helper-textarea");
+        const helper = page.locator(".pane-frame.is-current .terminal-ime");
         await helper.focus();
         const field = () => helper.evaluate((element: HTMLTextAreaElement) => ({ value: element.value, caret: element.selectionStart, wrap: getComputedStyle(element).whiteSpace }));
         assert.deepEqual(await field(), { value: " ", caret: 1, wrap: "pre-wrap" }, "focus leaves one space before the caret in a wrapping field");

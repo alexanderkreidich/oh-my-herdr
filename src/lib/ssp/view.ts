@@ -12,6 +12,7 @@ import {
   type Cell, type Frame, type FrameDiff, type Row, type Style,
 } from "../../../shared/ssp.ts";
 import { TerminalDisplay } from "../../../shared/ssp-display.ts";
+import { GraphicsReceiver, type GraphicsChunk } from "../../../shared/ssp-assets.ts";
 import { PredictionEngine, type PredictionDisplay } from "./predict.ts";
 
 /** how often outstanding guesses are checked again while no screen comes */
@@ -24,6 +25,7 @@ export interface SspViewOptions {
   write(data: string): void;
   /** tells the bridge this view has screen `num` of `stream` */
   ack(stream: string, num: number): void;
+  ackAsset?(stream: string, key: string, offset: number): void;
   /** the program asked for the clipboard to be set (OSC 52): its payload as written */
   clipboard?(payload: string): void;
   /** OSC 8 links this app cannot open are drawn as text */
@@ -43,6 +45,7 @@ export class SspView {
   private echo = 0;
   private clipSeq: number | null = null;
   private readonly display: TerminalDisplay;
+  private readonly assets = new GraphicsReceiver();
   readonly predictions: PredictionEngine;
   private cols = 0;
   private rows = 0;
@@ -64,6 +67,28 @@ export class SspView {
     return this.newest ? frameText(this.newest).join("\n") : "";
   }
 
+  /** The OSC 8 link of a cell of the newest screen, or null. */
+  linkAt(row: number, col: number): string | null {
+    const frame = this.newest;
+    const line = frame?.lines[row];
+    if (!frame || !line) return null;
+    const cell = decodeRow(line.wire, frame.cols)[col];
+    return cell ? (this.styles.get(cell.style)?.link ?? null) : null;
+  }
+
+  /** What the terminal shows: the newest screen with the guesses on top, its cursor, and how many of its cells are underlined. */
+  shown(): { text: string; cursor: { row: number; col: number }; underlined: number } {
+    if (!this.newest) return { text: "", cursor: { row: 0, col: 0 }, underlined: 0 };
+    const frame = this.predictions.overlay(this.newest, (id) => this.underlined(id));
+    let underlined = 0;
+    for (const line of frame.lines) {
+      for (const cell of decodeRow(line.wire, frame.cols)) {
+        if (cell.width > 0 && ((this.styles.get(cell.style) ?? PLAIN_STYLE).flags & UNDERLINE_MASK) !== 0) underlined++;
+      }
+    }
+    return { text: frameText(frame).join("\n"), cursor: { row: frame.cursor.row, col: frame.cursor.col }, underlined };
+  }
+
   /** The renderer's grid: frames are cut or padded to it. A change redraws everything. */
   setSize(cols: number, rows: number): void {
     if (cols === this.cols && rows === this.rows) return;
@@ -83,10 +108,12 @@ export class SspView {
   reset(): void {
     this.stream = null;
     this.frames.clear();
+    this.assets.reset();
     this.newest = null;
     this.echo = 0;
     this.clipSeq = null;
     this.predictions.reset();
+    this.display.invalidate();
     this.stopTimer();
   }
 
@@ -98,9 +125,11 @@ export class SspView {
       if (diff.base !== 0) return;
       this.stream = diff.stream;
       this.frames.clear();
+      this.assets.reset();
       this.newest = null;
       this.clipSeq = null;
       this.predictions.reset();
+      this.display.invalidate();
     }
     const base = diff.base === 0 ? null : this.frames.get(diff.base);
     if (diff.base !== 0 && !base) {
@@ -119,6 +148,7 @@ export class SspView {
     }
     const first = this.newest === null;
     this.newest = frame;
+    this.assets.scene(frame.graphics);
     this.echo = Math.max(this.echo, diff.echo);
     if (typeof diff.rtt === "number") this.predictions.setRtt(diff.rtt);
     this.options.ack(diff.stream, frame.num);
@@ -131,6 +161,14 @@ export class SspView {
     this.predictions.confirm(frame, this.echo);
     this.draw();
     this.options.screen?.(frame);
+  }
+
+  receiveAsset(stream: string, chunk: GraphicsChunk): void {
+    if (this.disposed || stream !== this.stream) return;
+    const offset = this.assets.accept(chunk);
+    if (offset === null) return;
+    this.options.ackAsset?.(stream, chunk.key, offset);
+    if (offset === chunk.total) this.draw();
   }
 
   /** Text that went to the pty as input `seq`: guessed at, drawn at once. */
@@ -157,7 +195,7 @@ export class SspView {
   draw(): void {
     if (this.disposed || !this.newest || this.cols <= 0 || this.rows <= 0) return;
     const shown = this.predictions.overlay(this.newest, (id) => this.underlined(id));
-    const output = this.display.draw(fitFrame(shown, this.cols, this.rows), (id) => this.styles.get(id) ?? PLAIN_STYLE);
+    const output = this.display.draw(fitFrame({ ...shown, graphics: this.assets.hydrate(shown.graphics) }, this.cols, this.rows), (id) => this.styles.get(id) ?? PLAIN_STYLE);
     if (output) this.options.write(output);
     if (this.predictions.pending) this.startTimer();
     else this.stopTimer();
@@ -191,6 +229,7 @@ export class SspView {
 
   dispose(): void {
     this.disposed = true;
+    this.assets.reset();
     this.stopTimer();
   }
 }

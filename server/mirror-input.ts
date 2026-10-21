@@ -1,7 +1,7 @@
 /**
  * What typing into a mirrored pane hands to herdr's `pane.send_text`.
  *
- * A mirror repaint carries no terminal modes, so the browser's xterm never learns that the
+ * A mirror repaint carries no terminal modes, so the browser's terminal never learns that the
  * program turned bracketed paste on and sends a pasted block as bare lines joined by CR. An
  * agent's composer takes the first CR for Enter and sends line one alone. Checked on a
  * Windows PC (#257): the same block inside the paste markers stays in gjc's composer unsent.

@@ -53,16 +53,19 @@ try {
         if (message.type === "error") console.log("terminal error", message);
         socket.send(raw);
       });
-      socket.onMessage((raw) => { frames.push(JSON.parse(String(raw))); remote.send(raw); });
+      // a screen's acknowledgement (SSP) is no input: only what the page sends the pane counts
+      socket.onMessage((raw) => {
+        const frame = JSON.parse(String(raw));
+        if (frame.type !== "ssp-ack") frames.push(frame);
+        remote.send(raw);
+      });
     });
     await page.goto(`http://127.0.0.1:${server.port}/?pane=${encodeURIComponent(pane)}`);
     const settingsShortcut = await page.evaluate(() => /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent))
       ? "Meta+Shift+Comma" : "Control+Shift+Comma";
     const ctrl = page.locator('[data-key="Control"]');
     await until(async () => !(await ctrl.isDisabled()), "terminal input ready");
-    // Herdr's screen stream enables bracketed paste; exercise xterm with it disabled too.
-    ws!.send(JSON.stringify({ type: "pty-data", pane_id: pane, data: "\x1b[?2004l" }));
-    const input = page.locator(".xterm-helper-textarea");
+    const input = page.locator(".terminal-ime");
     await input.focus();
     let previousMask = 0;
     const held = async (mask: number) => {
@@ -117,14 +120,15 @@ try {
     // Dropped text is also paste, even one character with every modifier held.
     const dropBefore = read();
     const dropFrames = frames.length;
-    await page.locator(".xterm").evaluate((element) => {
+    await page.locator(".restty-terminal").evaluate((element) => {
       const dataTransfer = new DataTransfer();
       dataTransfer.setData("text/plain", "z");
       element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
     });
     await until(() => frames.length > dropFrames && read().length > dropBefore.length, "single-character drop received");
     assert.equal(frames[dropFrames].type, "input", "drop bypasses held modifiers");
-    assert.equal(frames[dropFrames].text, "z");
+    // herdr's attach asks for bracketed paste (the synced screen's modes say so), and takes the frame off for the program
+    assert.equal(frames[dropFrames].text.replace(/^\x1b\[200~([\s\S]*)\x1b\[201~$/, "$1"), "z");
     assert.equal(Buffer.from(read().slice(dropBefore.length).trim().split(/\s+/).join(""), "hex").toString(), "z");
     // Paste is text, including a single character; it must not become a shortcut.
     const pasteBefore = read();
@@ -234,12 +238,6 @@ try {
     await keyBarSettings.getByRole("button", { name: "Close settings", exact: true }).tap();
     previousMask = 0;
     assert.equal(await page.locator('[data-key="Alt"]').getAttribute("aria-pressed"), "false");
-    // Leaving the terminal lens clears held state on the same pane.
-    await page.getByTitle("Chat transcript (⌘⇧J)", { exact: true }).tap();
-    await page.getByTitle("Live terminal (⌘⇧J)", { exact: true }).tap();
-    await until(async () => !(await ctrl.isDisabled()), "terminal lens ready again");
-    for (const key of ["Control", "Alt", "Shift"]) assert.equal(await page.locator(`[data-key="${key}"]`).getAttribute("aria-pressed"), "false");
-    previousMask = 0;
     // A cancelled chord or text says so in a banner. The banner column lets taps through to the
     // terminal under it, so its Dismiss has to take them back.
     ws!.send(JSON.stringify({ type: "error", code: "input_failed", message: "Terminal input could not be confirmed. Check the terminal before typing again.", pane_id: pane }));

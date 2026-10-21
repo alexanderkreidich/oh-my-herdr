@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { paneRead, paneSendKeys } from "../server/herdr/client.ts";
 import { chromePath } from "./chrome-path.ts";
+import { waitForScreenText } from "./terminal-screen.ts";
 
 async function until(check: () => boolean | Promise<boolean>, label: string): Promise<void> {
   const deadline = Date.now() + 10_000;
@@ -39,7 +40,7 @@ export async function checkCommandArrows(browser: Browser, origin: string, paneI
       });
       await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
       await until(() => ready, "owned terminal must accept input");
-      const input = page.locator(".xterm-helper-textarea");
+      const input = page.locator(".terminal-ime");
       // Let deferred IME sends run, then use a WS marker to bound both positive and negative assertions.
       const check = async (action: () => Promise<unknown>, expected: string[], label: string) => {
         const before = inputs.length;
@@ -127,7 +128,7 @@ process.stdin.on("data", (data) => {
         await probe("start middle end", 16);
         if (process.env.UI_EVIDENCE_DIR) {
           mkdirSync(process.env.UI_EVIDENCE_DIR, { recursive: true });
-          await page.locator(".xterm-rows", { hasText: "start middle end" }).waitFor();
+          await waitForScreenText(page, "start middle end");
           await page.screenshot({ path: join(process.env.UI_EVIDENCE_DIR, "macos-command-arrows.png") });
         }
         // Normal arrows, Option word movement and Ctrl+arrows as xterm sends them work in DECCKM mode.

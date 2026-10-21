@@ -29,6 +29,21 @@ The close reason, input, credentials, peer names, socket paths and raw exception
 included. A remote machine's opaque UUID may appear, not its name or SSH address. These records are
 not a per-request HTTP access log and do not add timestamps to older console messages.
 
+## Restty terminal
+
+`bun install` builds the pinned `alexanderkreidich/restty` git dependency; xterm patches and its
+build step are gone. Terminal appearance lives in Settings -> Appearance, with JetBrains Mono
+as the default. See [restty integration](restty.md) for the runtime boundary, canvas inspection,
+startup measurements, validation evidence and the unresolved herdr/SSP graphics transport.
+
+```bash
+CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" bun run test:restty
+```
+
+This builds and runs the kept terminal regressions on one isolated herdr, independently of
+upstream's obsolete chat/More-menu suite. It does not make the full legacy browser lane green.
+Use `scripts/terminal-screen.ts` to inspect SSP screen data in canvas tests, not renderer DOM rows.
+
 ## Checks
 
 Production builds create Brotli (`.br`) and gzip (`.gz`) sidecars for JavaScript and CSS under

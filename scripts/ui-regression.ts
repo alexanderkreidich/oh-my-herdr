@@ -600,7 +600,7 @@ try {
   const fileInputSocket = inputStates.get(paneA)?.socket;
   assert.ok(fileInputSocket, "the current pane has an input-ready attachment");
   await checkTerminalFileInput(page, fileInputSocket);
-  const terminalInput = page.locator(".pane-frame.is-current .xterm-helper-textarea");
+  const terminalInput = page.locator(".pane-frame.is-current .terminal-ime");
   // Chrome on macOS pastes with ⌘V alone: its Ctrl+V pastes nothing, and must send nothing either
   const mac = process.platform === "darwin";
   if (mac) {
@@ -693,7 +693,7 @@ try {
   const focusTerminal = () => until(async () => {
     await terminalInput.focus();
     return page.evaluate(() => new Promise<boolean>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() =>
-      resolve(document.activeElement?.classList.contains("xterm-helper-textarea") ?? false)))));
+      resolve(document.activeElement?.classList.contains("terminal-ime") ?? false)))));
   }, "the terminal holds the focus");
   for (const key of ["ControlOrMeta+Shift+ArrowDown", "ControlOrMeta+Shift+ArrowUp"]) {
     await focusTerminal();
@@ -1785,7 +1785,7 @@ try {
   // reopened right after a creation: its fields are live and Escape puts it away at once
   // The menu restores this terminal on unmount. Record focus at the dialog's DOM commit,
   // before any animation frame can rescue it: Escape may arrive before that first paint.
-  await page.locator(".pane-frame.is-current .xterm-helper-textarea").focus();
+  await page.locator(".pane-frame.is-current .terminal-ime").focus();
   await page.evaluate(() => {
     const observer = new MutationObserver(() => {
       const dialog = document.querySelector(".new-session-modal");
@@ -1816,7 +1816,7 @@ try {
   assert.equal(await tabDialog.getByRole("combobox", { name: "Agent", exact: true }).isDisabled(), true, "a failed launch keeps its created pane available, not a second Start");
   await page.keyboard.press("Escape");
   await tabDialog.waitFor({ state: "hidden" });
-  await page.locator(".pane-frame.is-current .xterm-helper-textarea").focus();
+  await page.locator(".pane-frame.is-current .terminal-ime").focus();
   await page.evaluate(() => {
     const observer = new MutationObserver(() => {
       const dialog = document.querySelector(".new-session-modal");
@@ -2297,7 +2297,7 @@ try {
   await touchPage.getByTitle("Live terminal (⌘⇧J)", { exact: true }).click();
   await touchPage.locator("[data-direct-typing]").waitFor();
   assert.equal(await touchPage.locator(".terminal-input").count(), 0, "a phone starts in direct typing");
-  assert.equal(await touchPage.evaluate(() => document.activeElement?.classList.contains("xterm-helper-textarea") ?? false), false,
+  assert.equal(await touchPage.evaluate(() => document.activeElement?.classList.contains("terminal-ime") ?? false), false,
     "opening the terminal on a phone does not focus the grid, so the keyboard stays down until a tap");
   // the keyboard key is the input line's switch: lit while the line is shown, unlit in direct typing
   const lineKey = touchPage.getByRole("button", { name: "Input line", exact: true });
@@ -2306,7 +2306,7 @@ try {
   const line = touchPage.getByRole("textbox", { name: "Terminal input line", exact: true });
   await line.waitFor();
   assert.equal(await lineKey.getAttribute("aria-pressed"), "true", "the shown input line lights its key");
-  assert.equal(await touchPage.locator(".xterm-helper-textarea").getAttribute("inputmode"), "none");
+  assert.equal(await touchPage.locator(".terminal-ime").getAttribute("inputmode"), "none");
   await line.fill("printf 'line-ok\\n'");
   await line.press("Enter");
   await until(() => touchSent.some((message) => message.type === "submit" && message.typed === true), "input line submit");
@@ -2337,7 +2337,7 @@ try {
   // typing straight into the grid is one tap away, and gives the keyboard back to it
   await touchPage.getByRole("button", { name: "Input line", exact: true }).click();
   assert.equal(await touchPage.locator(".terminal-input").count(), 0);
-  assert.equal(await touchPage.locator(".xterm-helper-textarea").getAttribute("inputmode"), null);
+  assert.equal(await touchPage.locator(".terminal-ime").getAttribute("inputmode"), null);
   await touchPage.getByRole("button", { name: "Input line", exact: true }).click();
   await line.waitFor();
   assert.equal(await line.inputValue(), "unsent 한글 😀", "mode switches preserve the unsent line");

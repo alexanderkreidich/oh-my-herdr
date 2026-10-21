@@ -1,7 +1,8 @@
 /**
  * Local echo on a slow link, measured in a real browser (docs/ROADMAP.md, Phase 5): the page reaches
  * the bridge through a proxy that holds every WebSocket frame DELAY_MS each way, and types a command
- * a key at a time. For each key it times the press to the glyph on screen.
+ * a key at a time. For each key it times the press to the glyph on screen: the screen the view
+ * hands the terminal (its `screen()`, docs/development.md), which restty paints on the next frame.
  *
  * The first key of a line shows only once its echo is back (a guess is confirmed before guesses
  * show); every key after it must show at once, well under the round trip. Then the screen must
@@ -84,10 +85,14 @@ async function timeKey(page: Page, key: string, expected: string): Promise<numbe
   await page.evaluate((expected) => {
     const timing = { pressed: 0, shown: 0 };
     (window as unknown as { keyTiming: typeof timing }).keyTiming = timing;
-    const rows = (): string => document.querySelector(".pane-terminal .xterm-rows")?.textContent?.replace(/\u00a0/g, " ") ?? "";
+    // the cursor's row up to the cursor: a typed space shows there before anything after it does
+    const rows = (): string => {
+      const shown = (document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { text: string; cursor: { row: number; col: number } } }) | null)?.screen?.();
+      return shown ? (shown.text.split("\n")[shown.cursor.row] ?? "").padEnd(shown.cursor.col).slice(0, shown.cursor.col) : "";
+    };
     window.addEventListener("keydown", () => { timing.pressed = performance.now(); }, { capture: true, once: true });
     const poll = (): void => {
-      if (timing.pressed && rows().includes(expected)) timing.shown = performance.now();
+      if (timing.pressed && rows().endsWith(expected)) timing.shown = performance.now();
       else requestAnimationFrame(poll);
     };
     poll();
@@ -96,7 +101,10 @@ async function timeKey(page: Page, key: string, expected: string): Promise<numbe
   const handle = await page.waitForFunction(() => {
     const timing = (window as unknown as { keyTiming: { pressed: number; shown: number } }).keyTiming;
     return timing.shown ? timing.shown - timing.pressed : 0;
-  }, undefined, { timeout: 5000, polling: "raf" });
+  }, undefined, { timeout: 5000, polling: "raf" }).catch(async (error: unknown) => {
+    const shown = await page.evaluate(() => (document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { text: string } }) | null)?.screen?.().text ?? null);
+    throw new Error(`${expected} never showed; the screen: ${JSON.stringify(shown?.trimEnd())}`, { cause: error });
+  });
   return (await handle.jsonValue()) as number;
 }
 
@@ -120,16 +128,16 @@ async function measure(delay: number): Promise<{ first: number; rest: number; ma
     const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${link.port}/`);
     await page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-select`).click();
-    const input = page.locator(".pane-terminal .xterm-helper-textarea").first();
+    const input = page.locator(".pane-frame.is-current .terminal-ime").first();
     await input.waitFor({ state: "attached", timeout: 20_000 });
     // input is ready once the shell's prompt is there and nothing waits on the terminal
-    await page.waitForFunction(() => /\$ *$/.test(document.querySelector(".pane-terminal .xterm-rows")?.textContent?.replace(/\u00a0/g, " ") ?? "")
+    await page.waitForFunction(() => /\$ *$/m.test(((document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { text: string; underlined: number } }) | null)?.screen?.().text ?? "").trimEnd())
       && !document.querySelector(".terminal-banner")?.textContent?.includes("Waiting"), undefined, { timeout: 20_000 });
     // a plain prompt, so what is typed is easy to find
     await input.focus();
     await page.keyboard.type("PS1='$ '; clear");
     await page.keyboard.press("Enter");
-    await page.waitForFunction(() => /^\$ \s*$/.test(document.querySelector(".pane-terminal .xterm-rows")?.textContent?.replace(/\u00a0/g, " ") ?? ""), undefined, { timeout: 20_000 });
+    await page.waitForFunction(() => /^\$\s*$/.test(((document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { text: string; underlined: number } }) | null)?.screen?.().text ?? "").trim()), undefined, { timeout: 20_000 });
     // warm up: the bridge measures the round trip from the screens' acknowledgements
     await page.keyboard.type("true");
     await page.keyboard.press("Enter");
@@ -137,9 +145,9 @@ async function measure(delay: number): Promise<{ first: number; rest: number; ma
     const times = await typeAndTime(page);
     // the program's own echo replaces every guess, and nothing stays underlined
     await page.keyboard.press("Enter");
-    await page.waitForFunction((typed) => (document.querySelector(".pane-terminal .xterm-rows")?.textContent ?? "").includes(typed.replace("echo ", "")), TYPED, { timeout: 10_000 });
+    await page.waitForFunction((typed) => ((document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { text: string; underlined: number } }) | null)?.screen?.().text ?? "").includes(typed.replace("echo ", "")), TYPED, { timeout: 10_000 });
     await page.waitForTimeout(delay * 4);
-    const underlined = await page.locator(".pane-terminal .xterm-rows .xterm-underline-1").count();
+    const underlined = await page.evaluate(() => (document.querySelector(".pane-frame.is-current .restty-terminal") as (HTMLElement & { screen?: () => { underlined: number } }) | null)?.screen?.().underlined ?? 0);
     assert.equal(underlined, 0, "no guess is left underlined once the echo is back");
     await page.keyboard.type("clear");
     await page.keyboard.press("Enter");

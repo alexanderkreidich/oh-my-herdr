@@ -88,7 +88,9 @@ export async function handleWorkspaceRequest(request: Request, url: URL, pathnam
       // collector's structure debounce, and before an agent's start, which can take a minute
       broadcastAll({ type: "session-changed" });
       if (!payload.agent) {
-        return jsonResponse({ workspace_id: workspaceId, pane_id: created.root_pane.pane_id, agent_started: false });
+        return jsonResponse({ workspace_id: workspaceId, pane_id: created.root_pane.pane_id, agent_started: false,
+          ...(inWorkspace ? { tab: created.tab, pane: created.root_pane } : {}),
+        });
       }
       return jsonResponse({ workspace_id: workspaceId, pane_id: created.root_pane.pane_id, ...(await agentLaunch(created.root_pane.pane_id, payload.agent)) });
     } catch (error) {

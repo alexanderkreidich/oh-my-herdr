@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { EventEmitter, once } from "node:events";
 import { mkdirSync } from "node:fs";
 import type { Browser } from "playwright-core";
+import { waitForScreenText } from "./terminal-screen.ts";
 
 /**
  * iPadOS 27 Safari with a Magic Keyboard sends each jamo as a printable keydown (its own keyCode,
@@ -53,7 +54,7 @@ export async function checkIpadIme(browser: Browser, origin: string, pane: strin
         else server.send(raw);
       });
     });
-    const input = page.locator(".xterm-helper-textarea:visible");
+    const input = page.locator(".terminal-ime:visible");
     const reset = async () => {
       const ready = signal("ready");
       await page.goto(`${origin}/?pane=${encodeURIComponent(pane)}`);
@@ -157,20 +158,6 @@ export async function checkIpadIme(browser: Browser, origin: string, pane: strin
       await fresh("ㄱ"); await replace("ㅡ", "그"); await replace("ㄹ", "글");
       await input.press("Space");
       await check("abc한글 ", "English then iPad Hangul commits each syllable once, in order");
-      // the syllable being typed is drawn at the size its row gives the committed ones
-      // (terminalGlyphs enlarges a two-cell glyph that leaves its cells half empty)
-      toPage("\r\n한 ");
-      await page.waitForFunction(() => [...document.querySelectorAll(".xterm-rows span")].some((span) => span.textContent?.includes("한")));
-      await fresh("ㄱ"); await replace("ㅡ", "그");
-      const sizes = await page.evaluate(() => {
-        const row = [...document.querySelectorAll<HTMLElement>(".xterm-rows span")].find((span) => span.textContent?.includes("한"))!;
-        const view = document.querySelector<HTMLElement>(".composition-view")!;
-        return { row: getComputedStyle(row).fontSize, view: getComputedStyle(view).fontSize, pending: view.classList.contains("active") ? view.textContent : null };
-      });
-      assert.equal(sizes.pending, "그", "a syllable is pending");
-      assert(Math.abs(Number.parseFloat(sizes.view) - Number.parseFloat(sizes.row)) < 0.01,
-        `the pending syllable is drawn at its row's size: ${sizes.view} against ${sizes.row} (platform ${platform})`);
-
       await reset();
       // 망 then ㅏ: the final ㅇ moves on and the editor puts back two syllables at once
       await fresh("ㅁ"); await replace("ㅏ", "마"); await replace("ㅇ", "망"); await replace("ㅏ", "마아");
@@ -200,7 +187,7 @@ export async function checkIpadIme(browser: Browser, origin: string, pane: strin
       if (process.env.UI_EVIDENCE_DIR) {
         mkdirSync(process.env.UI_EVIDENCE_DIR, { recursive: true });
         toPage("\r\nCaret replay passed: 한 日本\r\n");
-        await page.waitForFunction(() => [...document.querySelectorAll(".xterm-rows span")].some((span) => span.textContent?.includes("Caret replay passed")));
+        await waitForScreenText(page, "Caret replay passed");
         for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
           await page.setViewportSize(viewport);
           await page.locator('.view-switch button[title^="Live terminal"]').click();

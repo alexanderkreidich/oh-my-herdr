@@ -4,7 +4,7 @@ const scroll = { max_offset_from_bottom: 100, offset_from_bottom: 20, viewport_r
 const cells = (lines: string[]): CellReader => (row, col) => ({ chars: lines[row]?.[col] ?? " ", width: 1 });
 
 describe("herdr viewport overlay", () => {
-  it("maps a native wrapped range without using lost xterm wrap flags", () => {
+  it("maps a native wrapped range without using lost terminal wrap flags", () => {
     const match = { start: { row: 80, col: 3 }, end: { row: 81, col: 1 } };
     expect(visibleFindRects([match], scroll, "abcd", 5, 2, cells(["   ab", "cd   "]), match)).toEqual([
       { row: 0, col: 3, width: 2, current: true }, { row: 1, col: 0, width: 2, current: true },

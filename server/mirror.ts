@@ -53,9 +53,9 @@ export interface MirrorOptions {
 }
 
 /**
- * One screen as bytes for xterm: home, clear, the rows; the last row has no newline, which
+ * One screen as bytes for the browser's terminal: home, clear, the rows; the last row has no newline, which
  * would scroll. Line wrap is off while they are drawn, so a row of the read is a row of the
- * screen whatever xterm makes of its width: a row it counts wider than the grid loses its end
+ * screen whatever the terminal makes of its width: a row it counts wider than the grid loses its end
  * instead of pushing every row below it down, and the rows drawn one by one later
  * (mirrorRows) land where these did. A read can hold more rows than the grid (seen on a
  * headless herdr after a split: the layout said 20 rows, the read gave 40); the last

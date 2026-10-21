@@ -10,7 +10,8 @@ import { SHORTCUTS, bindingDisplayKeys, formatKeys, isMacPlatform, setShortcutRe
 import { MENU_SHORTCUT_KEYS, recordShortcut, shortcutMatchesQuery } from "../lib/shortcutRecorder.ts";
 import { exactChordRisk, isReservedShortcutKey, parseExactChord } from "../lib/shortcutBindings.ts";
 import { CLAUDE_LAUNCH_MODES, CODEX_LAUNCH_MODES, type ClaudeLaunchMode, type CodexLaunchMode } from "../lib/agentLaunchMode.ts";
-import { TERMINAL_FONT_MAX, TERMINAL_FONT_MIN, TERMINAL_WHEEL_SPEED_MAX, TERMINAL_WHEEL_SPEED_MIN, DICTATION_LANGUAGES, VOICE_BUTTONS, useSettings, uiFontSize, type DictationLanguage, type VoiceButton } from "../lib/settings.ts";
+import { TERMINAL_FONT_MAX, TERMINAL_FONT_MIN, TERMINAL_WHEEL_SPEED_MAX, TERMINAL_WHEEL_SPEED_MIN, DICTATION_LANGUAGES, VOICE_BUTTONS, useSettings, uiFontSize, type DictationLanguage, type TerminalRenderer, type VoiceButton } from "../lib/settings.ts";
+import { ghosttyThemeNames } from "../lib/restty/theme.ts";
 import { pickTheme, rowFor, THEME_IDS, type Mode, type ThemeId } from "../lib/themes.ts";
 import { LANGUAGE_NAMES, LANGUAGE_SETTINGS, useLocale, useT } from "../lib/i18n.ts";
 import { useFocusTrap } from "../lib/useFocusTrap.ts";
@@ -285,6 +286,21 @@ function ThemeSelect({ side }: { side: Mode }) {
   );
 }
 
+/** The terminal's colours: the app theme's, or one of Ghostty's (restty's built-in set). */
+function TerminalThemeSelect() {
+  const { settings, update } = useSettings();
+  const t = useT();
+  const names = useMemo(ghosttyThemeNames, []);
+  return (
+    <select id="settings-terminal-theme" className="select settings-select" value={names.includes(settings.terminalThemeName) ? settings.terminalThemeName : ""} onChange={(event) => update({ terminalThemeName: event.target.value })}>
+      <option value="">{t("Match the app")}</option>
+      <optgroup label={t("Ghostty themes")}>
+        {names.map((name) => <option key={name} value={name}>{name}</option>)}
+      </optgroup>
+    </select>
+  );
+}
+
 function AppearancePage() {
   const { settings, update } = useSettings();
   const t = useT();
@@ -327,6 +343,28 @@ function AppearancePage() {
         <Stepper label={t("Interface font size")} value={uiFontSize(settings)} text={`${uiFontSize(settings)}px`} min={UI_FONT_MIN} max={UI_FONT_MAX} decreaseLabel={t("Decrease interface font size")} increaseLabel={t("Increase interface font size")} onChange={(size) => update({ uiFontSize: size })} />
       </SettingsRow>
     </SettingsGroup>
+
+    <SettingsGroup title={t("Terminal")} section="terminal-look">
+      <SettingsRow label={t("Terminal font size")} description={t("Applied to every terminal pane")}>
+        <Stepper label={t("Terminal font size")} value={settings.terminalFontSize} text={`${settings.terminalFontSize}px`} min={TERMINAL_FONT_MIN} max={TERMINAL_FONT_MAX} decreaseLabel={t("Decrease terminal font size")} increaseLabel={t("Increase terminal font size")} onChange={(terminalFontSize) => update({ terminalFontSize })} />
+      </SettingsRow>
+      <SettingsRow label={t("Terminal font")} description={t("Installed fonts, comma-separated and tried in order. The browser has to let the app read your fonts (Browse asks); otherwise the terminal keeps JetBrains Mono.")} wide>
+        <FontFamilyInput value={settings.terminalFontFamily} label={t("Terminal font")} fixedWidthFor="terminal" onCommit={(terminalFontFamily) => update({ terminalFontFamily })} />
+      </SettingsRow>
+      <SettingsRow label={t("Ligatures")} description={t("Draws -> != => and the like as one glyph where the font has them")}>
+        <Toggle label={t("Ligatures")} checked={settings.terminalLigatures} onChange={(terminalLigatures) => update({ terminalLigatures })} />
+      </SettingsRow>
+      <SettingsRow label={t("Terminal theme")} description={t("The app's colours, or one of Ghostty's themes")} htmlFor="settings-terminal-theme" wide>
+        <TerminalThemeSelect />
+      </SettingsRow>
+      <SettingsRow label={t("Renderer")} description={t("Auto draws with WebGPU where the browser has it, and with WebGL2 elsewhere")} htmlFor="settings-terminal-renderer">
+        <select id="settings-terminal-renderer" className="select settings-select" value={settings.terminalRenderer} onChange={(event) => update({ terminalRenderer: event.target.value as TerminalRenderer })}>
+          <option value="auto">{t("Auto")}</option>
+          <option value="webgpu">WebGPU</option>
+          <option value="webgl2">WebGL2</option>
+        </select>
+      </SettingsRow>
+    </SettingsGroup>
     </>
   );
 }
@@ -336,12 +374,6 @@ function TerminalPage({ keyBarButtonRef, onEditKeyBar }: { keyBarButtonRef: RefO
   const t = useT();
   return (
     <SettingsGroup>
-      <SettingsRow label={t("Terminal font size")} description={t("Applied to every terminal pane")}>
-        <Stepper label={t("Terminal font size")} value={settings.terminalFontSize} text={`${settings.terminalFontSize}px`} min={TERMINAL_FONT_MIN} max={TERMINAL_FONT_MAX} decreaseLabel={t("Decrease terminal font size")} increaseLabel={t("Increase terminal font size")} onChange={(terminalFontSize) => update({ terminalFontSize })} />
-      </SettingsRow>
-      <SettingsRow label={t("Terminal font")} description={t("Comma-separated, tried in order. A font this device does not have falls back to the default.")} wide>
-        <FontFamilyInput value={settings.terminalFontFamily} label={t("Terminal font")} fixedWidthFor="terminal" onCommit={(terminalFontFamily) => update({ terminalFontFamily })} />
-      </SettingsRow>
       <SettingsRow label={t("Wheel scroll speed")} description={t("How far one turn of the wheel scrolls the terminal")}>
         <Stepper label={t("Wheel scroll speed")} value={settings.terminalWheelSpeed} text={`${settings.terminalWheelSpeed}×`} min={TERMINAL_WHEEL_SPEED_MIN} max={TERMINAL_WHEEL_SPEED_MAX} decreaseLabel={t("Slower wheel scrolling")} increaseLabel={t("Faster wheel scrolling")} onChange={(terminalWheelSpeed) => update({ terminalWheelSpeed })} />
       </SettingsRow>

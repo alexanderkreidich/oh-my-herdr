@@ -1,19 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
 
-import { TERMINAL_FONT_STACK } from "./fontFamily.ts";
 import { UI_FONT_MAX, UI_FONT_MIN, fontScale, sanitizeUiFontSize } from "./typography.ts";
 import { DEFAULT_SETTINGS, SETTING_SCOPE, chatFontSize, sanitizeSettings, uiFontSize } from "./settings.ts";
-
-const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
-const token = (name: string): string => new RegExp(`${name}:\\s*([^;]+);`).exec(styles)![1]!.trim();
-
-describe("the built-in stacks", () => {
-  it("keep the terminal's stack apart: xterm never takes the bundled code face", () => {
-    expect(TERMINAL_FONT_STACK).not.toContain("JetBrains Mono Web");
-    expect(token("--font-mono")).toContain('"JetBrains Mono Web"');
-  });
-});
 
 describe("interface font size", () => {
   it("is a whole px within the limits, or follows the density", () => {

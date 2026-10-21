@@ -1,7 +1,8 @@
 /**
  * The minimal chrome (docs/ROADMAP.md, Phase 1) in a real browser, on a herdr of its own: the bar
  * holds the sidebar toggle and the tabs as pills and nothing else; the sidebar lists workspaces
- * only; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to.
+ * only; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
+ * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU).
  *
  *   bun run build && bun run check run bun scripts/minimal-ui-regression.ts
  */
@@ -54,10 +55,15 @@ try {
 
   // never a chat, even for a pane that remembered one
   assert.equal(await page.locator(".chat-view, .composer").count(), 0, "the pane shows its terminal");
-  await page.locator(".xterm-helper-textarea").first().waitFor({ state: "attached" });
+  await page.locator(".restty-terminal canvas").first().waitFor({ state: "attached" });
+  await page.locator(".terminal-ime").first().waitFor({ state: "attached" });
+  // restty is up and has drawn the pane's first screen
+  await page.waitForFunction(() => performance.getEntriesByName("restty:ready").length > 0 && performance.getEntriesByName("terminal:first-screen").length > 0, null, { timeout: 20_000 });
+  const backend = await page.evaluate(() => (performance.getEntriesByName("restty:ready")[0] as PerformanceMark).detail?.backend);
+  assert.ok(backend === "webgpu" || backend === "webgl2", `restty draws with WebGPU or WebGL2 (${String(backend)})`);
 
   // Ctrl+F from inside the terminal opens the palette, and the terminal does not get the key
-  await page.locator(".xterm-helper-textarea").first().focus();
+  await page.locator(".terminal-ime").first().focus();
   await page.keyboard.press("Control+f");
   await page.locator(".palette-scrim").waitFor({ timeout: 5_000 });
   await page.keyboard.press("Escape");

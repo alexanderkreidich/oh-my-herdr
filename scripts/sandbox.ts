@@ -72,6 +72,7 @@ if (shot === undefined) {
   const browser = await chromium.launch({ executablePath: chromePath(), args: ["--lang=en-US"] });
   try {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2, colorScheme: flag("--theme") === "light" ? "light" : "dark", locale: "en-US" });
+    await page.addInitScript((theme) => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme })), flag("--theme") === "light" ? "light" : "dark");
     await page.goto(origin);
     await page.waitForSelector(".terminal-host", { timeout: 20_000 });
     await page.waitForTimeout(Number(flag("--wait") ?? 1500));

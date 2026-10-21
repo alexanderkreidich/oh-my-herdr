@@ -79,7 +79,7 @@ async function desktopVideo() {
   // the real terminal, typed into
   await hand.click(row("shell")); await hand.moveTo(1040, 620, 450); await Bun.sleep(500);
   // the terminal's top left (the prompt of a fresh pane) just inside the view, where the output will run
-  const screen = (await page.locator(".xterm-screen").boundingBox())!;
+  const screen = (await page.locator(".restty-terminal").boundingBox())!;
   const zoom = 1.55;
   hand.camera(zoom, screen.x - 16 + VIDEO_DESKTOP.width / zoom / 2, screen.y - 16 + VIDEO_DESKTOP.height / zoom / 2);
   await Bun.sleep(700);

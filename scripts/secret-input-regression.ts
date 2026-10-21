@@ -136,7 +136,7 @@ process.stdin.on("data", chunk => {
         view.setDefaultTimeout(10_000);
         await view.addInitScript((mode) => { localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalInputMode: mode })); }, mode);
         await view.goto(`${origin}/?pane=${encodeURIComponent(pane)}`);
-        await view.locator(".pane-terminal .xterm-screen").waitFor();
+        await view.locator(".pane-terminal .restty-terminal").waitFor();
         if (mode === "line") await view.getByRole("textbox", { name: "Terminal input line", exact: true }).waitFor();
         const frame = () => view.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const gridHeight = () => view.locator(".pane-terminal").evaluate((element) => element.getBoundingClientRect().height);
@@ -157,7 +157,7 @@ process.stdin.on("data", chunk => {
           // A desktop answers the prompt in the grid itself, as in any terminal (#1031): the keys go
           // to the program while the masked input stands by. Regression: on a build that disables
           // stdin for the prompt, the fixture never gets them.
-          await view.locator(".pane-terminal .xterm-screen").click();
+          await view.locator(".pane-terminal .restty-terminal").click();
           await view.keyboard.type("typed-secret");
           await view.keyboard.press("Enter");
           const typedBy = Date.now() + 5000;
@@ -177,7 +177,7 @@ process.stdin.on("data", chunk => {
           await desktop.setOffline(true);
           await view.evaluate(() => (window as any).dropTestSockets());
           await masked.waitFor({ state: "detached" });
-          await view.locator(".pane-terminal .xterm-screen").click();
+          await view.locator(".pane-terminal .restty-terminal").click();
           await view.keyboard.type("offline-secret");
           await view.keyboard.press("Enter");
           await view.locator(".terminal-banner", { hasText: "Not sent: the terminal is not ready, and a password is never held for later." }).waitFor();

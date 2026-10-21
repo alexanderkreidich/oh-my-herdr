@@ -14,6 +14,7 @@ import {
   type Color, type CursorShape, type Frame, type Row, type Style, type WireRow,
 } from "../../shared/ssp.ts";
 import { ModeTracker } from "./modes.ts";
+import { GraphicsSnapshot, GRAPHICS_CELL_WIDTH, GRAPHICS_CELL_HEIGHT } from "./graphics.ts";
 
 /** Grapheme clustering (mode 2027): herdr gives a whole emoji sequence two cells, and so must this screen. */
 const SCREEN_SETUP = "\x1b[?2027h";
@@ -63,6 +64,7 @@ function sameCells(a: ResttyHeadlessSnapshot, b: ResttyHeadlessSnapshot, from: n
 
 export class Screen {
   private readonly modes = new ModeTracker();
+  private readonly graphics = new GraphicsSnapshot();
   private readonly styleIds = new Map<string, number>([[styleKey(PLAIN_STYLE), 0]]);
   private styles: Style[] = [PLAIN_STYLE];
   /** bumped when the style table starts again: every row's key changes with it */
@@ -78,7 +80,7 @@ export class Screen {
 
   static async create(cols: number, rows: number): Promise<Screen> {
     const wasm = await sharedWasm();
-    return new Screen(await createHeadlessTerminal({ wasm, cols, rows, maxScrollbackBytes: 0, replay: false }));
+    return new Screen(await createHeadlessTerminal({ wasm, cols, rows, pixelWidth: cols * GRAPHICS_CELL_WIDTH, pixelHeight: rows * GRAPHICS_CELL_HEIGHT, maxScrollbackBytes: 0, replay: false }));
   }
 
   get cols(): number {
@@ -130,6 +132,7 @@ export class Screen {
   resize(cols: number, rows: number): void {
     if (this.disposed || (cols === this.term.cols && rows === this.term.rows)) return;
     this.term.resize(cols, rows);
+    this.term.setPixelSize(cols * GRAPHICS_CELL_WIDTH, rows * GRAPHICS_CELL_HEIGHT);
     this.revision++;
   }
 
@@ -183,6 +186,7 @@ export class Screen {
       cursor: { row: cursor?.row ?? 0, col: cursor?.col ?? 0, visible: (cursor?.visible ?? 1) === 1, shape, blink: (cursor?.blinking ?? 0) === 1 },
       modes: kitty === modes.kittyKeyboard ? { ...modes } : { ...modes, kittyKeyboard: kitty },
       clip: this.modes.clip,
+      graphics: this.graphics.read(this.term),
     };
     if (snapshot) this.previous = { snapshot, lines, epoch: this.styleEpoch };
     return this.cached;

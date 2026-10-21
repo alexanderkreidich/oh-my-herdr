@@ -33,7 +33,7 @@ const root = document.documentElement;
  * unobstructed height. Comparing visualViewport with innerHeight alone misses browsers
  * that resize both. The relative cutoff excludes ordinary browser/status-bar insets;
  * Safari has no exact keyboard-visibility API, so small floating keyboards cannot be
- * inferred this way. xterm's automatically focused helper only counts in direct typing.
+ * inferred this way. The terminal's automatically focused field only counts in direct typing.
  * Once up, the keyboard counts as up until its occlusion ends, whatever holds the focus: a
  * field unmounted under it (the chat's composer as the lens switches) or a tap that moves the
  * focus to a button leaves the keyboard on screen for its own hide animation, and the shell,
@@ -56,7 +56,7 @@ root.append(topInset);
 // viewport while leaving only its ordinary visual inset.
 const unobstructedHeights = new Map<number, { large: number; height: number }>();
 const typing = (element: Element | null): boolean =>
-  (element instanceof HTMLTextAreaElement && (!element.classList.contains("xterm-helper-textarea") || element.closest("[data-direct-typing]") !== null))
+  (element instanceof HTMLTextAreaElement && (!element.classList.contains("terminal-ime") || element.closest("[data-direct-typing]") !== null))
   || (element instanceof HTMLInputElement && !["button", "checkbox", "radio", "range", "submit", "reset", "file", "color"].includes(element.type))
   || (element instanceof HTMLElement && element.isContentEditable);
 const syncKeyboard = (): void => {
@@ -99,6 +99,6 @@ window.addEventListener("pageshow", () => {
 });
 // focus moving from one field to the next blurs first: read where it landed
 document.addEventListener("focusout", () => window.setTimeout(syncKeyboard, 0));
-// Switching xterm direct typing leaves its helper focused; observe the mode change.
+// Switching direct typing leaves the terminal's field focused; observe the mode change.
 new MutationObserver(syncKeyboard).observe(root, { attributes: true, subtree: true, attributeFilter: ["data-direct-typing"] });
 syncKeyboard();

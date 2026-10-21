@@ -2,28 +2,14 @@
  * The terminal and chat font families the user types in Settings: a comma-separated list in
  * fallback order, like VS Code's `editor.fontFamily`. The list goes in front of the built-in
  * fonts, never in place of them, so a typo or a font missing on this device falls back as if
- * nothing had been typed.
+ * nothing had been typed: the chat's in CSS, the terminal's as installed faces restty loads
+ * ahead of its bundled JetBrains Mono (lib/restty/fonts.ts).
  */
-
-// Symbols Nerd Font Mono is the app's own (PaneTerminal.css) and covers only the private use
-// area, so it never sizes a cell: it draws the Nerd Font icons a prompt or `ls` replacement
-// prints, which no system font has and Safari will not take from a font the user installed.
-// It stays first, ahead of a chosen font too, so the icons draw even when that font has none.
-// The chrome's code stack (--font-mono, lib/typography.ts) opens with it for the same reason
-export const SYMBOLS_FONT = '"Symbols Nerd Font Mono"';
-// xterm sizes every cell from the first matching font, so a proportional one (Malgun Gothic)
-// must never win it: it stays behind the generic monospace as a per-glyph Hangul fallback
-const TERMINAL_TEXT_FONTS =
-  '"JetBrains Mono", "Fira Code", "D2Coding", Menlo, Monaco, "Cascadia Mono", Consolas, "Noto Sans Mono CJK KR", monospace, "Malgun Gothic"';
-export const TERMINAL_FONT_STACK = `${SYMBOLS_FONT}, ${TERMINAL_TEXT_FONTS}`;
 
 /** the chat's own stack: --font-ui in src/styles.css */
 const CHAT_FONT_STACK = "var(--font-ui)";
 
 export const FONT_FAMILY_MAX_CHARS = 200;
-
-/** How long a font change waits for its faces before the grid is measured with whatever loaded. */
-export const FONT_LOAD_TIMEOUT_MS = 3000;
 
 // what could close the declaration or the style element, escape, or hide in the value
 const UNSAFE_CHARS = /[;{}<>\\\u0000-\u001f\u007f]/g;
@@ -32,6 +18,7 @@ const QUOTES = /["']/g;
 const IDENTIFIER = /^-?[A-Za-z_\u0080-￿][\w\u0080-￿-]*$/;
 // unquoted, these are keywords rather than names and make the whole list invalid
 const RESERVED = new Set(["inherit", "initial", "unset", "revert", "revert-layer", "default"]);
+const GENERIC_FAMILIES = new Set(["monospace", "sans-serif", "serif", "system-ui", "ui-monospace", "ui-sans-serif", "ui-serif", "cursive", "fantasy", "emoji", "math"]);
 
 function normalizeName(raw: string): string {
   const trimmed = raw.trim();
@@ -63,38 +50,15 @@ export function sanitizeFontFamily(value: unknown): string {
   return family;
 }
 
-/** The xterm `fontFamily`: the icon font, the user's list, then the built-in text fonts. */
-export function terminalFontStack(family: string): string {
-  const chosen = sanitizeFontFamily(family);
-  return chosen === "" ? TERMINAL_FONT_STACK : `${SYMBOLS_FONT}, ${chosen}, ${TERMINAL_TEXT_FONTS}`;
+/** The names of a family list as sanitizeFontFamily writes it: quotes off, CSS generic families out (no font is called that). */
+export function familyNames(family: string): string[] {
+  return sanitizeFontFamily(family).split(",")
+    .map((name) => name.trim().replace(/^"(.*)"$/, "$1"))
+    .filter((name) => name !== "" && !GENERIC_FAMILIES.has(name.toLowerCase()));
 }
 
 /** The chat body's `font-family`, or null to keep the UI font. */
 export function chatFontStack(family: string): string | null {
   const chosen = sanitizeFontFamily(family);
   return chosen === "" ? null : `${chosen}, ${CHAT_FONT_STACK}`;
-}
-
-// Latin and Hangul, so a font split by unicode-range loads the faces the grid measures and shows
-const FONT_LOAD_SAMPLE = "Mg가";
-
-/**
- * Resolves once the faces of `stack` are loaded, or failed, or the timeout passed: never rejects,
- * since a font that cannot load falls back like a missing one. An installed font has no face to
- * load and resolves at once.
- */
-export async function loadFontStack(stack: string, sizePx: number, timeoutMs = FONT_LOAD_TIMEOUT_MS): Promise<void> {
-  const fonts = typeof document === "undefined" ? undefined : document.fonts;
-  if (!fonts || typeof fonts.load !== "function") return;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      fonts.load(`${sizePx}px ${stack}`, FONT_LOAD_SAMPLE),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, timeoutMs); }),
-    ]);
-  } catch {
-    /* the grid is measured with the fallback, as for a font that is not installed */
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
 }

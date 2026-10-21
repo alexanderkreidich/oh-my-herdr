@@ -131,7 +131,7 @@ try {
   }
 
   // Then the original document accepts fresh input, renders it and clears the ended state.
-  await page.locator(`[data-layout-pane="${pane}"] .xterm-helper-textarea`).focus();
+  await page.locator(`[data-layout-pane="${pane}"] .terminal-ime`).focus();
   const output = frame(socket, "fresh command output", (m) => m.type === "pty-data" && m.pane_id === pane && m.data.includes("REATTACH-OK"));
   // The echoed command does not contain the output sentinel, so only execution satisfies it.
   await page.keyboard.type("printf 'REATTACH-%s\\n' OK");

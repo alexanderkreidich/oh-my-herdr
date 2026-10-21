@@ -54,7 +54,7 @@ function onShortcutDown(event: KeyboardEvent): void {
   if (!isVoiceShortcut(event, isMacPlatform())) return;
   const target = shortcutTarget();
   if (!target) return;
-  // a focused terminal must not also get the key (xterm would send ^@ for it)
+  // a focused terminal must not also get the key (the terminal would send ^@ for it)
   event.preventDefault();
   event.stopPropagation();
   if (event.repeat || held) return;

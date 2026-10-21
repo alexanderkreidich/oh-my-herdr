@@ -16,14 +16,24 @@ export async function checkCommandBackspace(browser: Browser, origin: string, pa
   try {
     const page = await context.newPage();
     const inputs: Array<{ pane_id: string; text: string }> = [];
+    let ready = false;
+    page.on("websocket", (socket) => socket.on("framereceived", ({ payload }) => {
+      const message = JSON.parse(String(payload));
+      if (message.type === "input-ready" && message.pane_id === paneId) ready = message.ready !== false;
+    }));
     page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
       const message = JSON.parse(String(payload));
       if (message.type === "input") inputs.push(message);
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
     await page.locator(".conn-live").waitFor();
-    const input = page.locator(".xterm-helper-textarea");
+    const input = page.locator(".terminal-ime");
     await input.waitFor();
+    const readyDeadline = Date.now() + 10_000;
+    while (!ready) {
+      assert(Date.now() < readyDeadline, "terminal input ready before testing Backspace");
+      await page.waitForTimeout(20);
+    }
     for (const [shortcut, expected] of [
       ["Backspace", "\x7f"],
       ["Meta+Backspace", "\x15"],
@@ -119,13 +129,23 @@ process.stdin.on("data", (data) => {
   try {
     const page = await nonMac.newPage();
     const inputs: string[] = [];
+    let ready = false;
+    page.on("websocket", (socket) => socket.on("framereceived", ({ payload }) => {
+      const message = JSON.parse(String(payload));
+      if (message.type === "input-ready" && message.pane_id === paneId) ready = message.ready !== false;
+    }));
     page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
       const message = JSON.parse(String(payload));
       if (message.type === "input") inputs.push(message.text);
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
     await page.locator(".conn-live").waitFor();
-    await page.locator(".xterm-helper-textarea").press("Meta+Backspace");
+    const readyDeadline = Date.now() + 10_000;
+    while (!ready) {
+      assert(Date.now() < readyDeadline, "non-macOS terminal input ready before testing Backspace");
+      await page.waitForTimeout(20);
+    }
+    await page.locator(".terminal-ime").press("Meta+Backspace");
     await page.waitForTimeout(300);
     assert.deepEqual(inputs, ["\x7f"], "non-macOS Meta+Backspace keeps its native sequence");
     console.log("PASS non-macOS Meta+Backspace keeps native DEL");

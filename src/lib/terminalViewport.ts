@@ -35,7 +35,7 @@ const quote = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\
 
 /** Native history cells are inclusive. Validate against the attach buffer before painting:
  * the HTTP reply and terminal bytes have no shared delivery sequence. Never use DOM text,
- * xterm's lost wrap flags or its selection to fabricate/paint a native match. */
+ * the terminal's lost wrap flags or its selection to fabricate/paint a native match. */
 export function visibleFindRects(matches: readonly PaneFindMatch[], scroll: PaneScrollInfo, query: string, cols: number, rows: number, read: CellReader, current?: PaneFindMatch | null): FindCellRect[] {
   if (!query || !validScroll(scroll) || scroll.viewport_rows !== rows || cols <= 0) return [];
   const top = scroll.max_offset_from_bottom - scroll.offset_from_bottom;

@@ -2,7 +2,7 @@
  * Touch key bar under the terminal (KeyBar.tsx): the keys a soft keyboard has
  * no room for. Hidden on fine-pointer desktops, shown on coarse pointers and
  * narrow viewports. A key never takes focus (KeyBar.tsx cancels pointerdown and
- * mousedown), so the soft keyboard stays up and xterm's textarea keeps every
+ * mousedown), so the soft keyboard stays up and the terminal's field keeps every
  * keystroke; the row scrolls sideways when the keys outgrow the viewport, and the
  * edge that hides more keys fades out (KeyBar.tsx sets data-overflow-start/end).
  */

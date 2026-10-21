@@ -1,8 +1,9 @@
 /** The links a terminal draws: web addresses, opened in a new tab, and nothing else. */
 
 /**
- * A URI this app opens in a new tab: an http(s) address and nothing else. Both link paths in
- * PaneTerminal answer to it, so a line crafted to look like a link cannot hand the browser a
+ * A URI this app opens in a new tab: an http(s) address and nothing else. The terminal draws an
+ * OSC 8 link only when this says so (the synced screen's drawing, shared/ssp-display.ts, writes
+ * any other as plain text), so a line crafted to look like a link cannot hand the browser a
  * scheme of its own choosing (`javascript:`, `data:`, an OS handler).
  */
 export function isWebLink(uri: string): boolean {
@@ -21,6 +22,22 @@ export function openWebLink(uri: string): void {
   link.click();
 }
 
+/** A web address in a row's text, ending before the punctuation that closes the sentence around it. */
+const WEB_ADDRESS = /https?:\/\/[^\s"'<>`]+?(?=[.,;:!?)\]}'"]*(?:[\s"'<>`]|$))/gi;
+
+/**
+ * The web address a cell of a row is part of, or null: `cells` holds each column's text (a wide
+ * character's second column is ""). An address printed as plain text is a link, as a terminal shows it.
+ */
+export function webLinkAt(cells: readonly string[], col: number): string | null {
+  // one character per column, so a match's index is a column; anything an address cannot hold is a blank
+  const row = cells.map((text) => (text.length === 1 && text.charCodeAt(0) < 0x7f ? text : " ")).join("");
+  for (const match of row.matchAll(WEB_ADDRESS)) {
+    if (col >= match.index && col < match.index + match[0].length) return match[0];
+  }
+  return null;
+}
+
 /** The local path a file URI names (Markdown reads file links with it), or null. */
 export function fileUriPath(uri: string): string | null {
   // a control character belongs to no path, and URL drops a trailing one before it can be seen
@@ -36,30 +53,4 @@ export function fileUriPath(uri: string): string | null {
   } catch {
     return null; // malformed URI input is not a file link
   }
-}
-
-/**
- * The OSC 8 handler that keeps a hyperlink this app cannot open from being drawn as one (#739).
- * xterm underlines every linked cell with a dashed line, and herdr's attach stream keeps a row's
- * link open over the padding after its text, so OmO's side panel (`omo-panel:` links, which only
- * OmO's own mouse handling follows) showed a dotted rule under every file row to the panel's edge.
- * Here such a link opens nothing (the link handler takes http(s) addresses only), so its
- * opening is swallowed. Not while a link xterm holds is still open: xterm ends that one only on
- * the next OSC 8 it is handed, and it would run on over the new link's text.
- * `handler` answers true to swallow the sequence, false to hand it to xterm; `reset` goes with
- * `term.reset()`, which ends xterm's open link too.
- */
-export function hyperlinkFilter(): { handler: (payload: string) => boolean; reset: () => void } {
-  let open = false;
-  return {
-    handler: (payload) => {
-      const separator = payload.indexOf(";");
-      if (separator === -1) return false; // malformed: xterm ignores it, and so does `open`
-      const uri = payload.slice(separator + 1);
-      if (uri !== "" && !open && !isWebLink(uri)) return true;
-      open = uri !== "";
-      return false;
-    },
-    reset: () => { open = false; },
-  };
 }

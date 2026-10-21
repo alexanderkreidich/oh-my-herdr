@@ -113,7 +113,7 @@ process.stdout.write(Array.from({ length: 400 }, (_, n) => "history " + n + "\\r
     if (omo) assert.equal(reported.agent_status, "blocked");
     await page.locator(".conn-live").waitFor();
     await page.getByText("Waiting for terminal input…", { exact: true }).waitFor({ state: "hidden" });
-    const screen = page.locator(".xterm-screen").first();
+    const screen = page.locator(".restty-terminal").first();
     await screen.waitFor();
     const bounds = await screen.boundingBox();
     assert.ok(bounds);
@@ -164,7 +164,7 @@ process.stdout.write(Array.from({ length: 400 }, (_, n) => "history " + n + "\\r
         && (await response.json()).scroll?.viewport_rows !== after.viewport_rows);
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForFunction(() => {
-        const screen = document.querySelector(".xterm-screen");
+        const screen = document.querySelector(".restty-terminal");
         return screen && screen.getBoundingClientRect().width <= innerWidth;
       });
       await resizedMetrics;

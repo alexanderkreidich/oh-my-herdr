@@ -496,7 +496,7 @@ export interface PaneReadOptions {
 
 export async function paneRead(options: PaneReadOptions, socketPath?: string): Promise<PaneReadResult> {
   const { paneId, source = "visible", format = "text", lines, stripAnsi, timeoutMs } = options;
-  // Escape sequences must survive for xterm.js, so an ansi read defaults to strip_ansi:false.
+  // Escape sequences must survive for the browser's terminal, so an ansi read defaults to strip_ansi:false.
   const strip = stripAnsi ?? format !== "ansi";
   // Recent text reads can scroll an idle agent's TUI to harvest history. ANSI reads
   // only snapshot stored rows, so automatic polling must convert those to text locally.

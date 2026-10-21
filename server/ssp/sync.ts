@@ -10,6 +10,8 @@
  */
 import { diffFrames, type Frame, type FrameDiff } from "../../shared/ssp.ts";
 import type { Screen } from "./screen.ts";
+import { graphicsMetadata, type GraphicsChunk } from "../../shared/ssp-assets.ts";
+import { GraphicsSender } from "./assets.ts";
 
 /** after a change, output that follows within this joins the same frame */
 export const SEND_MIN_DELAY_MS = 3;
@@ -25,6 +27,7 @@ const MAX_BUFFERED_BYTES = 256 * 1024;
 export interface SyncTarget {
   /** sends the difference; false when the connection can take nothing more */
   send(diff: FrameDiff): boolean;
+  sendAsset?(chunk: GraphicsChunk, stream: string): boolean;
   /** bytes the connection has queued */
   buffered(): number;
   /** the newest of this client's input the program has had time to echo */
@@ -65,11 +68,15 @@ export class SyncSender {
   /** consecutive timeouts double the next one */
   private backoff = 1;
   private disposed = false;
+  private readonly assets: GraphicsSender | null;
 
   constructor(private readonly screen: Screen, private readonly target: SyncTarget, resume?: { stream: string; base: Frame }, private readonly now: () => number = Date.now) {
     this.stream = resume?.stream ?? newStream();
     this.acked = resume?.base ?? null;
+    this.assets = target.sendAsset ? new GraphicsSender({ send: (chunk) => target.sendAsset!(chunk, this.stream), buffered: () => target.buffered() }, now) : null;
   }
+
+  assetAck(key: string, offset: number): boolean { return this.assets?.ack(key, offset) ?? false; }
 
   /** the smoothed round trip in ms, once measured */
   get rtt(): number | null {
@@ -97,16 +104,24 @@ export class SyncSender {
   ack(num: number): boolean {
     if (this.disposed) return true;
     if (!Number.isInteger(num)) return false;
-    if (this.acked && num <= this.acked.num) return true;
+    if (this.acked && num <= this.acked.num) { this.syncAssets(this.acked); return true; }
     const index = this.sent.findIndex((entry) => entry.frame.num === num);
     if (index === -1) return num <= (this.sent.at(-1)?.frame.num ?? this.acked?.num ?? 0);
     const entry = this.sent[index]!;
     if (!entry.again) this.measure(this.now() - entry.at);
     this.acked = entry.frame;
+    this.syncAssets(entry.frame);
     this.sent.splice(0, index + 1);
     this.backoff = 1;
     this.tick();
     return true;
+  }
+
+  private syncAssets(frame: Frame): void {
+    if (!this.assets) return;
+    const wanted = new Set(frame.graphics?.assets.map((asset) => asset.key));
+    const source = this.screen.frame().graphics;
+    this.assets.setScene(wanted.size ? { assets: source?.assets.filter((asset) => wanted.has(asset.key)) ?? [], placements: frame.graphics?.placements ?? [] } : undefined);
   }
 
   private measure(rtt: number): void {
@@ -156,7 +171,8 @@ export class SyncSender {
       // the acknowledgement, the socket draining (drain()) or the timeout takes it from here
       return this.wait(newest ? newest.at + timeout : now + SEND_INTERVAL_MAX_MS);
     }
-    const frame = this.screen.frame();
+    const current = this.screen.frame();
+    const frame: Frame = { ...current, graphics: this.assets ? graphicsMetadata(current.graphics) : undefined };
     const base = overdue ? this.acked : (newest?.frame ?? this.acked);
     const diff = diffFrames(this.stream, base, frame, this.acked?.num ?? 0, echo, (id) => this.screen.styleOf(id));
     if (this.srtt !== null) diff.rtt = Math.round(this.srtt);
@@ -181,6 +197,7 @@ export class SyncSender {
   /** The connection's queue drained: a sender waiting on it may go on. */
   drain(): void {
     this.tick();
+    this.assets?.drain();
   }
 
   /** What a client coming back on a new connection may resume from. */
@@ -193,6 +210,7 @@ export class SyncSender {
 
   dispose(): void {
     this.disposed = true;
+    this.assets?.dispose();
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
   }

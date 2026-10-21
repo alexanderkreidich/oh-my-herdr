@@ -308,7 +308,7 @@ export class HerdrSocket {
       for (const handler of this.beforeReplayHandlers) handler();
       for (const [paneId, state] of this.attached) {
         state.releaseSizeOwed = !state.keepSize;
-        this.rawSend({ type: "attach", pane_id: paneId, cols: state.cols, rows: state.rows, sync: "ssp", ...(state.keepSize ? { keep_size: true } : {}), ...(state.resume ? { resume: state.resume } : {}) });
+        this.rawSend({ type: "attach", pane_id: paneId, cols: state.cols, rows: state.rows, sync: "ssp", graphics: true, ...(state.keepSize ? { keep_size: true } : {}), ...(state.resume ? { resume: state.resume } : {}) });
       }
     });
 
@@ -657,7 +657,7 @@ export class HerdrSocket {
     this.outputSeen.delete(paneId);
     this.inputReady.delete(paneId);
     this.attached.set(paneId, { cols, rows, keepSize, releaseSizeOwed: !keepSize });
-    this.send({ type: "attach", pane_id: paneId, cols, rows, sync: "ssp", ...(keepSize ? { keep_size: true } : {}) });
+    this.send({ type: "attach", pane_id: paneId, cols, rows, sync: "ssp", graphics: true, ...(keepSize ? { keep_size: true } : {}) });
     if (this.stopped) {
       this.stopped = false;
       this.stoppedHidden = false;
@@ -665,6 +665,11 @@ export class HerdrSocket {
       this.shownAt = 0;
       this.connect();
     }
+  }
+
+  /** Pixel receipts are never queued or replayed; a reconnect starts a fresh bounded transfer. */
+  sspAssetAck(paneId: string, stream: string, key: string, offset: number): void {
+    if (this.connected && this.attached.has(paneId)) this.rawSend({ type: "ssp-asset-ack", pane_id: paneId, stream, key, offset });
   }
 
   /**

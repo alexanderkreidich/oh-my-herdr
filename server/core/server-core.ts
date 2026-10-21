@@ -78,6 +78,7 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
       "take-over": terminalFrames["take-over"],
       detach: terminalFrames.detach,
       "ssp-ack": terminalFrames["ssp-ack"],
+      "ssp-asset-ack": terminalFrames["ssp-asset-ack"],
       resize: terminalFrames.resize,
       "release-size": terminalFrames["release-size"],
       input: inputFrames.input,
