@@ -2,9 +2,9 @@
 /**
  * PTY host: runs ONE command on a real pseudo-terminal and bridges it to its parent.
  *
- * Bun.Terminal exists, but Bun 1.4.2 has no public output pause/resume API.
- * node-pty supplies that control so browser acknowledgements can stop PTY reads.
- * Keep it in Node: loading node-pty in Bun has panicked (oven-sh/bun#18546).
+ * Bun.Terminal exists, but Bun 1.4.2 has no public output pause/resume API, and reads
+ * stop here while the pipe to the parent is full. Keep node-pty in Node: loading it in
+ * Bun has panicked (oven-sh/bun#18546).
  * It comes as @lydell/node-pty, node-pty 1.1.0 repackaged with a prebuilt binary per
  * platform (Linux x64/arm64, macOS, Windows), so installing never runs node-gyp: a PC
  * without Python and a C++ toolchain installs the same as one with them.
@@ -14,8 +14,6 @@
  *   stdin:  newline-delimited JSON control frames
  *             {"t":"i","d":"<text>"}          write text into the pty
  *             {"t":"r","c":<cols>,"r":<rows>} resize the pty
- *             {"t":"p","paused":true|false} pause/resume output (input stays live)
- *             {"t":"w"}                       signal SIGWINCH to the child at its current size
  *   stdout: raw pty bytes, unmodified
  *   stderr: diagnostics only
  *   exit:   mirrors the child's exit code
@@ -40,22 +38,11 @@ const term = pty.spawn(command, args, {
   env: { ...process.env, TERM: "xterm-256color" },
 });
 
-let parentPaused = false;
-let stdoutBlocked = false;
-function updateReading() {
-  if (parentPaused || stdoutBlocked) term.pause();
-  else term.resume();
-}
+// output waits in the pty, not in this process, while the parent reads behind
 term.onData((chunk) => {
-  if (!process.stdout.write(chunk)) {
-    stdoutBlocked = true;
-    updateReading();
-  }
+  if (!process.stdout.write(chunk)) term.pause();
 });
-process.stdout.on("drain", () => {
-  stdoutBlocked = false;
-  updateReading();
-});
+process.stdout.on("drain", () => term.resume());
 
 let exited = false;
 term.onExit(({ exitCode }) => {
@@ -90,12 +77,6 @@ function handle(line) {
   try {
     if (frame.t === "i" && typeof frame.d === "string") term.write(frame.d);
     else if (frame.t === "r") term.resize(clamp(frame.c), clamp(frame.r));
-    // a resize to the same size changes nothing the kernel signals: the child is told directly
-    else if (frame.t === "w") { if (process.platform !== "win32") process.kill(term.pid, "SIGWINCH"); }
-    else if (frame.t === "p" && typeof frame.paused === "boolean") {
-      parentPaused = frame.paused;
-      updateReading();
-    }
   } catch (error) {
     process.stderr.write(`pty-host: ${error?.message ?? error}\n`);
   }

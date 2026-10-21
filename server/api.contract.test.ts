@@ -1976,8 +1976,7 @@ describe("WebSocket roles and status push", () => {
         new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => { off(); reject(new Error("hidden client did not answer")); }, 15_000);
           const off = hidden.on((message) => {
-            const ack = message.type === "pty-data" ? hidden.outputAcknowledgement(message) : undefined;
-            ack?.();
+            if (message.type === "ssp") hidden.sspAck(message.pane_id, message.stream, message.num);
             if (matches(message)) { clearTimeout(timeout); off(); resolve(); }
           });
         });

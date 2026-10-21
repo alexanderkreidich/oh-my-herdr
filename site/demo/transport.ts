@@ -1061,7 +1061,7 @@ class DemoSocket extends EventTarget {
         this.typed(message.pane_id, "\r");
         this.push({ type: "submit-result", id: message.id!, pane_id: message.pane_id, ok: true });
         break;
-      default: /* pty-ack: nothing to do in the demo */
+      default: /* ssp-ack: the demo streams raw pty-data, which nothing acknowledges */
     }
   }
 

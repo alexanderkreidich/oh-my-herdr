@@ -46,6 +46,7 @@ import { pinchFontSize } from "../lib/pinchFontSize.ts";
 import { narrowPaneFontSize } from "../lib/narrowPaneFont.ts";
 import { finalStep, HERDR_MOUSE_SCROLL_LINES, wheelSteps } from "../lib/wheelSteps.ts";
 import { attachTerminalWheel } from "../lib/terminalWheel.ts";
+import { SspView } from "../lib/ssp/view.ts";
 
 /** How long a resize must rest before the grid refits and the pty follows it. */
 const RESIZE_SETTLE_MS = 120;
@@ -195,6 +196,8 @@ export function PaneTerminal({
   const pageScroll = useRef<((direction: -1 | 1) => void) | null>(null);
   const lineScroll = useRef<((lines: number) => void) | null>(null);
   const termRef = useRef<Terminal | null>(null);
+  /** the pane's screen as the bridge syncs it, drawn into the terminal with local echo on top (lib/ssp) */
+  const viewRef = useRef<SspView | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   /** OSC 8 links this app cannot open are not drawn (#739); its state ends with `term.reset()` */
   const hyperlinksRef = useRef(hyperlinkFilter());
@@ -878,16 +881,19 @@ export function PaneTerminal({
     // On unless turned off in Settings -> Terminal -> Clipboard from a pane: vim, tmux and Claude Code
     // copy this way, but any process in the pane, an agent's tool calls included, can plant text the
     // user then pastes somewhere else.
+    const writeClipboard = (payload: string): void => {
+      if (!osc52AllowedRef.current) return;
+      const text = parseOsc52(payload);
+      if (text === null) return;
+      void navigator.clipboard?.writeText(text).then(
+        () => noteClipboard("copied to clipboard"),
+        () => noteClipboard("clipboard write blocked by the browser"),
+      );
+    };
+    // a synced screen carries the write as an event (the view hands it over); the raw stream of an
+    // older bridge carries the sequence itself
     const osc52 = term.parser.registerOscHandler(52, (payload) => {
-      if (osc52AllowedRef.current) {
-        const text = parseOsc52(payload);
-        if (text !== null) {
-          void navigator.clipboard?.writeText(text).then(
-            () => noteClipboard("copied to clipboard"),
-            () => noteClipboard("clipboard write blocked by the browser"),
-          );
-        }
-      }
+      writeClipboard(payload);
       return true;
     });
     // OSC 8: a hyperlink this app cannot open (OmO's `omo-panel:` rows) is not drawn as one (#739)
@@ -907,6 +913,17 @@ export function PaneTerminal({
     socketRef.current = socket;
     // a socket this page was connected to before this mount (a switch back to the PC): a wait is a reconnect
     setConnectedBefore(connectedSockets.has(socket));
+    // The screen comes as differences from the bridge's own (shared/ssp.ts): the view keeps it and
+    // draws it into xterm, which shows nothing else.
+    const view = new SspView({
+      write: (data) => term.write(data),
+      ack: (stream, num) => { const pane = paneRef.current; if (pane) socket.sspAck(pane, stream, num); },
+      clipboard: writeClipboard,
+      linkAllowed: isWebLink,
+    });
+    viewRef.current = view;
+    view.setSize(term.cols, term.rows);
+    const onViewResize = term.onResize(({ cols, rows }) => view.setSize(cols, rows));
     let outputGeneration = 0;
     // Bumped by readiness receipts: revokes only the proof that queued output is current, never
     // the parse itself (a masked prompt must still keep typing out of every draft).
@@ -942,16 +959,39 @@ export function PaneTerminal({
           outputLifetime++;
         }
       }
-      if (message.type === "pty-data") {
+      if (message.type === "ssp" || message.type === "pty-data") {
         if (message.pane_id !== paneRef.current || releasedRef.current) return;
-        // raw pty bytes: append, never repaint, so xterm keeps the screen and selection
-        const acknowledge = socket.outputAcknowledgement(message);
         const owner = message.pane_id;
         const generation = outputGeneration;
         const lifetime = outputLifetime;
         const target = outputTargetRef.current;
-        term.write(message.data, () => {
-          acknowledge?.();
+        let screenText: () => string;
+        let columns: number;
+        if (message.type === "ssp") {
+          view.receive(message);
+          const screen = view.screen;
+          if (!screen) return;
+          screenText = () => view.text();
+          columns = screen.cols;
+        } else {
+          // an older bridge streams raw pty bytes: append, never repaint, and the view's drawing is gone
+          view.invalidate();
+          term.write(message.data);
+          screenText = () => {
+            const lines: string[] = [];
+            const buffer = term.buffer.active;
+            for (let row = 0; row < buffer.length; row++) {
+              const line = buffer.getLine(row);
+              const text = line?.translateToString(!buffer.getLine(row + 1)?.isWrapped) ?? "";
+              if (line?.isWrapped && lines.length) lines[lines.length - 1] += text;
+              else lines.push(text);
+            }
+            return lines.join("\n");
+          };
+          columns = term.cols;
+        }
+        // after xterm parsed what was just written
+        term.write("", () => {
           if (disposed) return;
           if (paneRef.current !== owner || generation !== outputGeneration) {
             // output of a pane left behind, or of a dropped connection, was still queued in xterm
@@ -965,18 +1005,10 @@ export function PaneTerminal({
             setParsedTarget(target);
           }
           followCursor();
-          const lines: string[] = [];
-          const buffer = term.buffer.active;
-          for (let row = 0; row < buffer.length; row++) {
-            const line = buffer.getLine(row);
-            const text = line?.translateToString(!buffer.getLine(row + 1)?.isWrapped) ?? "";
-            if (line?.isWrapped && lines.length) lines[lines.length - 1] += text;
-            else lines.push(text);
-          }
           // A masked prompt does not close the grid: a desktop answers it there, as in any terminal,
           // and the masked input stands by for a phone (#1031). onData keeps what is typed then out
           // of every draft.
-          const prompt = secretPrompt(lines.join("\n"), term.cols);
+          const prompt = secretPrompt(screenText(), columns);
           secretRef.current = prompt;
           term.options.disableStdin = observeRef.current || heldRef.current;
           setSecret((previous) => previous?.pane === owner && previous.prompt === prompt ? previous : prompt ? { pane: owner, prompt } : null);
@@ -984,6 +1016,7 @@ export function PaneTerminal({
       } else if (message.type === "watch-data") {
         // a read-only view drawn for this grid: written as it comes, never acknowledged
         if (message.pane_id !== paneRef.current || !releasedRef.current || !watchingRef.current) return;
+        view.invalidate();
         term.write(message.data);
       } else if (message.type === "watch-end") {
         // the view ended: the last screen stays, and the banner says the tab is paused
@@ -1590,6 +1623,8 @@ export function PaneTerminal({
     const watch = (pane: string): void => {
       const generation = ++outputGeneration;
       // Reset in stream order: the attach's queued writes must not draw over the view.
+      view.reset();
+      view.invalidate();
       term.write("\x1bc", () => {
         if (disposed || paneRef.current !== pane || generation !== outputGeneration) return;
         modifyOtherKeysRef.current = 0;
@@ -1644,6 +1679,8 @@ export function PaneTerminal({
       outputRecovering = false;
       // Reset in stream order: synchronous reset would let old queued writes draw afterward.
       if (!cachedReleaseRef.current) {
+        view.reset();
+        view.invalidate();
         term.write("\x1bc", () => {
           if (disposed || paneRef.current !== current || generation !== outputGeneration) return;
           modifyOtherKeysRef.current = 0;
@@ -1807,6 +1844,9 @@ export function PaneTerminal({
       offDisconnect();
       osc52.dispose();
       osc8.dispose();
+      onViewResize.dispose();
+      view.dispose();
+      viewRef.current = null;
       modifyOtherKeysSet.dispose();
       modifyOtherKeysOff.dispose();
       if (clipboardTimerRef.current !== null) window.clearTimeout(clipboardTimerRef.current);
@@ -1981,6 +2021,8 @@ export function PaneTerminal({
     setDraft(saved);
     draftPaneRef.current = paneId;
     term.reset();
+    viewRef.current?.reset();
+    viewRef.current?.invalidate();
     hyperlinksRef.current.reset();
     modifyOtherKeysRef.current = 0;
     if (!paneId) return;

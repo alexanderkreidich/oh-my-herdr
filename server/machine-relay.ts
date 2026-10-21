@@ -1,6 +1,6 @@
 import { authenticatedWebSocket } from "./remote-websocket.ts";
 import type { ServerWebSocket } from "bun";
-import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "./output-window.ts";
+import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "./transport-limits.ts";
 import { OUTPUT_STALLED_CLOSE_CODE } from "../shared/terminal-flow.ts";
 import type { MachineManager } from "./machines.ts";
 

@@ -27,14 +27,12 @@ export function writeLine(sink: import("bun").FileSink, line: string): boolean {
 
 /**
  * A command running on a real PTY, hosted by a Node sidecar (see pty-host.mjs for
- * why output flow control currently needs node-pty, and why it is the prebuilt
- * @lydell/node-pty distribution of it).
+ * why it is node-pty, and the prebuilt @lydell/node-pty distribution of it).
  */
 export class PtySession {
   readonly exited: Promise<void>;
   private readonly proc: ReturnType<typeof Bun.spawn>;
   private closed = false;
-  private paused = false;
 
   constructor(private readonly options: PtySessionOptions) {
     this.proc = Bun.spawn(
@@ -87,26 +85,6 @@ export class PtySession {
 
   resize(cols: number, rows: number): void {
     this.send({ t: "r", c: cols, r: rows });
-  }
-
-  /**
-   * Tells the command its window changed without changing it (SIGWINCH at the same size): a resize
-   * to the size the pty already has delivers no signal. Ignored on Windows, which has no SIGWINCH.
-   */
-  winch(): void {
-    this.send({ t: "w" });
-  }
-
-  pause(): void {
-    if (this.paused || this.closed) return;
-    this.paused = true;
-    this.send({ t: "p", paused: true });
-  }
-
-  resume(): void {
-    if (!this.paused || this.closed) return;
-    this.paused = false;
-    this.send({ t: "p", paused: false });
   }
 
   kill(): void {

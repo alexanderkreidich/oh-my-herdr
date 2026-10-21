@@ -61,9 +61,9 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
   /** connections whose page is in use (`presence`), relayed ones included: while any is, no web push goes out */
   const present = new Set<Client>();
   let stopped = false;
-  const { attachments, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, terminalFrames } = createTerminalRegistry({ options, clients, stopped: () => stopped, terminalAttach, holdFor, heldRetry, retryFor, relookupFor, end: (client, reason) => end(client, reason) });
+  const { attachments, reconcileOutput, closeAttachment, detachClaimed, dropClaims, sight, poke, drainOutput, inputApplied, terminalFrames } = createTerminalRegistry({ options, clients, stopped: () => stopped, terminalAttach, holdFor, heldRetry, retryFor, relookupFor, end: (client, reason) => end(client, reason) });
 
-  const { serialize, lastTyped, inputFrames } = createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight, poke, terminalAttach, terminalAttachKnown: () => terminalAttachKnown, mayType: (client) => mayType(client), authorizeSocket: (client) => authorizeSocket(client) });
+  const { serialize, lastTyped, inputFrames } = createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight, poke, inputApplied, terminalAttach, terminalAttachKnown: () => terminalAttachKnown, mayType: (client) => mayType(client), authorizeSocket: (client) => authorizeSocket(client) });
 
   const submitFrames = createSubmit({ options, attachments, serialize, lastTyped, terminalAttach, authorizeSocket: (client) => authorizeSocket(client), SUBMIT_DEADLINE_MS, TYPED_SETTLE_MS, SUBMIT_DELAY_MS });
 
@@ -77,7 +77,7 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
       attach: terminalFrames.attach,
       "take-over": terminalFrames["take-over"],
       detach: terminalFrames.detach,
-      "pty-ack": terminalFrames["pty-ack"],
+      "ssp-ack": terminalFrames["ssp-ack"],
       resize: terminalFrames.resize,
       "release-size": terminalFrames["release-size"],
       input: inputFrames.input,
@@ -92,7 +92,7 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
     sidecar, push, logPushError, clientSnapshot, machines, broadcastAll, collector, websocket,
     /** once the server listens */
     start(): void {
-      // ACKs can stop arriving entirely (a suspended tab). Bound the pause even then.
+      // a client of the raw stream whose transport stays backed up is closed even when no output comes
       outputTimer = setInterval(() => {
         for (const paneId of attachments.keys()) reconcileOutput(paneId);
       }, 100);

@@ -75,12 +75,12 @@ try {
   console.log("PASS workspace, input, keys and read over the Windows bridge");
 
   const { ws, frames } = await connectWs(machineId);
-  ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, flow_control: "ack" }));
+  ws.send(JSON.stringify({ type: "attach", pane_id: paneId, cols: 80, rows: 24, sync: "ssp" }));
   const grid = (await until(async () => frames, (list) => list.some((m) => m.type === "pane-geometry" && m.pane_id === paneId), "the pane's grid")).find((m) => m.type === "pane-geometry");
   console.log("attach ->", JSON.stringify(grid));
   assert.ok(grid?.type === "pane-geometry" && grid.fixed === true, "a mirrored pane keeps its own grid");
   ws.send(JSON.stringify({ type: "input", pane_id: paneId, text: "echo ws-input-ok\r" }));
-  await until(async () => frames, (list) => list.some((m) => m.type === "pty-data" && m.data.includes("ws-input-ok")), "typing shows in the mirrored terminal");
+  await until(async () => frames, (list) => list.some((m) => m.type === "ssp" && m.lines.some(([, line]) => line.t.includes("ws-input-ok"))), "typing shows in the mirrored terminal");
   console.log("PASS the terminal lens mirrors the Windows pane's screen, typing included");
 
   await api(path, "PATCH", { enabled: false });

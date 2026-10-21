@@ -27,31 +27,6 @@ describe("PtySession", () => {
     expect(await printed).toContain("[" + sentinel + "]");
   }, 10000);
 
-  it("signals SIGWINCH to the command without changing its size", async () => {
-    if (process.platform === "win32") return;
-    let output = "";
-    let session: PtySession | undefined;
-    const done = new Promise<void>((resolve) => {
-      session = new PtySession({
-        command: "node", args: ["-e", `
-          process.on("SIGWINCH", () => process.stdout.write("WINCH " + process.stdout.columns + "x" + process.stdout.rows, () => process.exit(0)));
-          process.stdout.write("READY");
-          setInterval(() => {}, 1000);
-        `],
-        cols: 40, rows: 5,
-        onData: (data) => {
-          output += data;
-          if (output.includes("READY") && !output.includes("WINCH")) session?.winch();
-        },
-        onExit: () => resolve(),
-      });
-    });
-    try {
-      await done;
-      expect(output).toContain("WINCH 40x5");
-    } finally { session?.kill(); }
-  }, 10000);
-
   it("delivers split UTF-8 and the entire final burst before reporting the exit code", async () => {
     const expected = "한글🙂\u001b[31m끝\u001b[0m".repeat(100_000);
     let output = "";
@@ -73,61 +48,13 @@ describe("PtySession", () => {
     } finally { session?.kill(); }
   }, 15000);
 
-  it("stops output reads while keeping Ctrl+C input live, then resumes without loss", async () => {
-    let bytes = 0;
-    let outputTail = "";
-    let session!: PtySession;
-    let stopped = false;
-    const done = new Promise<number | null>((resolve) => {
-      session = new PtySession({
-        command: "node", args: ["-e", `
-          process.stdin.setRawMode(true);
-          let running = true;
-          process.stdin.on("data", data => {
-            if (data.includes(3)) {
-              running = false;
-              process.stdout.write("STOPPED", () => process.exit(0));
-            }
-          });
-          const chunk = "x".repeat(16384);
-          function pump() {
-            if (!running) return;
-            if (process.stdout.write(chunk)) setImmediate(pump);
-            else process.stdout.once("drain", pump);
-          }
-          pump();
-        `],
-        cols: 80, rows: 24,
-        onData: (data) => {
-          bytes += Buffer.byteLength(data);
-          outputTail = (outputTail + data).slice(-32);
-          if (!stopped && bytes >= 65536) { stopped = true; session.pause(); }
-        }, onExit: resolve,
-      });
-    });
-    try {
-      const deadline = Date.now() + 5000;
-      while (!stopped && Date.now() < deadline) await Bun.sleep(10);
-      expect(stopped).toBe(true);
-      await Bun.sleep(150); // allow the already-read pipe tail to arrive
-      const pausedBytes = bytes;
-      await Bun.sleep(200);
-      expect(bytes).toBe(pausedBytes);
-      session.write("\x03");
-      await Bun.sleep(50);
-      session.resume();
-      expect(await done).toBe(0);
-      expect(outputTail).toEndWith("STOPPED");
-    } finally { session.kill(); }
-  }, 15000);
-
-  it("reaps both processes when the last client leaves with output paused", async () => {
+  it("reaps both processes when the last client leaves a busy command", async () => {
     const tag = `herdr-pty-kill-${crypto.randomUUID()}`;
     let painted = false;
     const session = new PtySession({
       command: "node", args: ["-e", `/* ${tag} */ setInterval(() => process.stdout.write("x".repeat(4096)), 5);`],
       cols: 80, rows: 24,
-      onData: () => { painted = true; session.pause(); }, onExit: () => {},
+      onData: () => { painted = true; }, onExit: () => {},
     });
     try {
       const started = Date.now();
