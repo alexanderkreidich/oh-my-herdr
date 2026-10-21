@@ -369,6 +369,10 @@ export function PaneTerminal({
     }
   }, [active, observing]);
 
+  // local echo guesses only while typing goes to the program, and never at a masked prompt
+  const predicting = connected && inputReady && !observing && !secretActive && !held && !ended && !released;
+  useEffect(() => { viewRef.current?.setPredicting(predicting); }, [predicting]);
+
   const noteClipboard = useCallback((note: string) => {
     if (clipboardTimerRef.current !== null) window.clearTimeout(clipboardTimerRef.current);
     setClipboardNote(note);
@@ -913,8 +917,8 @@ export function PaneTerminal({
     socketRef.current = socket;
     // a socket this page was connected to before this mount (a switch back to the PC): a wait is a reconnect
     setConnectedBefore(connectedSockets.has(socket));
-    // The screen comes as differences from the bridge's own (shared/ssp.ts): the view keeps it and
-    // draws it into xterm, which shows nothing else.
+    // The screen comes as differences from the bridge's own (shared/ssp.ts): the view keeps it,
+    // guesses at what typing will show, and draws both into xterm, which shows nothing else.
     const view = new SspView({
       write: (data) => term.write(data),
       ack: (stream, num) => { const pane = paneRef.current; if (pane) socket.sspAck(pane, stream, num); },
@@ -1258,17 +1262,24 @@ export function PaneTerminal({
       // cannot take now goes the way typing does below, as an arrow always did.
       const arrow = chord === null && !pasting && !composingRef.current && !compositionCommitPendingRef.current && key?.startsWith("Arrow")
         ? terminalChord(key, NO_STICKY_MODIFIERS) : null;
-      if (arrow !== null && socket.sendKeys(current, [arrow])) return;
+      if (arrow !== null && socket.sendKeys(current, [arrow])) {
+        view.key(key!, socket.lastInputSeq(current));
+        return;
+      }
       if (chord !== null) {
         // Shortcuts are never retained as offline text or replayed later: a chord the
         // terminal cannot take now (not ready, disconnected) is told, not dropped in silence
         if (!socket.sendKeys(current, [chord])) {
           const t = tRef.current; // the language of now, not of the attach
           setInputError(t("Not sent: the terminal is not ready for keys."));
-        }
+        } else view.key(chord, socket.lastInputSeq(current));
         return;
       }
-      if (socket.sendInput(current, input)) return;
+      if (socket.sendInput(current, input)) {
+        // local echo: what typing will show is drawn now, and checked against the bridge's screen
+        view.typed(input, socket.lastInputSeq(current));
+        return;
+      }
       if (secret) {
         const t = tRef.current;
         setInputError(t("Not sent: the terminal is not ready, and a password is never held for later."));

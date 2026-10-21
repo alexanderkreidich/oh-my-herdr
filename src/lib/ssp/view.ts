@@ -1,16 +1,21 @@
 /**
  * One terminal's side of the State Synchronization Protocol (shared/ssp.ts): the screens the bridge
- * sent for the pane, and the drawing of the newest into the terminal renderer (shared/ssp-display.ts).
+ * sent for the pane, the local echo laid over the newest one (predict.ts), and the drawing of the
+ * result into the terminal renderer (shared/ssp-display.ts).
  *
  * The renderer only ever draws what this view writes: the bridge's screen, cut or padded to the
- * renderer's own grid while the two differ (a resize on its way).
+ * renderer's own grid while the two differ (a resize on its way), with the guesses on top.
  */
 import {
-  PLAIN_STYLE, applyDiff, blankRow, decodeRow, encodeRow, frameText, makeRow,
+  PLAIN_STYLE, STYLE_INVISIBLE, UNDERLINE_MASK, UNDERLINE_SHIFT, UNDERLINE_SINGLE,
+  applyDiff, blankRow, decodeRow, encodeRow, frameText, makeRow,
   type Cell, type Frame, type FrameDiff, type Row, type Style,
 } from "../../../shared/ssp.ts";
 import { TerminalDisplay } from "../../../shared/ssp-display.ts";
+import { PredictionEngine, type PredictionDisplay } from "./predict.ts";
 
+/** how often outstanding guesses are checked again while no screen comes */
+const PREDICTION_TICK_MS = 50;
 /** frames this view keeps beyond the ones the sender may still name as a base */
 const MAX_FRAMES = 32;
 
@@ -25,21 +30,28 @@ export interface SspViewOptions {
   linkAllowed?(uri: string): boolean;
   /** the newest screen changed (after it was drawn) */
   screen?(frame: Frame): void;
+  predictions?: PredictionDisplay;
 }
 
 export class SspView {
   private stream: string | null = null;
   private readonly frames = new Map<number, Frame>();
   private readonly styles = new Map<number, Style>([[0, PLAIN_STYLE]]);
+  /** client-local styles (negative ids): an underlined copy of a stream style, for flagged guesses */
+  private readonly underlinedIds = new Map<number, number>();
   private newest: Frame | null = null;
+  private echo = 0;
   private clipSeq: number | null = null;
   private readonly display: TerminalDisplay;
+  readonly predictions: PredictionEngine;
   private cols = 0;
   private rows = 0;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
 
   constructor(private readonly options: SspViewOptions) {
     this.display = new TerminalDisplay(options.linkAllowed ? { linkAllowed: options.linkAllowed } : {});
+    this.predictions = new PredictionEngine({ display: options.predictions ?? "adaptive" });
   }
 
   /** the newest screen the bridge sent */
@@ -57,6 +69,7 @@ export class SspView {
     if (cols === this.cols && rows === this.rows) return;
     this.cols = cols;
     this.rows = rows;
+    this.predictions.reset();
     this.display.invalidate();
     this.draw();
   }
@@ -71,7 +84,10 @@ export class SspView {
     this.stream = null;
     this.frames.clear();
     this.newest = null;
+    this.echo = 0;
     this.clipSeq = null;
+    this.predictions.reset();
+    this.stopTimer();
   }
 
   /** A difference from the bridge: applied to the screen it names, acknowledged, drawn. */
@@ -84,6 +100,7 @@ export class SspView {
       this.frames.clear();
       this.newest = null;
       this.clipSeq = null;
+      this.predictions.reset();
     }
     const base = diff.base === 0 ? null : this.frames.get(diff.base);
     if (diff.base !== 0 && !base) {
@@ -102,6 +119,8 @@ export class SspView {
     }
     const first = this.newest === null;
     this.newest = frame;
+    this.echo = Math.max(this.echo, diff.echo);
+    if (typeof diff.rtt === "number") this.predictions.setRtt(diff.rtt);
     this.options.ack(diff.stream, frame.num);
     // a clipboard write is an event: the one a joining client finds on the screen is old news
     if (first) this.clipSeq = frame.clip?.seq ?? null;
@@ -109,19 +128,70 @@ export class SspView {
       this.clipSeq = frame.clip.seq;
       this.options.clipboard?.(frame.clip.payload);
     }
+    this.predictions.confirm(frame, this.echo);
     this.draw();
     this.options.screen?.(frame);
   }
 
-  /** Draws the newest screen, if anything changed since the last drawing. */
+  /** Text that went to the pty as input `seq`: guessed at, drawn at once. */
+  typed(data: string, seq: number): void {
+    if (!this.newest) return;
+    this.predictions.typed(data, seq, this.newest);
+    this.draw();
+  }
+
+  /** A key that went through herdr's key API as input `seq`. */
+  key(name: string, seq: number): void {
+    if (!this.newest) return;
+    this.predictions.key(name, seq, this.newest);
+    this.draw();
+  }
+
+  /** Guessing is off (a masked prompt, observing, no input): what was guessed goes. */
+  setPredicting(enabled: boolean): void {
+    this.predictions.setEnabled(enabled);
+    this.draw();
+  }
+
+  /** Draws the newest screen with the guesses on top, if anything changed since the last drawing. */
   draw(): void {
     if (this.disposed || !this.newest || this.cols <= 0 || this.rows <= 0) return;
-    const output = this.display.draw(fitFrame(this.newest, this.cols, this.rows), (id) => this.styles.get(id) ?? PLAIN_STYLE);
+    const shown = this.predictions.overlay(this.newest, (id) => this.underlined(id));
+    const output = this.display.draw(fitFrame(shown, this.cols, this.rows), (id) => this.styles.get(id) ?? PLAIN_STYLE);
     if (output) this.options.write(output);
+    if (this.predictions.pending) this.startTimer();
+    else this.stopTimer();
+  }
+
+  private underlined(id: number): number {
+    let derived = this.underlinedIds.get(id);
+    if (derived === undefined) {
+      const style = this.styles.get(id) ?? PLAIN_STYLE;
+      derived = -(this.underlinedIds.size + 1);
+      this.styles.set(derived, { ...style, flags: (style.flags & ~UNDERLINE_MASK & ~STYLE_INVISIBLE) | (UNDERLINE_SINGLE << UNDERLINE_SHIFT) });
+      this.underlinedIds.set(id, derived);
+    }
+    return derived;
+  }
+
+  private startTimer(): void {
+    if (this.timer !== null) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      if (!this.newest) return;
+      this.predictions.confirm(this.newest, this.echo);
+      this.draw();
+    }, PREDICTION_TICK_MS);
+  }
+
+  private stopTimer(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
   }
 
   dispose(): void {
     this.disposed = true;
+    this.stopTimer();
   }
 }
 
