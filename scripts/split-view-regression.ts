@@ -482,13 +482,8 @@ export async function checkSplitView(browser: Browser, origin: string): Promise<
       await settled(page);
       await isActive(page, "left");
       const grids = await page.evaluate((pane) => [...document.querySelectorAll<HTMLElement>(`[data-layout-pane="${pane}"]`)].map((frame) => {
-        const screen = frame.querySelector<HTMLElement>(".xterm-screen")!;
-        const rows = frame.querySelector<HTMLElement>(".xterm-rows")!;
-        const style = getComputedStyle(rows);
-        const canvas = document.createElement("canvas");
-        const measure = canvas.getContext("2d")!;
-        measure.font = `${style.fontSize} ${style.fontFamily}`;
-        return { cols: Math.round(parseFloat(screen.style.width) / measure.measureText("W").width), rows: rows.childElementCount };
+        const shown = (frame.querySelector(".restty-terminal") as (HTMLElement & { screen?: () => { cols: number; rows: number } }) | null)?.screen?.();
+        return { cols: shown?.cols ?? 0, rows: shown?.rows ?? 0 };
       }), first);
       assert.equal(grids.length, 2);
       assert.ok(grids[0]!.cols > 0 && grids[0]!.rows > 0, "the active half has a measurable grid");
@@ -506,7 +501,7 @@ export async function checkSplitView(browser: Browser, origin: string): Promise<
       await current.waitFor();
       // typed before the PC says the pane takes input, a line is held for the user to send: wait for that word
       await until(page, () => frames.some((frame) => frame === `< input-ready ${first}`), "the surviving terminal's input-ready");
-      await current.locator(".xterm-helper-textarea").focus();
+      await current.locator(".terminal-ime").focus();
       /** waits, with a bound, for a typed line to show in the pane */
       const reaches = async (text: string, when: string): Promise<void> => {
         const end = Date.now() + 15_000;
@@ -524,7 +519,7 @@ export async function checkSplitView(browser: Browser, origin: string): Promise<
       await page.waitForFunction(() => document.querySelectorAll(".pane-slot").length === 1);
       await settled(page);
       // one pane again: its slot has no side
-      await page.locator(".pane-frame.is-current .pane-terminal:not(.is-idle) .xterm-helper-textarea").focus();
+      await page.locator(".pane-frame.is-current .pane-terminal:not(.is-idle) .terminal-ime").focus();
       await page.keyboard.type("echo split-ok-43\n");
       await reaches("split-ok-43", "after the duplicate half closed");
       assert.deepEqual(errors, []);
@@ -642,7 +637,7 @@ export async function checkSplitView(browser: Browser, origin: string): Promise<
       });
       await splitRight(page, right, { newTargetAtDrop: true });
       await page.locator("#split-drop-cover").evaluate((cover) => cover.remove());
-      await half(page, "right").locator(".xterm").waitFor();
+      await half(page, "right").locator(".restty-terminal").waitFor();
       assert.deepEqual(errors, []);
       console.log("PASS a drop on a node that replaced the hovered one still opens the half");
     }

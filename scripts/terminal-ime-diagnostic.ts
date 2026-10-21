@@ -56,7 +56,7 @@ function installTrace(pane: string): void {
     document.addEventListener(type, (event) => {
       if (!(event.target instanceof HTMLTextAreaElement)) return;
       const box = event.target;
-      if (box.id !== "ime-control" && !box.classList.contains("xterm-helper-textarea")) return;
+      if (box.id !== "ime-control" && !box.classList.contains("terminal-ime")) return;
       const key = event as KeyboardEvent;
       const input = event as InputEvent;
       trace({

@@ -110,7 +110,7 @@ try {
       // the split tab shows one pane on the phone, the other mounted behind it; the phone turns
       const shell = await page.locator(".pane-frame.is-hidden").getAttribute("data-layout-pane") as string;
       const sibling = await page.locator(".pane-frame:not(.is-hidden)").getAttribute("data-layout-pane") as string;
-      await page.locator(`.pane-frame:not(.is-hidden)[data-layout-pane="${sibling}"] .xterm-rows`).waitFor();
+      await page.locator(`.pane-frame:not(.is-hidden)[data-layout-pane="${sibling}"] .restty-terminal`).waitFor();
       await page.waitForTimeout(1_000);
       await page.evaluate(() => { (window as unknown as Recorded).sent = []; });
       await page.setViewportSize({ width: 700, height: 390 });

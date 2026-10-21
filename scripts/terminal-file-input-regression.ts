@@ -29,7 +29,7 @@ export async function checkTerminalFileInput(page: Page, socket: WebSocket): Pro
 
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
   await page.evaluate((text) => navigator.clipboard.writeText(text), path);
-  await host.locator(".xterm-helper-textarea").focus();
+  await host.locator(".terminal-ime").focus();
   const pasted = input();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+v" : "Control+v");
   assert.equal(unbracket(await pasted), path);
@@ -43,7 +43,7 @@ export async function checkTerminalFileInput(page: Page, socket: WebSocket): Pro
       const event = type === "drop"
         ? new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: data })
         : new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
-      element.querySelector(".xterm-helper-textarea")!.dispatchEvent(event);
+      element.querySelector(".terminal-ime")!.dispatchEvent(event);
     }, eventType);
     const response = await uploaded;
     assert.equal(response.status(), 200);

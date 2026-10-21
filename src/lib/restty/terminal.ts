@@ -374,9 +374,9 @@ export class ResttyTerminal {
     if (this.element.contains(document.activeElement) && document.activeElement instanceof HTMLElement) document.activeElement.blur();
   }
 
-  /** Copies restty's selection (the visible cells it covers); false when there is none or the clipboard refused. */
-  copySelection(): Promise<boolean> {
-    return this.runtime?.interaction.copySelectionToClipboard() ?? Promise.resolve(false);
+  /** Selects the word at a point on the page, as restty's own double click does; false where there is none. */
+  selectWordAt(clientX: number, clientY: number): boolean {
+    return this.runtime?.interaction.selectWordAtClientPoint(clientX, clientY) ?? false;
   }
 
   onResize(listener: (cols: number, rows: number) => void): () => void {

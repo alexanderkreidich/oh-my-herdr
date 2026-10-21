@@ -766,11 +766,11 @@ const TAKES: Record<string, Take> = {
       marks.add("shell pane opened (replay starts)");
       // off the row (its hover actions clear) and never over the terminal
       await hand.moveTo(160, 590, 800);
-      await until(page, marks, "tests pass line", () => /4 pass/.test(document.querySelector(".xterm-rows")?.textContent ?? ""), 8000);
+      await until(page, marks, "tests pass line", () => /4 pass/.test((document.querySelector(".restty-terminal") as (HTMLElement & { screen?: () => { text: string } }) | null)?.screen?.().text ?? ""), 8000);
       await Bun.sleep(3000);
     },
     check: async (page) => {
-      const text = await page.evaluate(() => document.querySelector(".xterm-rows")?.textContent ?? "");
+      const text = await page.evaluate(() => (document.querySelector(".restty-terminal") as (HTMLElement & { screen?: () => { text: string } }) | null)?.screen?.().text ?? "");
       if (/\[<\d+;\d+;\d+[Mm]/.test(text)) throw new Error("R5: mouse reports reached the terminal");
     },
   },

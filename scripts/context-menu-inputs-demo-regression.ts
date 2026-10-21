@@ -108,7 +108,7 @@ try {
       await dismissPaneMenu(page);
 
       // the find bar's query field (Mod+Shift+F)
-      await frame.locator(".xterm-screen").click();
+      await frame.locator(".restty-terminal").click();
       await page.keyboard.press("Control+Shift+F");
       const query = frame.locator(".find-bar input");
       await query.waitFor();
@@ -120,7 +120,7 @@ try {
       await query.waitFor({ state: "detached" });
 
       // control: the pane's own surface (the terminal screen) is the app's pane menu
-      seen.screen = await rightClick(page, frame.locator(".xterm-screen"));
+      seen.screen = await rightClick(page, frame.locator(".restty-terminal"));
       const menu = page.locator(PANE_MENU);
       await menu.waitFor();
 

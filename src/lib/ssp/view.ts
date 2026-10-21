@@ -64,6 +64,19 @@ export class SspView {
     return this.newest ? frameText(this.newest).join("\n") : "";
   }
 
+  /** What the terminal shows: the newest screen with the guesses on top, its cursor, and how many of its cells are underlined. */
+  shown(): { text: string; cursor: { row: number; col: number }; underlined: number } {
+    if (!this.newest) return { text: "", cursor: { row: 0, col: 0 }, underlined: 0 };
+    const frame = this.predictions.overlay(this.newest, (id) => this.underlined(id));
+    let underlined = 0;
+    for (const line of frame.lines) {
+      for (const cell of decodeRow(line.wire, frame.cols)) {
+        if (cell.width > 0 && ((this.styles.get(cell.style) ?? PLAIN_STYLE).flags & UNDERLINE_MASK) !== 0) underlined++;
+      }
+    }
+    return { text: frameText(frame).join("\n"), cursor: { row: frame.cursor.row, col: frame.cursor.col }, underlined };
+  }
+
   /** The renderer's grid: frames are cut or padded to it. A change redraws everything. */
   setSize(cols: number, rows: number): void {
     if (cols === this.cols && rows === this.rows) return;

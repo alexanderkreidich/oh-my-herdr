@@ -113,7 +113,7 @@ try {
   await until(async () => (await line.inputValue()) === "", "the sent line was not cleared");
   results.push({ name: "input line send during composition", text: readFileSync(received, "utf8") });
   await page.getByRole("button", { name: "Input line", exact: true }).tap();
-  await page.locator(".xterm-helper-textarea").tap();
+  await page.locator(".terminal-ime").tap();
   await keyboardReady();
   for (const [name, sequence, expected] of [
     ["word commit", "gksrmf_", "한글 "],

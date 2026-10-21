@@ -57,7 +57,7 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(request) {
       : css;
     return new Response(fixtureCss.replace(/env\(safe-area-inset-bottom,\s*0px\)/g, `${inset}px`), { headers: { "content-type": "text/css" } });
   }
-  return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="stylesheet" href="/styles.css?inset=${url.searchParams.get("inset") ?? "0"}${url.searchParams.has("short") ? "&short" : ""}"><style>.terminal-host{display:flex;flex-direction:column}.fixture-chat{flex:1;min-height:0}.xterm-helper-textarea{position:absolute;width:1px;height:1px;opacity:0}</style></head><body><div class="app"><div class="app-body"><div class="terminal-host"><div class="fixture-chat"></div><div class="composer"><textarea aria-label="Message"></textarea></div><textarea class="xterm-helper-textarea"></textarea></div></div></div><script src="/viewport.js"></script></body></html>`, { headers: { "content-type": "text/html" } });
+  return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="stylesheet" href="/styles.css?inset=${url.searchParams.get("inset") ?? "0"}${url.searchParams.has("short") ? "&short" : ""}"><style>.terminal-host{display:flex;flex-direction:column}.fixture-chat{flex:1;min-height:0}.terminal-ime{position:absolute;width:1px;height:1px;opacity:0}</style></head><body><div class="app"><div class="app-body"><div class="terminal-host"><div class="fixture-chat"></div><div class="composer"><textarea aria-label="Message"></textarea></div><textarea class="terminal-ime"></textarea></div></div></div><script src="/viewport.js"></script></body></html>`, { headers: { "content-type": "text/html" } });
 } });
 let browser: Browser | undefined;
 try {
@@ -154,7 +154,7 @@ try {
         await checkState(page, true, 210, 21);
         await geometry(page, 372, 393, 393);
         await checkState(page, false, 393, 21);
-        await page.locator(".xterm-helper-textarea").focus();
+        await page.locator(".terminal-ime").focus();
         await geometry(page, 210, 393, 393);
         await checkState(page, false, 393, 21); // automatic xterm focus does not raise keyboard state
         await page.locator(".terminal-host").evaluate((el) => el.setAttribute("data-direct-typing", ""));

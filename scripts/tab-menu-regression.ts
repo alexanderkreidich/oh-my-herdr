@@ -14,7 +14,7 @@ const TAB = "Tab 1";
 const evidence = process.env.UI_EVIDENCE_DIR;
 const frameSelector = (id: string) => `[data-layout-pane=${JSON.stringify(id)}]`;
 const frame = (page: Page, id: string) => page.locator(frameSelector(id));
-const screen = (page: Page, id: string) => frame(page, id).locator(".xterm-screen");
+const screen = (page: Page, id: string) => frame(page, id).locator(".restty-terminal");
 
 async function until(check: () => boolean | Promise<boolean>, label: string): Promise<void> {
   const deadline = Date.now() + 10_000;
@@ -88,8 +88,8 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     const left = await rect(frame(page, first), "the first pane");
     const right = await rect(frame(page, second), "the second pane");
     assert.ok(left.right <= right.left + 2 && Math.abs(left.top - right.top) < 2, "the panes follow herdr's right split");
-    const firstTerm = await frame(page, first).locator(".xterm").elementHandle();
-    const secondTerm = await frame(page, second).locator(".xterm").elementHandle();
+    const firstTerm = await frame(page, first).locator(".restty-terminal").elementHandle();
+    const secondTerm = await frame(page, second).locator(".restty-terminal").elementHandle();
 
     // The menu remains a real Tab stop without taking Shift+F10 away from terminal programs.
     const paneButton = frame(page, first).locator(".pane-frame-menu");
@@ -148,7 +148,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     await tabMenu.waitFor({ state: "detached" });
     assert.equal(await tab.evaluate((node) => node === document.activeElement), true, "the button's menu returns focus to the tab");
     // Escape leaves keyboard focus on the tab, which keeps its button in view until the focus moves on.
-    await frame(page, first).locator(".xterm-helper-textarea").focus();
+    await frame(page, first).locator(".terminal-ime").focus();
     await pointerOffStrip();
     await stripMenu.waitFor({ state: "hidden" });
     await page.locator(".tab-strip-add").focus();
@@ -170,7 +170,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     // the focus crossed from the tab to it: the same keyboard route must hold without any transition.
     await page.emulateMedia({ reducedMotion: "reduce" });
     try {
-      await frame(page, first).locator(".xterm-helper-textarea").focus();
+      await frame(page, first).locator(".terminal-ime").focus();
       await pointerOffStrip();
       await stripMenu.waitFor({ state: "hidden" });
       assert.equal(await stripMenu.evaluate((node) => getComputedStyle(node).transitionDuration), "0s", "reduced motion leaves the menu button no transition");
@@ -190,7 +190,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
       await tabMenu.waitFor({ state: "detached" });
       assert.equal(await tab.evaluate((node) => node === document.activeElement), true, "reduced motion: Escape returns focus to the tab");
     } finally { await page.emulateMedia({ reducedMotion: null }); }
-    await frame(page, first).locator(".xterm-helper-textarea").focus();
+    await frame(page, first).locator(".terminal-ime").focus();
     await pointerOffStrip();
     await stripMenu.waitFor({ state: "hidden" });
     await tab.click({ button: "right" });
@@ -253,13 +253,13 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
       await page.mouse.move(to.left + 2, to.top + to.height / 2, { steps: 8 });
       if (release) await page.mouse.up();
     };
-    await frame(page, first).locator(".xterm-helper-textarea").focus();
+    await frame(page, first).locator(".terminal-ime").focus();
     await dragInactiveBeforeFirst();
     await until(async () => JSON.stringify(await order()) === JSON.stringify(movedOrder), "a drag changes native tab order");
     assert.deepEqual((await sessionSnapshot()).tabs.filter((entry) => entry.workspace_id === nativeTab.workspace_id).map((entry) => entry.tab_id), movedOrder);
     await currentPane(page, first);
     assert.equal((await sessionSnapshot()).focused_pane_id, first, "dragging an inactive tab preserves native pane focus");
-    assert.equal(await frame(page, first).locator(".xterm-helper-textarea").evaluate((node) => node === document.activeElement), true, "dragging preserves terminal keyboard focus");
+    assert.equal(await frame(page, first).locator(".terminal-ime").evaluate((node) => node === document.activeElement), true, "dragging preserves terminal keyboard focus");
     await until(async () => await strip.getAttribute("aria-busy") === "false", "the move is acknowledged");
     await inactive.focus();
     await page.keyboard.press("Alt+Shift+ArrowRight");
@@ -354,7 +354,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     await tabClose(extra.tab.tab_id);
     await page.getByRole("tab", { name: "cancel-drag", exact: true }).waitFor({ state: "detached" });
     await currentPane(page, first);
-    await frame(page, first).locator(".xterm-helper-textarea").focus();
+    await frame(page, first).locator(".terminal-ime").focus();
     await inactive.click({ button: "right" });
     const inactiveMenu = page.getByRole("menu", { name: "menu-target", exact: true });
     await inactiveMenu.waitFor();
@@ -362,7 +362,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     assert.equal((await sessionSnapshot()).focused_pane_id, first, "the menu does not change native focus");
     await page.keyboard.press("Escape");
     await inactiveMenu.waitFor({ state: "detached" });
-    assert.equal(await frame(page, first).locator(".xterm-helper-textarea").evaluate((node) => node === document.activeElement), true, "right-click dismissal restores terminal input");
+    assert.equal(await frame(page, first).locator(".terminal-ime").evaluate((node) => node === document.activeElement), true, "right-click dismissal restores terminal input");
     await inactive.click({ button: "right" });
     await inactiveMenu.waitFor();
     const closingTab = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/tab/close"));
@@ -405,7 +405,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
 
 
     // An inactive pane is a menu target, not a focus change. Menu arrows and Escape never type.
-    await frame(page, first).locator(".xterm-helper-textarea").focus();
+    await frame(page, first).locator(".terminal-ime").focus();
     await currentPane(page, first);
     const beforeMenuInput = input.length;
     assert.equal(await frame(page, second).locator(".pane-frame-menu").evaluate((node) => getComputedStyle(node).opacity), "0", "the pane ellipsis stays visually hidden without keyboard focus");
@@ -418,7 +418,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Escape");
     await menu.waitFor({ state: "detached" });
-    assert.equal(await frame(page, first).locator(".xterm-helper-textarea").evaluate((node) => node === document.activeElement), true, "Escape restores the previous input focus");
+    assert.equal(await frame(page, first).locator(".terminal-ime").evaluate((node) => node === document.activeElement), true, "Escape restores the previous input focus");
     // Moving the pointer onto a mouse-reporting app can produce an unpressed SGR motion
     // before the right click. The menu must intercept presses, releases and keyboard input.
     const menuInput = input.slice(beforeMenuInput).filter((message) => message.type !== "input" || !/^\x1b\[<35;\d+;\d+M$/.test(message.text ?? ""));
@@ -446,7 +446,7 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     for (const [target, other, marker] of [[first, second, "CANVAS_FIRST_INPUT"], [second, first, "CANVAS_SECOND_INPUT"]] as const) {
       await frame(page, target).locator(".pane-frame-title").click();
       await currentPane(page, target);
-      assert.equal(await frame(page, target).locator(".xterm-helper-textarea").evaluate((node) => node === document.activeElement), true, "a frame title selects its terminal for typing");
+      assert.equal(await frame(page, target).locator(".terminal-ime").evaluate((node) => node === document.activeElement), true, "a frame title selects its terminal for typing");
       const start = input.length;
       await page.keyboard.type(`printf '${marker}\\n'`);
       await page.keyboard.press("Enter");
@@ -467,8 +467,8 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     await until(() => ready.has(third), "the newly split terminal accepts input");
     await currentPane(page, third);
     assert.equal(await page.locator(".pane-frame:visible").count(), 3, "a split adds a live third pane");
-    assert.equal(await frame(page, first).locator(".xterm").evaluate((node, old) => node === old, firstTerm), true, "splitting keeps the first terminal mounted");
-    assert.equal(await frame(page, second).locator(".xterm").evaluate((node, old) => node === old, secondTerm), true, "splitting keeps the second terminal mounted");
+    assert.equal(await frame(page, first).locator(".restty-terminal").evaluate((node, old) => node === old, firstTerm), true, "splitting keeps the first terminal mounted");
+    assert.equal(await frame(page, second).locator(".restty-terminal").evaluate((node, old) => node === old, secondTerm), true, "splitting keeps the second terminal mounted");
 
     const vertical = page.locator('.pane-divider[aria-orientation="vertical"]');
     assert.equal(await page.getByRole("separator", { name: "Resize split", exact: true }).count(), 2);
@@ -502,8 +502,8 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
     await currentPane(page, third);
     assert.equal(attaches.length, attachedBeforeZoom, "zoom does not reattach terminals");
     assert.equal(detaches.length, detachedBeforeZoom, "zoom does not detach sibling terminals");
-    assert.equal(await frame(page, first).locator(".xterm").evaluate((node, old) => node === old, firstTerm), true);
-    assert.equal(await frame(page, second).locator(".xterm").evaluate((node, old) => node === old, secondTerm), true);
+    assert.equal(await frame(page, first).locator(".restty-terminal").evaluate((node, old) => node === old, firstTerm), true);
+    assert.equal(await frame(page, second).locator(".restty-terminal").evaluate((node, old) => node === old, secondTerm), true);
     // A closed selected pane is absent from the roster before App's confirmation read answers.
     // Keep that read pending: the surviving terminals must not disappear or lose their leases.
     let releaseSelection!: () => void;
@@ -526,8 +526,8 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
       await until(() => selectionReads > 0, "the missing selected pane awaits confirmation");
       await page.locator('.pane-canvas[aria-busy="true"]').waitFor();
       assert.equal(await page.locator(".pane-frame:visible").count(), 2, "closing a pane keeps the surviving split while selection is pending");
-      assert.equal(await frame(page, first).locator(".xterm").evaluate((node, old) => node === old, firstTerm), true, "the first sibling survives the pending selection");
-      assert.equal(await frame(page, second).locator(".xterm").evaluate((node, old) => node === old, secondTerm), true, "the second sibling survives the pending selection");
+      assert.equal(await frame(page, first).locator(".restty-terminal").evaluate((node, old) => node === old, firstTerm), true, "the first sibling survives the pending selection");
+      assert.equal(await frame(page, second).locator(".restty-terminal").evaluate((node, old) => node === old, secondTerm), true, "the second sibling survives the pending selection");
       assert.equal(survivingAttaches(), beforeCloseAttaches, "the surviving panes do not reattach while selection is pending");
       assert.equal(survivingDetaches(), beforeCloseDetaches, "the surviving panes do not detach while selection is pending");
       releaseSelection();
@@ -536,8 +536,8 @@ async function checkDesktop(browser: Browser, origin: string, first: string, sec
       assert.ok(focused === first || focused === second, "herdr selects a surviving sibling");
       await currentPane(page, focused);
       assert.equal(await page.locator(".pane-frame:visible").count(), 2, "closing a pane restores the surviving split");
-      assert.equal(await frame(page, first).locator(".xterm").evaluate((node, old) => node === old, firstTerm), true, "the first terminal remains the same after confirmation");
-      assert.equal(await frame(page, second).locator(".xterm").evaluate((node, old) => node === old, secondTerm), true, "the second terminal remains the same after confirmation");
+      assert.equal(await frame(page, first).locator(".restty-terminal").evaluate((node, old) => node === old, firstTerm), true, "the first terminal remains the same after confirmation");
+      assert.equal(await frame(page, second).locator(".restty-terminal").evaluate((node, old) => node === old, secondTerm), true, "the second terminal remains the same after confirmation");
       assert.equal(survivingAttaches(), beforeCloseAttaches);
       assert.equal(survivingDetaches(), beforeCloseDetaches);
     } finally {

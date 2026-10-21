@@ -59,21 +59,20 @@ export async function checkTerminalPinch(browser: Browser, origin: string, paneI
       });
     });
     const probe = () => page.evaluate(() => ({
-      fontPx: parseFloat(getComputedStyle(document.querySelector(".pane-terminal .xterm-rows")!).fontSize),
-      rows: document.querySelectorAll(".pane-terminal .xterm-rows > div").length,
+      fontPx: (document.querySelector(".pane-terminal .restty-terminal") as HTMLElement & { screen: () => { fontSize: number } }).screen().fontSize,
+      rows: (document.querySelector(".pane-terminal .restty-terminal") as HTMLElement & { screen: () => { rows: number } }).screen().rows,
       saved: JSON.parse(localStorage.getItem("herdr-web-ui:settings") ?? "{}").terminalFontSize as number | undefined,
-      transform: (document.querySelector(".pane-terminal .xterm") as HTMLElement).style.transform,
-      computedTransform: getComputedStyle(document.querySelector(".pane-terminal .xterm")!).transform,
+      transform: (document.querySelector(".pane-terminal .restty-terminal") as HTMLElement).style.transform,
+      computedTransform: getComputedStyle(document.querySelector(".pane-terminal .restty-terminal")!).transform,
       wheels: (window as Window & { wheels_: number }).wheels_,
       wheelModes: (window as Window & { wheelModes_: number[] }).wheelModes_.slice(),
-      cell: document.querySelector(".pane-terminal .xterm-screen")!.getBoundingClientRect().height
-        / document.querySelectorAll(".pane-terminal .xterm-rows > div").length,
+      cell: (document.querySelector(".pane-terminal .restty-terminal") as HTMLElement & { screen: () => { cell: { height: number } } }).screen().cell.height,
       remaining: (window as Window & { remaining_: number[] }).remaining_,
       scale: visualViewport!.scale,
       focused: document.hasFocus(),
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
-    await page.locator(".pane-terminal .xterm-rows").waitFor();
+    await page.locator(".pane-terminal .restty-terminal canvas").waitFor();
     await until(() => ready, "owned terminal must accept input");
     // The 120 ms resize settle plus margin bounds the negative resize assertions.
     await Bun.sleep(400);
@@ -262,7 +261,7 @@ export async function checkTerminalPinch(browser: Browser, origin: string, paneI
 
     ready = false;
     await page.reload();
-    await page.locator(".pane-terminal .xterm-rows").waitFor();
+    await page.locator(".pane-terminal .restty-terminal canvas").waitFor();
     await until(() => ready, "reloaded terminal must accept input");
     await until(async () => (await probe()).fontPx === 20, "saved font survives reload");
     assert.deepEqual(errors, [], "pinch regression has no page errors");

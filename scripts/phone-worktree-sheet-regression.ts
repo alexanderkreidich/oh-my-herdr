@@ -73,7 +73,7 @@ try {
     await sheet.waitFor({ state: "detached" });
     await page.waitForFunction((pane) => new URLSearchParams(location.search).get("pane") === pane, opened.pane_id, { timeout: 10_000 });
     assert.equal(await page.locator(".pane-frame.is-current").getAttribute("data-layout-pane"), opened.pane_id, "the checkout's shell pane is the one shown");
-    await page.locator(".pane-frame.is-current .xterm-rows").waitFor();
+    await page.locator(".pane-frame.is-current .restty-terminal").waitFor();
     assert.deepEqual(errors, []);
     console.log("PASS a phone's New worktree with Shell opens the checkout's terminal");
     await context.close();

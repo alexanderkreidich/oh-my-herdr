@@ -18,7 +18,7 @@ export async function checkHeldDraftPaneSwitch(browser: Browser, origin: string,
     const select = (paneId: string) => page.locator(`.pane-select[title^="${paneId} —"]`).click();
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneA)}`);
     await page.locator(".pane-frame.is-current .terminal-banner-warning").waitFor();
-    await page.locator(".pane-frame.is-current .xterm-helper-textarea").focus();
+    await page.locator(".pane-frame.is-current .terminal-ime").focus();
     await page.keyboard.type("echo held-a");
     await held.filter({ hasText: "echo held-a" }).waitFor({ timeout: 10_000 });
     await select(paneB);
@@ -46,7 +46,7 @@ export async function checkHeldDraftPaneSwitch(browser: Browser, origin: string,
     const select = (paneId: string) => page.locator(`.pane-select[title^="${paneId} —"]`).click();
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneA)}`);
     await page.locator(".conn-live").waitFor();
-    await page.locator(".pane-frame.is-current .xterm-helper-textarea").focus();
+    await page.locator(".pane-frame.is-current .terminal-ime").focus();
     await page.keyboard.type("echo held-b");
     await held.filter({ hasText: "echo held-b" }).waitFor({ timeout: 10_000 });
     await page.locator(".pane-frame.is-current .terminal-banner-draft .draft-send").click();

@@ -208,7 +208,7 @@ try {
     await toggle("Live terminal (⌘⇧J)");
     const waiting = current(pane).locator(".terminal-banner", { hasText: "Waiting for terminal input…" });
     await waiting.waitFor();
-    await current(pane).locator(".xterm-helper-textarea").pressSequentially("abc");
+    await current(pane).locator(".terminal-ime").pressSequentially("abc");
     await until(async () => await current(pane).locator(".draft-text").textContent() === "abc", "the typing is held as a draft");
     // ready again: the draft still waits for Send or Discard
     routed!.send(JSON.stringify({ type: "input-ready", pane_id: pane, ready: true }));

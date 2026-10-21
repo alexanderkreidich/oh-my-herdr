@@ -22,8 +22,8 @@ interface Want { panes: number; font: "base" | "shrunk"; cols: "fits" | "narrow"
 async function settled(page: Page, want: Want, label: string): Promise<Drawn[]> {
   const read = (): Promise<Drawn[]> => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".pane-frame:not(.is-hidden)")].map((frame) => {
     const id = frame.dataset["layoutPane"] ?? "";
-    const rows = frame.querySelector(".xterm-rows");
-    return { id, px: rows ? parseFloat(getComputedStyle(rows).fontSize) : 0, cols: (window as unknown as { sentCols: Record<string, number> }).sentCols[id] ?? null };
+    const terminal = frame.querySelector(".restty-terminal") as (HTMLElement & { screen?: () => { fontSize: number } }) | null;
+    return { id, px: terminal?.screen?.().fontSize ?? 0, cols: (window as unknown as { sentCols: Record<string, number> }).sentCols[id] ?? null };
   }));
   const matches = (drawn: Drawn[]): boolean => drawn.length === want.panes && drawn.every((pane) =>
     (want.font === "base" ? pane.px === BASE_PX : pane.px < BASE_PX && pane.px >= MIN_PX)

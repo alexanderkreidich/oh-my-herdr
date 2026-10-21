@@ -27,7 +27,6 @@
     "scripts/lan-exposure-notice-regression.ts",
     "scripts/application-paging-regression.ts",
     "scripts/omo-question-wheel-regression.ts",
-    "scripts/terminal-cjk-punctuation-regression.ts",
     "scripts/pane-paging-demo-regression.ts",
     "app/scripts/build-web.ts"
   ],

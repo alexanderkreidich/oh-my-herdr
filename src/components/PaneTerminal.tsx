@@ -11,7 +11,7 @@ import { clipboardKey, hasModifiers, physicalKey, terminalChord, navigationSeque
 import { keyBarInputSequence, type KeyBarKeyItem } from "../lib/keyBar.ts";
 import { EMPTY_DRAFT, applyToDraft, draftIsEmpty, restoreDraft, type InputDraft } from "../lib/draft.ts";
 import { composerMessage, composerPayload, submitNote } from "../lib/compose.ts";
-import { AttachmentTooLargeError, assertAttachable } from "../lib/api.ts";
+import { AttachmentTooLargeError, assertAttachable, fetchPaneScroll, fetchPaneSelection, scrollPane } from "../lib/api.ts";
 import { userErrorMessage } from "../lib/userError.ts";
 import { parseOsc52 } from "../lib/osc52.ts";
 import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
@@ -505,10 +505,17 @@ export function PaneTerminal({
         }
         if (key === "c" && selectionActive) {
           event.preventDefault();
-          selectionActive = false;
           copySelection();
+          // the next Ctrl+C interrupts, as in a terminal
+          selectionActive = false;
           return false;
         }
+      }
+      // Cmd+C on a Mac copies the same text restty would copy from the screen alone
+      if (isMac && event.metaKey && !event.ctrlKey && !event.altKey && selectionActive && clipboardKey(event.key, event.code) === "c") {
+        event.preventDefault();
+        copySelection();
+        return false;
       }
       if (term.inputDisabled || composing) return true;
       // restty types Shift+Enter and Ctrl+Enter as plain Enter while the program has not asked for
@@ -546,6 +553,7 @@ export function PaneTerminal({
       return false;
     };
     const stopWheel = attachTerminalWheel(host, wheelStateRef, {
+      drag: (event) => dragWheel(event),
       adopted: () => adopted(),
       scroll: (lines) => lineScroll.current?.(lines),
       reporting: () => term.mouseReporting(),
@@ -609,10 +617,38 @@ export function PaneTerminal({
     fittedRef.current = fitted;
 
     let disposed = false;
-    /** Copies restty's selection, as the user's own Copy would. */
+    /** the text of the last selection: herdr's own for its range once herdr answers, the screen's until then */
+    let copiedText: string | null = null;
+    /** bumped by every press: an older selection's answer from herdr never lands in the clipboard */
+    let selectionGeneration = 0;
+    /** a copy this terminal started: the copy event it raises carries copiedText */
+    let copying = false;
+    const onCopy = (event: ClipboardEvent): void => {
+      if (!copying || copiedText === null || !event.clipboardData) return;
+      event.clipboardData.setData("text/plain", copiedText);
+      event.preventDefault();
+    };
+    // capturing: ahead of any other listener that reads what is copied
+    window.addEventListener("copy", onCopy, true);
+    /** Copies the selection's text, as the user's own Copy would. */
     const copySelection = (): void => {
-      void term.copySelection().then(
-        (copied) => { if (!disposed) noteClipboard(copied ? "copied to clipboard" : "clipboard write blocked by the browser"); },
+      const text = copiedText;
+      if (!text) return;
+      // Native copy still works in a user gesture when a Chromium/PWA site has
+      // denied the async clipboard permission, or plain HTTP has no clipboard API.
+      copying = true;
+      let copied = false;
+      try { copied = document.execCommand("copy"); } finally { copying = false; }
+      if (copied) {
+        noteClipboard("copied to clipboard");
+        return;
+      }
+      if (!navigator.clipboard) {
+        noteClipboard("clipboard write blocked by the browser");
+        return;
+      }
+      void navigator.clipboard.writeText(text).then(
+        () => { if (!disposed) noteClipboard("copied to clipboard"); },
         () => { if (!disposed) noteClipboard("clipboard write blocked by the browser"); },
       );
     };
@@ -620,27 +656,131 @@ export function PaneTerminal({
     // herdr's attach stream turns mouse reporting on, so restty hands every press to the program
     // and selects only with Shift held. Selection lives in herdr's own TUI client, not in
     // `herdr terminal attach`, so a left drag here selects as if Shift were held (Option on macOS
-    // too), and letting go copies, as the herdr TUI does; a press let go in place is a click and
-    // goes to the program (forwardClick), and a press on a link opens it. Touch keeps its
-    // drag-to-scroll (below).
+    // too), and letting go copies, as the herdr TUI does; a double click selects a word and copies
+    // it; a press let go in place is a click and goes to the program (forwardClick), and a press
+    // on a link opens it. Touch keeps its drag-to-scroll (below).
+    //
+    // What is copied is herdr's own text for the range (a line longer than the grid is wide is one
+    // line there, where the screen shows it on two rows), asked for on the release; the screen's
+    // text goes first, in the gesture, and stays when herdr cannot answer (plain HTTP, observing,
+    // an older bridge, a failed read).
+    interface Cell { row: number; col: number }
     interface ClickKeys { ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }
     interface Press {
       pane: string;
       /** the pressed cell */
-      row: number;
-      col: number;
+      cell: Cell;
       /** the press left its cell: a drag, even one that comes back */
       moved: boolean;
       /** Shift was added for restty: its release must carry it too */
       forced: boolean;
       /** a press the program would have had but for the forced selection, with the keys the user held: let go in place, it is a click */
       click: ClickKeys | null;
+      /** herdr's history row at the top of the screen, once herdr has told */
+      top: number | null;
+      /** the second press of a double click, on the cell of the first */
+      double: boolean;
+      /** the pressed cell's row in herdr's history */
+      anchorRow: number;
+      /** herdr's viewport as the drag scrolls it: rows from the bottom, and the most there are */
+      offset: number;
+      maxOffset: number;
+      /** the drag scrolled herdr: its range runs past what the screen shows */
+      scrolled: boolean;
+      /** the cell under the pointer, kept on the grid, and the edge it is past: above (-1) or below (1) */
+      cursor: Cell;
+      edge: -1 | 0 | 1;
+      wheelPixels: number;
+      sentOffset: number;
+      sending: boolean;
     }
     let press: Press | null = null;
-    const cellAt = (event: { clientX: number; clientY: number }): { row: number; col: number } => {
+    /** the last click let go in place: a press soon after on its cell makes a double click (a
+     *  pointer event's own count is always 0) */
+    let lastClick: { at: number; cell: Cell } | null = null;
+    const DOUBLE_CLICK_MS = 500;
+    /** the row under a point, on the grid or past an edge of it */
+    const rowAt = (event: { clientY: number }): number =>
+      Math.floor((event.clientY - (term.canvas ?? host).getBoundingClientRect().top) / term.cellSize().height);
+    /** the cell under a point, kept on the grid */
+    const cellAt = (event: { clientX: number; clientY: number }): Cell => {
       const rect = (term.canvas ?? host).getBoundingClientRect();
-      const cell = term.cellSize();
-      return { row: Math.floor((event.clientY - rect.top) / cell.height), col: Math.floor((event.clientX - rect.left) / cell.width) };
+      const col = Math.floor((event.clientX - rect.left) / term.cellSize().width);
+      return { row: Math.max(0, Math.min(term.rows - 1, rowAt(event))), col: Math.max(0, Math.min(term.cols - 1, col)) };
+    };
+    const ordered = (a: Cell, b: Cell): [Cell, Cell] =>
+      a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a];
+    /** The synced screen's text from `start` to `end`, both inclusive, its rows parted by line breaks. */
+    const screenRange = (start: Cell, end: Cell): string => {
+      const frame = viewRef.current?.screen;
+      if (!frame) return "";
+      const lines: string[] = [];
+      for (let row = start.row; row <= end.row; row++) {
+        const line = frame.lines[row];
+        if (!line) continue;
+        const cells = decodeRow(line.wire, frame.cols);
+        const from = row === start.row ? start.col : 0;
+        const to = row === end.row ? end.col : frame.cols - 1;
+        lines.push(cells.slice(from, to + 1).map((cell) => cell.text).join("").trimEnd());
+      }
+      return lines.join("\n");
+    };
+    /** The word around a cell, as a double click takes it: up to blanks, quotes and brackets. */
+    const wordAt = (at: Cell): [Cell, Cell] | null => {
+      const frame = viewRef.current?.screen;
+      const line = frame?.lines[at.row];
+      if (!frame || !line) return null;
+      const cells = decodeRow(line.wire, frame.cols);
+      const isWord = (col: number): boolean => {
+        const text = cells[col]?.text ?? " ";
+        return text === "" || !/^[\s"'`()[\]{}<>|,;]$/.test(text);
+      };
+      if (!isWord(at.col) || cells[at.col]?.text === "") return null;
+      let from = at.col;
+      let to = at.col;
+      while (from > 0 && isWord(from - 1)) from--;
+      while (to < frame.cols - 1 && isWord(to + 1)) to++;
+      return [{ row: at.row, col: from }, { row: at.row, col: to }];
+    };
+    /** Takes a selection's text: the screen's at once, then herdr's for the same range. */
+    const select = (p: Press, start: Cell, end: Cell): void => {
+      if (p.top === null) copyRange(p, screenRange(start, end), null);
+      else copyRange(p, screenRange(start, end), [{ row: p.top + start.row, col: start.col }, { row: p.top + end.row, col: end.col }]);
+    };
+    /** A drag that scrolled herdr: its range is in history rows, and the screen shows a part of it. */
+    const selectHistory = (p: Press, start: Cell, end: Cell): void => {
+      const top = p.top!;
+      const first = Math.max(start.row, top);
+      const last = Math.min(end.row, top + term.rows - 1);
+      const visible = first > last ? "" : screenRange(
+        first === start.row ? { row: start.row - top, col: start.col } : { row: first - top, col: 0 },
+        last === end.row ? { row: end.row - top, col: end.col } : { row: last - top, col: term.cols - 1 });
+      copyRange(p, visible, [start, end]);
+    };
+    /** Copies `visible` at once, in the gesture, then herdr's own text for `range` (history rows) once it answers. */
+    const copyRange = (p: Press, visible: string, range: [Cell, Cell] | null): void => {
+      selectionActive = true;
+      copiedText = visible;
+      copySelection();
+      if (range === null || (!visible && !p.scrolled)) return;
+      const generation = selectionGeneration;
+      const current = (): boolean => !disposed && paneRef.current === p.pane && generation === selectionGeneration;
+      const text = fetchPaneSelection(p.pane, range[0], range[1], machineId)
+        .catch(() => visible)
+        .then((value) => {
+          if (!current()) throw new Error("selection changed");
+          // A redraw can remove the range before herdr reads it. Keep what the user
+          // actually selected instead of replacing a successful copy with nothing.
+          copiedText = value || visible;
+          return copiedText;
+        });
+      // Reserve the write NOW, in the gesture, supplying herdr's text when it arrives. Never
+      // start a fresh clipboard write from a delayed response or an older selection.
+      if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+        const blob = text.then((value) => new Blob([value], { type: "text/plain" }));
+        void blob.catch(() => {});
+        void navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]).catch(() => {});
+      } else void text.catch(() => {});
     };
     const forceSelection = (event: PointerEvent): void => {
       Object.defineProperty(event, "shiftKey", { value: true });
@@ -650,19 +790,86 @@ export function PaneTerminal({
       if (event.pointerType !== "mouse" || event.button !== 0 || !event.isTrusted) return;
       if (!term.element.contains(event.target as Node)) return;
       const reporting = term.mouseReporting();
-      // restty shows a pointer over a link; a press there opens it and is not the program's click
+      // restty shows a pointer over a link; a press there opens it and is not the program's click,
+      // and neither is one that ends a selection or makes a double click
       const onLink = term.canvas?.style.cursor === "pointer";
-      const click: ClickKeys | null = reporting && !onLink && !selectionActive
+      const cell = cellAt(event);
+      const double = lastClick !== null && performance.now() - lastClick.at < DOUBLE_CLICK_MS
+        && lastClick.cell.row === cell.row && lastClick.cell.col === cell.col;
+      const click: ClickKeys | null = reporting && !onLink && !selectionActive && !double
         ? { ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey } : null;
       if (reporting) forceSelection(event);
-      const { row, col } = cellAt(event);
-      press = { pane: paneRef.current ?? "", row, col, moved: false, forced: reporting, click };
+      selectionGeneration++;
+      copiedText = null;
+      const p: Press = {
+        pane: paneRef.current ?? "", cell, moved: false, forced: reporting, click, top: null, double,
+        anchorRow: 0, offset: 0, maxOffset: 0, scrolled: false, cursor: cell, edge: 0, wheelPixels: 0, sentOffset: 0, sending: false,
+      };
+      press = p;
+      stopEdge();
+      // herdr's row at the top of the screen: the release asks herdr for the range's own text, and
+      // a drag can scroll herdr's history past the screen
+      if (!p.pane || !navigator.clipboard || observeRef.current) return;
+      void fetchPaneScroll(p.pane, machineId).then((scroll) => {
+        if (!scroll || p.scrolled) return;
+        p.offset = p.sentOffset = scroll.offset_from_bottom;
+        p.maxOffset = scroll.max_offset_from_bottom;
+        p.top = p.maxOffset - p.offset;
+        p.anchorRow = p.top + p.cell.row;
+      }, () => {});
+    };
+    /** one scroll request at a time; the latest wanted offset wins */
+    const sendScroll = (p: Press): void => {
+      if (p.sending || p.sentOffset === p.offset) return;
+      p.sending = true;
+      const target = p.offset;
+      void scrollPane(p.pane, target, machineId).catch(() => {}).finally(() => {
+        p.sending = false;
+        p.sentOffset = target;
+        sendScroll(p);
+      });
+    };
+    /** Scrolls herdr's history under a drag: positive lines show older text. */
+    const scrollDrag = (p: Press, lines: number): void => {
+      if (p.top === null) return;
+      const offset = Math.max(0, Math.min(p.maxOffset, p.offset + lines));
+      if (offset === p.offset) return;
+      p.offset = offset;
+      p.top = p.maxOffset - offset;
+      p.scrolled = true;
+      sendScroll(p);
+    };
+    let edgeTimer: number | null = null;
+    const stopEdge = (): void => {
+      if (edgeTimer !== null) window.clearInterval(edgeTimer);
+      edgeTimer = null;
+    };
+    /** A wheel while pressing scrolls herdr's history under the drag (through the API, never as input). */
+    const dragWheel = (event: WheelEvent): boolean => {
+      const p = press;
+      if (!p) return false;
+      const lineHeight = term.cellSize().height;
+      const { steps: lines, rest } = wheelSteps(
+        p.wheelPixels + (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * lineHeight : event.deltaY), lineHeight);
+      p.wheelPixels = rest;
+      p.moved = true;
+      if (lines !== 0) scrollDrag(p, -lines);
+      return true;
     };
     const onPointerMove = (event: PointerEvent): void => {
       const p = press;
-      if (!p || event.pointerType !== "mouse" || p.moved) return;
-      const { row, col } = cellAt(event);
-      if (row !== p.row || col !== p.col) p.moved = true;
+      if (!p || event.pointerType !== "mouse") return;
+      const row = rowAt(event);
+      const edge: -1 | 0 | 1 = row < 0 ? -1 : row >= term.rows ? 1 : 0;
+      const cell = cellAt(event);
+      // past an edge, the edge row is taken whole
+      p.cursor = edge < 0 ? { row: 0, col: 0 } : edge > 0 ? { row: term.rows - 1, col: term.cols - 1 } : cell;
+      if (cell.row !== p.cell.row || cell.col !== p.cell.col || edge !== 0) p.moved = true;
+      // a pointer past the top or bottom edge keeps scrolling herdr's history
+      if (p.top === null || edge === p.edge) return;
+      p.edge = edge;
+      stopEdge();
+      if (edge !== 0) edgeTimer = window.setInterval(() => scrollDrag(p, -p.edge), 60);
     };
     // the release of a forced press carries the Shift restty selected with, or it would report a
     // release the program never saw pressed
@@ -682,19 +889,41 @@ export function PaneTerminal({
       target.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
     };
     // a release outside the window never arrives
-    const onBlur = (): void => { press = null; };
+    const onBlur = (): void => { press = null; stopEdge(); };
+    // after restty's own release: its selection is made, or the click has ended it. restty
+    // cancels the press, so no mouseup follows: this release is the gesture a clipboard write
+    // starts in
     const onPointerUp = (event: PointerEvent): void => {
       const p = press;
       if (!p || event.pointerType !== "mouse" || event.button !== 0) return;
       press = null;
-      // released on the pane it was pressed on: a pane switched meanwhile gets no click of this press
-      if (p.click && !p.moved && p.pane !== "" && p.pane === paneRef.current) {
-        forwardClick(event, p.click);
+      stopEdge();
+      // released on the pane it was pressed on: a pane switched meanwhile gets nothing of this press
+      if (p.pane === "" || p.pane !== paneRef.current) return;
+      if (p.moved) {
+        lastClick = null;
+        if (p.scrolled && p.top !== null) {
+          const [start, end] = ordered({ row: p.anchorRow, col: p.cell.col }, { row: p.top + p.cursor.row, col: p.cursor.col });
+          selectHistory(p, start, end);
+          return;
+        }
+        const row = rowAt(event);
+        const end = row < 0 ? { row: 0, col: 0 } : row >= term.rows ? { row: term.rows - 1, col: term.cols - 1 } : cellAt(event);
+        const [start, stop] = ordered(p.cell, end);
+        select(p, start, stop);
         return;
       }
-      // a drag selected, and letting go copies; a click in place ended any selection
-      selectionActive = p.moved;
-      if (p.moved) copySelection();
+      lastClick = p.double ? null : { at: performance.now(), cell: p.cell };
+      if (p.double) {
+        const word = wordAt(p.cell);
+        if (word && term.selectWordAt(event.clientX, event.clientY)) {
+          select(p, word[0], word[1]);
+          return;
+        }
+      }
+      // a click in place ended any selection
+      selectionActive = false;
+      if (p.click) forwardClick(event, p.click);
     };
     host.addEventListener("pointerdown", onPointerDown, { capture: true });
     host.addEventListener("pointerup", onPointerRelease, { capture: true });
@@ -736,6 +965,8 @@ export function PaneTerminal({
       screen: (frame) => { modifyOtherKeysRef.current = frame.modes.modifyOtherKeys; },
     });
     viewRef.current = view;
+    // what the grid shows, read by browser regressions (docs/development.md): a canvas holds no text
+    Object.defineProperty(term.element, "screen", { configurable: true, value: () => ({ ...view.shown(), cols: term.cols, rows: term.rows, cell: term.cellSize(), fontSize: term.currentFontSize }) });
     view.setSize(term.cols, term.rows);
     const offViewResize = term.onResize((cols, rows) => view.setSize(cols, rows));
     // what the tools over the grid read (TerminalViewportTools): the synced screen's cells
@@ -1598,11 +1829,13 @@ export function PaneTerminal({
       finishPinch(false);
       if (pinchStatusFrame !== null) cancelAnimationFrame(pinchStatusFrame);
       for (const type of touchPointerEvents) host.removeEventListener(type, keepTouchFromRestty, { capture: true });
+      window.removeEventListener("copy", onCopy, true);
       host.removeEventListener("pointerdown", onPointerDown, { capture: true });
       host.removeEventListener("pointerup", onPointerRelease, { capture: true });
       window.removeEventListener("pointermove", onPointerMove, { capture: true });
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("blur", onBlur);
+      stopEdge();
       stopWheel();
       if (releaseTimer !== null) window.clearTimeout(releaseTimer);
       releaseRef.current = () => {};

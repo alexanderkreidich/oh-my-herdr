@@ -90,12 +90,12 @@ try {
           });
           await page.reload(); await page.locator(".conn-live").waitFor();
           await frame.focus(); await page.keyboard.press("Meta+Shift+G");
-          assert.equal(await frame.locator(".xterm-helper-textarea").evaluate(node => node === document.activeElement), true, "direct terminal input can be focused");
+          assert.equal(await frame.locator(".terminal-ime").evaluate(node => node === document.activeElement), true, "direct terminal input can be focused");
           await page.keyboard.press("Meta+Shift+Comma"); await openSettingsPage(page, "Shortcuts");
           await binding.selectOption("off");
           await page.getByRole("button", { name: "Close settings", exact: true }).click();
           await frame.focus(); await page.keyboard.press("Meta+Shift+G");
-          assert.equal(await frame.locator(".xterm-helper-textarea").evaluate(node => node === document.activeElement), false, "disabled binding leaves focus in place");
+          assert.equal(await frame.locator(".terminal-ime").evaluate(node => node === document.activeElement), false, "disabled binding leaves focus in place");
           assert.deepEqual(errors, []);
           console.log(`PASS input focus: ${touch ? "touch" : "desktop"}, pane switch, chat draft/selection, modal and IME guards, terminal line/direct, reassign/disable/reload`);
         } finally { await context.close(); }

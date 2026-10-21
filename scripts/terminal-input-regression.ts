@@ -396,29 +396,29 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     delayReady = true;
     await setMode("direct");
     await page.reload();
-    await page.locator(".xterm-helper-textarea").waitFor();
+    await page.locator(".terminal-ime").waitFor();
     await until(() => !!ready);
     const before = sent.length;
     await page.locator(".pane-frame.is-current").focus();
     await page.keyboard.press("ControlOrMeta+Shift+E");
-    assert.equal(await page.locator(".xterm-helper-textarea").evaluate(node => node === document.activeElement), true, "the input shortcut also focuses direct terminal input before readiness");
+    assert.equal(await page.locator(".terminal-ime").evaluate(node => node === document.activeElement), true, "the input shortcut also focuses direct terminal input before readiness");
     assert.equal(sent.length, before, "focus sends no input before readiness");
     // the held-input row: the command and its two controls, no sentence (todo 27)
     const heldNotice = page.locator(".pane-frame.is-current .terminal-banner-draft");
     const leftOut = page.getByText("An Enter or line break was left out: Send never presses Enter.", { exact: true });
     // Enter on a terminal that is not ready, with nothing held, separates nothing: no notice.
     // The "a" landing after it proves the Enter was handled first.
-    await page.locator(".xterm-helper-textarea").press("Enter");
-    await page.locator(".xterm-helper-textarea").press("a");
+    await page.locator(".terminal-ime").press("Enter");
+    await page.locator(".terminal-ime").press("a");
     await until(async () => (await page.locator(".draft-text").textContent()) === "a");
     assert.equal(await leftOut.count(), 0);
     // Backspace edits what is held; an Enter is never held, but it is told
-    await page.locator(".xterm-helper-textarea").press("b");
+    await page.locator(".terminal-ime").press("b");
     await until(async () => (await page.locator(".draft-text").textContent()) === "ab");
-    await page.locator(".xterm-helper-textarea").press("Backspace");
+    await page.locator(".terminal-ime").press("Backspace");
     await until(async () => (await page.locator(".draft-text").textContent()) === "a");
     assert.equal(await leftOut.count(), 0);
-    await page.locator(".xterm-helper-textarea").press("Enter");
+    await page.locator(".terminal-ime").press("Enter");
     await leftOut.waitFor();
     await until(async () => (await page.locator(".draft-text").textContent()) === "a ");
     assert.equal(sent.length, before);
@@ -436,12 +436,12 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     // Held input keeps later typing until Send or Discard, on a ready terminal too: a key sent beside
     // it would reach the pty without the held start, and an Enter would run that partial line. The
     // "b" landing after the Enter proves the Enter was handled first (the Enter folds into the held space).
-    await page.locator(".xterm-helper-textarea").press("Enter");
-    await page.locator(".xterm-helper-textarea").press("b");
+    await page.locator(".terminal-ime").press("Enter");
+    await page.locator(".terminal-ime").press("b");
     await until(async () => (await page.locator(".draft-text").textContent()) === "a b");
     assert.equal(sent.length, before, "typing beside a held draft reaches nothing");
     // an interrupt is not typing: it still reaches the program while the draft waits
-    await page.locator(".xterm-helper-textarea").press("Escape");
+    await page.locator(".terminal-ime").press("Escape");
     await until(() => sent.length > before);
     assert.equal(sent.at(-1).text, "\x1b");
     assert.equal(await page.locator(".draft-text").textContent(), "a b");
@@ -453,14 +453,14 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     // it must still be refused, not run the pty's partial line
     toPage!({ type: "pty-data", pane_id: pane, data: "\x1b[>4;1m" });
     await page.waitForTimeout(100);
-    await page.locator(".xterm-helper-textarea").press("Control+Enter");
+    await page.locator(".terminal-ime").press("Control+Enter");
     await banner.waitFor();
     assert.equal(sent.length, afterEscape, "Ctrl+Enter beside a held draft reaches nothing");
     await dismissBanner();
     toPage!({ type: "pty-data", pane_id: pane, data: "\x1b[>4;0m" });
     // a paste beside a held draft is never sent ahead of the held start: one the draft cannot take is
     // refused with the note, a bracketed one (the shell asks for it) holds its tab as a space
-    const pasteIntoTerminal = (text: string) => page.locator(".xterm-helper-textarea").evaluate((element, value) => {
+    const pasteIntoTerminal = (text: string) => page.locator(".terminal-ime").evaluate((element, value) => {
       const data = new DataTransfer();
       data.setData("text/plain", value);
       element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
@@ -502,7 +502,7 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     assert.equal(sent.length, before + 2, "Send types the held text once, with no Enter");
     // Real xterm handling: an IME's provisional syllable stays local until commit.
     const imeBefore = sent.length;
-    const input = page.locator(".xterm-helper-textarea");
+    const input = page.locator(".terminal-ime");
     await input.evaluate((element) => {
       const box = element as HTMLTextAreaElement;
       box.value = "";
@@ -575,7 +575,7 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     });
     await page.waitForTimeout(25);
     await page.evaluate((target) => {
-      const box = document.querySelector(".xterm-helper-textarea")!;
+      const box = document.querySelector(".terminal-ime")!;
       box.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "한" }));
       const row = [...document.querySelectorAll<HTMLElement>(".pane-select")].find((row) => row.title.startsWith(target + " —"));
       if (!row) throw new Error("owned destination pane missing");
@@ -586,7 +586,7 @@ export async function checkTerminalInput(browser: Browser, origin: string, pane:
     assert.equal(sent.length, switchBefore, "old composition cannot cross a pane reset");
     assert.equal(await page.locator(".draft-text").count(), 0, "old commit cannot enter the new pane's held draft");
     // A late end after reset is stale, not a second attempt to send the abandoned input.
-    await page.locator(".pane-frame.is-current .xterm-helper-textarea").dispatchEvent("compositionend", { data: "한" });
+    await page.locator(".pane-frame.is-current .terminal-ime").dispatchEvent("compositionend", { data: "한" });
     await page.waitForTimeout(75);
     assert.equal(sent.length, switchBefore);
     console.log("PASS xterm composition: local preedit, delayed multi-commit burst, punctuation order, Korean final-consonant movement, pane-reset cancellation");

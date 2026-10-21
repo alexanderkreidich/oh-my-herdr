@@ -7,6 +7,8 @@ export interface TerminalWheelState {
 }
 
 interface WheelViewport {
+  /** A selecting drag owns its wheel before any application routing. */
+  readonly drag: (event: WheelEvent) => boolean;
   readonly adopted: () => boolean;
   readonly scroll: (lines: number) => void;
   /** the program reads the mouse: the terminal encodes the wheel as its reports */
@@ -20,6 +22,11 @@ interface WheelViewport {
  */
 export function attachTerminalWheel(mount: HTMLElement, state: { readonly current: TerminalWheelState }, viewport: WheelViewport): () => void {
   const onWheel = (event: WheelEvent): void => {
+    if (viewport.drag(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     // Observed/fixed grids pan in the browser instead of changing herdr's viewport.
     if (viewport.adopted()) {
       event.stopPropagation();

@@ -22,7 +22,7 @@ export async function checkCommandBackspace(browser: Browser, origin: string, pa
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
     await page.locator(".conn-live").waitFor();
-    const input = page.locator(".xterm-helper-textarea");
+    const input = page.locator(".terminal-ime");
     await input.waitFor();
     for (const [shortcut, expected] of [
       ["Backspace", "\x7f"],
@@ -125,7 +125,7 @@ process.stdin.on("data", (data) => {
     }));
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
     await page.locator(".conn-live").waitFor();
-    await page.locator(".xterm-helper-textarea").press("Meta+Backspace");
+    await page.locator(".terminal-ime").press("Meta+Backspace");
     await page.waitForTimeout(300);
     assert.deepEqual(inputs, ["\x7f"], "non-macOS Meta+Backspace keeps its native sequence");
     console.log("PASS non-macOS Meta+Backspace keeps native DEL");

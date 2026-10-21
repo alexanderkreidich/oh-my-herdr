@@ -62,7 +62,7 @@ try {
     await until(async () => !(await ctrl.isDisabled()), "terminal input ready");
     // Herdr's screen stream enables bracketed paste; exercise xterm with it disabled too.
     ws!.send(JSON.stringify({ type: "pty-data", pane_id: pane, data: "\x1b[?2004l" }));
-    const input = page.locator(".xterm-helper-textarea");
+    const input = page.locator(".terminal-ime");
     await input.focus();
     let previousMask = 0;
     const held = async (mask: number) => {
@@ -117,7 +117,7 @@ try {
     // Dropped text is also paste, even one character with every modifier held.
     const dropBefore = read();
     const dropFrames = frames.length;
-    await page.locator(".xterm").evaluate((element) => {
+    await page.locator(".restty-terminal").evaluate((element) => {
       const dataTransfer = new DataTransfer();
       dataTransfer.setData("text/plain", "z");
       element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));

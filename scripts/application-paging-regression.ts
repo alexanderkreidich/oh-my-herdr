@@ -68,9 +68,9 @@ sys.stdout.flush()
   const metrics = await (await nativeMetrics).json();
   assert.equal(metrics.scroll.max_offset_from_bottom, 0, "the browser has an explicit zero-history result before forwarding");
   await page.locator(".conn-live").waitFor();
-  await page.locator(".xterm-helper-textarea").first().waitFor();
+  await page.locator(".terminal-ime").first().waitFor();
   await page.getByText("Waiting for terminal input…", { exact: true }).waitFor({ state: "hidden" });
-  await page.locator(".xterm-helper-textarea").first().evaluate((node: HTMLTextAreaElement) => node.focus());
+  await page.locator(".terminal-ime").first().evaluate((node: HTMLTextAreaElement) => node.focus());
   const read = () => readFileSync(log, "utf8");
   await page.keyboard.press("ControlOrMeta+Shift+PageUp");
   await until(async () => read() === "\x1b[5~", "the app's upward paging chord reaches the application as plain PageUp");
@@ -85,13 +85,13 @@ sys.stdout.flush()
   assert.equal(read(), before, "a modal prevents application paging");
   assert.equal((await paneScrollInfo(paneId))?.max_offset_from_bottom, 0);
   await page.keyboard.press("Escape");
-  await page.locator(".xterm-helper-textarea").first().evaluate((node: HTMLTextAreaElement) => node.focus());
+  await page.locator(".terminal-ime").first().evaluate((node: HTMLTextAreaElement) => node.focus());
   await page.keyboard.press("ControlOrMeta+Shift+Comma");
   await openSettingsPage(page, "Shortcuts");
   await page.getByRole("combobox", { name: "Scroll pane up", exact: true }).selectOption("u");
   await page.getByRole("combobox", { name: "Scroll pane down", exact: true }).selectOption("d");
   await page.keyboard.press("Escape");
-  await page.locator(".xterm-helper-textarea").first().evaluate((node: HTMLTextAreaElement) => node.focus());
+  await page.locator(".terminal-ime").first().evaluate((node: HTMLTextAreaElement) => node.focus());
   await page.keyboard.press("ControlOrMeta+Shift+U");
   await page.keyboard.press("ControlOrMeta+Shift+D");
   await until(async () => read() === "\x1b[5~\x1b[6~\x1b[5~\x1b[5~\x1b[6~", "remapped paging actions still send plain page sequences to the application");

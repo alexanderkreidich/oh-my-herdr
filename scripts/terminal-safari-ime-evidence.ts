@@ -9,6 +9,7 @@ import { preview } from "vite";
 import { createServer } from "../server/index.ts";
 import { paneRead, paneSendText, workspaceClose, workspaceCreate } from "../server/herdr/client.ts";
 import { chromePath } from "./chrome-path.ts";
+import { waitForScreenText } from "./terminal-screen.ts";
 
 assert(process.env.HERDR_TEST_LIVE !== "1" && process.env.HERDR_TEST_MODE !== "unit");
 process.env.HERDR_TEST_SESSION ||= "herdr-web-ui-test-ime-evidence";
@@ -91,7 +92,7 @@ process.stdin.on('data', bytes => {
         server.onMessage(raw => { const frame = JSON.parse(String(raw)); if (frame.type === "input-ready") ready = frame.ready !== false; socket.send(raw); });
         socket.onMessage(raw => { const frame = JSON.parse(String(raw)); if (frame.type === "input") sent.push(frame.text); server.send(raw); });
       });
-      const input = page.locator(".xterm-helper-textarea");
+      const input = page.locator(".terminal-ime");
       const edit = async (type: string, data: string, start: number, end = start) => input.evaluate(async (element, args) => {
         const box = element as HTMLTextAreaElement;
         box.setSelectionRange(args.start, args.end);
@@ -128,9 +129,9 @@ process.stdin.on('data', bytes => {
         assert(actual.every(test => test.pass === false), "baseline must fail all five recorded cases");
       }
       await until(async () => (await paneRead({ paneId: pane, source: "visible" })).text.includes("Completed:"), "rendered PTY report must complete");
-      // The visible screen arrives over the attach stream; wait for its xterm render callback.
-      await page.waitForFunction(() => Array.from(document.querySelectorAll(".xterm-rows > div")).some(row => row.textContent?.includes("Completed:")));
-      await page.locator(".xterm").screenshot({ path: join(output, `safari-ime-${label}.png`) });
+      // The visible screen arrives over the attach stream; wait for the terminal to be handed it.
+      await waitForScreenText(page, "Completed:");
+      await page.locator(".restty-terminal").screenshot({ path: join(output, `safari-ime-${label}.png`) });
       writeFileSync(join(output, `safari-ime-${label}.json`), JSON.stringify({ label, dist: resolve(dist!), cases: actual, wsInput: sent }, null, 2) + "\n");
       console.log(`PASS ${label}: recorded ${actual.filter(test => test.pass).length}/${cases.length} matches; ${output}`);
     } finally {
