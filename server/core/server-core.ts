@@ -68,9 +68,9 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
   const submitFrames = createSubmit({ options, attachments, serialize, lastTyped, terminalAttach, authorizeSocket: (client) => authorizeSocket(client), SUBMIT_DEADLINE_MS, TYPED_SETTLE_MS, SUBMIT_DELAY_MS });
 
   const { mayType, authorizeSocket, admit, setRole, watchPane, unwatchPane, killWatches, end } = createConnections({ clients, present, devices, detachClaimed, dropClaims });
-  const { push, omo, gjc, claudeAgents, clientSnapshot, countVisit, machines, broadcastAll, logPushError, collector, waitTimer } = createStatusHub({ options, devices, clients, present, usage, usageLogin });
+  const { push, omo, gjc, claudeAgents, clientSnapshot, machines, broadcastAll, logPushError, collector, waitTimer } = createStatusHub({ options, devices, clients, present, usage, usageLogin });
   const websocket = createSocket({
-    clients, present, stopped: () => stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, countVisit, drainOutput,
+    clients, present, stopped: () => stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, drainOutput,
     // each frame type by name, with the handler of the module that owns it: anything else on a frame object never
     // becomes a frame a client can send, and a type named twice fails the build instead of replacing a handler
     frames: {

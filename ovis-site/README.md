@@ -25,8 +25,8 @@ preview address. Cloudflare serves `404.html` for a missing page and `/privacy` 
 ## Keep in step with the app
 
 - The privacy policy states what the app keeps (the saved PC addresses and each PC's sign-in
-  cookie), that the camera only reads the pairing QR code, and what herdr web UI's anonymous usage
-  counts hold (docs/guide.md, "Anonymous usage counts"). Change it, and its date, in both
+  cookie), that the camera only reads the pairing QR code, and that this fork does not collect
+  usage counts (docs/guide.md, "Usage privacy"). Change it, and its date, in both
   languages when any of those changes, before the release that changes them.
 - The support page names app labels (**Scan QR code**, **Forget**, **Change PC**) and web UI
   settings (**Settings → Phone & devices**, **Settings → About**); keep them matching the app.
