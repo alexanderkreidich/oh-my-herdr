@@ -33,6 +33,7 @@ import { paneStorageId, type Machine, type MachineEvent } from "../shared/machin
 import { takeAuthTokenFromUrl } from "./lib/authLink.ts";
 import { applyPaneStatus } from "./lib/snapshot.ts";
 import { rosterPanes } from "./lib/dagPane.ts";
+import { CreatedTabs } from "./lib/createdTabs.ts";
 import { SnapshotRequests } from "./lib/snapshotRequests.ts";
 import { alertPrefs, useSettings } from "./lib/settings.ts";
 import { useShortcuts } from "./lib/shortcuts.ts";
@@ -431,9 +432,11 @@ export function App() {
     try { const next = await fetchHealth(); setHealth((previous) => sameData(previous, next) ? previous : next); } catch { setHealth(null); }
   }, []);
   const snapshotRequests = useRef(new SnapshotRequests());
+  const createdTabs = useRef(new CreatedTabs());
   const load = useCallback(async () => {
     try {
-      await snapshotRequests.current.read(fetchMachines, (next) => {
+      await snapshotRequests.current.read(fetchMachines, (received) => {
+        const next = createdTabs.current.apply(received);
         setMachines((previous) => sameData(previous, next) ? previous : next);
         rosterIn();
         setMachineRosterLoaded(true);
@@ -552,7 +555,8 @@ export function App() {
       snapshotRequests.current.invalidate();
       if (payload.type === "machines") {
         seedStatuses(statusRef.current, alerting(payload.machines), { started: turnStartRef.current, lasted: lastTurnRef.current });
-        setMachines((previous) => sameData(previous, payload.machines) ? previous : payload.machines);
+        const next = createdTabs.current.apply(payload.machines);
+        setMachines((previous) => sameData(previous, next) ? previous : next);
         rosterIn();
         setMachineRosterLoaded(true);
         return;
@@ -560,6 +564,7 @@ export function App() {
       const machine = machinesRef.current.find((m) => m.id === payload.machine_id);
       if (!machine) return;
       const message = payload.message;
+      if (message.type === "pane-exited") createdTabs.current.forget(payload.machine_id, message.pane_id);
       if (message.type === "pane-status") {
         const key = paneStorageId(machine.id, message.pane_id);
         const previous = statusRef.current.get(key);
@@ -1182,6 +1187,11 @@ export function App() {
         if (!found) return;
         const asked = selectionRef.current;
         const created = await createTab({ workspace_id: found.workspace.workspace_id, cwd: found.cwd, label: null, agent: null }, found.machineId);
+        if (created.tab && created.pane) {
+          snapshotRequests.current.invalidate();
+          createdTabs.current.add(found.machineId, created);
+          setMachines((machines) => createdTabs.current.apply(machines));
+        }
         void load();
         // what the user went to while herdr answered is theirs to keep
         if (selectionStill(asked, selectionRef.current)) selectTargetRef.current(found.machineId, created.pane_id);

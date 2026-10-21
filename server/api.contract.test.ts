@@ -673,6 +673,10 @@ describe("tab creation", () => {
       const after = (await herdrRpc<{ snapshot: SessionSnapshot }>("session.snapshot", {})).snapshot;
       expect(after.workspaces.map((w) => w.workspace_id)).toEqual(before.workspaces.map((w) => w.workspace_id));
       const pane = after.panes.find((p) => p.pane_id === created.pane_id)!;
+      expect(created).toMatchObject({
+        tab: { tab_id: pane.tab_id, workspace_id: owned.workspace.workspace_id, label: "second tab" },
+        pane: { pane_id: pane.pane_id, workspace_id: pane.workspace_id, tab_id: pane.tab_id, cwd },
+      });
       expect(pane.workspace_id).toBe(owned.workspace.workspace_id);
       expect(pane.cwd).toBe(cwd);
       expect(pane.tab_id).not.toBe(owned.tab.tab_id);

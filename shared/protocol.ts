@@ -642,7 +642,12 @@ export interface WorkspaceCreated {
  * POST /api/tab/create: the existing workspace and the new tab's root pane. A failed agent
  * launch leaves the tab there, reachable through pane_id, as workspace creation does.
  */
-export type TabCreated = WorkspaceCreated;
+export type TabCreated = WorkspaceCreated & {
+  /** The new tab and pane as herdr created them: clients can mount before refreshing the roster.
+   * Older bridges omit them, in which case the client waits for its normal roster refresh. */
+  tab?: HerdrTab;
+  pane?: HerdrPane;
+};
 
 /** The two ways herdr splits a pane: a new pane to its right, or below it. */
 export type SplitPaneDirection = "right" | "down";
