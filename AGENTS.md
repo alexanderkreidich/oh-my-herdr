@@ -121,8 +121,8 @@ UI piece behind a switcher before committing to one).
   `src/lib/themes.generated.ts` or the generated copies in DESIGN.md, index.html and
   `public/manifest.webmanifest`; run `bun run generate:themes`.
 - The fork still carries upstream's identity (plugin id `devswha.herdr-web-ui`, updater,
-  telemetry endpoint, remote-bundle URL). Until the roadmap's fork-identity slice lands, do not
-  ship a build that reports to or updates from upstream.
+  remote-bundle URL). Usage telemetry has been removed. Until the roadmap's fork-identity slice
+  lands, do not ship a build that updates from upstream or reintroduce upstream reporting.
 
 `server/AGENTS.md` and `src/AGENTS.md` hold the traps local to each side. Code conventions
 (imports, CSS tokens, i18n entries, fixed sleeps, wording, icons) are enforced by the

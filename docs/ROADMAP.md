@@ -70,7 +70,9 @@ lists the bundle size and line count before and after.
 ## Phase 3 — Fork identity and cleanup
 
 - [ ] Own identity: plugin id, `package.json` repository, push subject, remote-bundle URL,
-      updater source. Telemetry to upstream's endpoint is removed.
+      updater source.
+- [x] Remove upstream usage telemetry: sender, daily visits, settings snapshots, API, UI, receiver
+      and reporting/deployment tooling.
 - [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left; `docs/guide.md`
       rewritten without the chat (its Supported agents and Features sections describe it).
 - [ ] CI for the fork: one GitHub Actions workflow running `bun run check fast` on PRs; upstream's

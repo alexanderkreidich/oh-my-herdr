@@ -21,7 +21,7 @@ export type FrameHandlers = { [K in Exclude<ClientMessage["type"], "presence">]:
 /** The frames of the connection itself: its liveness, its watches and its role. */
 type ConnectionFrame = "ping" | "watch" | "unwatch" | "role";
 
-export function createSocket({ clients, present, stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, countVisit, drainOutput, frames }: {
+export function createSocket({ clients, present, stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, drainOutput, frames }: {
   clients: Set<Client>;
   present: Set<Client>;
   stopped: () => boolean;
@@ -32,7 +32,6 @@ export function createSocket({ clients, present, stopped, admit, setRole, watchP
   end: (client: Client, reason: "closed") => void;
   attachments: ReadonlyMap<string, AttachmentView>;
   clientSnapshot: () => Promise<SessionSnapshot>;
-  countVisit: (snapshot?: Promise<SessionSnapshot>) => void;
   drainOutput: (client: Client) => void;
   /** every other frame type's handler, from the module that owns what it changes */
   frames: Omit<FrameHandlers, ConnectionFrame>;
@@ -97,7 +96,6 @@ export function createSocket({ clients, present, stopped, admit, setRole, watchP
       if (client.data.relay) { client.data.relay.bind(client as ServerWebSocket<unknown>); return; }
       clients.add(client);
       const snapshot = clientSnapshot();
-      countVisit(snapshot);
       try {
         send(client, { type: "snapshot", snapshot: await snapshot, features: SERVER_FEATURES });
       } catch (error) {
@@ -112,7 +110,6 @@ export function createSocket({ clients, present, stopped, admit, setRole, watchP
       const presence = presenceOf(raw);
       if (presence === true) {
         present.add(client);
-        if (!client.data.relay) countVisit();
       } else if (presence === false) present.delete(client);
       if (client.data.relay) { client.data.relay.message(raw); return; }
       if (presence !== null) return;
