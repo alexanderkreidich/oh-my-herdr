@@ -64,6 +64,15 @@ export class SspView {
     return this.newest ? frameText(this.newest).join("\n") : "";
   }
 
+  /** The OSC 8 link of a cell of the newest screen, or null. */
+  linkAt(row: number, col: number): string | null {
+    const frame = this.newest;
+    const line = frame?.lines[row];
+    if (!frame || !line) return null;
+    const cell = decodeRow(line.wire, frame.cols)[col];
+    return cell ? (this.styles.get(cell.style)?.link ?? null) : null;
+  }
+
   /** What the terminal shows: the newest screen with the guesses on top, its cursor, and how many of its cells are underlined. */
   shown(): { text: string; cursor: { row: number; col: number }; underlined: number } {
     if (!this.newest) return { text: "", cursor: { row: 0, col: 0 }, underlined: 0 };

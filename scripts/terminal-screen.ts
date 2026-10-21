@@ -16,6 +16,8 @@ export interface ShownScreen {
   rows: number;
   cell: { width: number; height: number };
   fontSize: number;
+  /** the selection's text as it would be copied, null without one (the highlight is on the canvas) */
+  selection: string | null;
 }
 
 const CURRENT = ".pane-frame.is-current .restty-terminal";

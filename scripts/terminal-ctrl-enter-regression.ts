@@ -60,7 +60,10 @@ process.stdin.on("data", (data) => {
     page.on("websocket", (socket) => {
       socket.on("framesent", ({ payload }) => {
         const message = JSON.parse(String(payload));
-        if (message.type === "input" || message.type === "keys") inputs.push(message);
+        if (message.type === "input" || message.type === "keys") {
+          const { seq: _seq, ...input } = message;
+          inputs.push(input);
+        }
       });
       // a mirror's fixed grid is told before input-ready, on the same socket
       socket.on("framereceived", ({ payload }) => {

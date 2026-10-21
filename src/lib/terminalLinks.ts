@@ -10,6 +10,34 @@ export function isWebLink(uri: string): boolean {
   return /^https?:\/\//i.test(uri);
 }
 
+/**
+ * Opens an http(s) address in a new tab: a link's own click, with no opener
+ * and no referrer. window.open with a features string (even "noopener") opens a popup window instead.
+ */
+export function openWebLink(uri: string): void {
+  const link = document.createElement("a");
+  link.href = uri;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.click();
+}
+
+/** A web address in a row's text, ending before the punctuation that closes the sentence around it. */
+const WEB_ADDRESS = /https?:\/\/[^\s"'<>`]+?(?=[.,;:!?)\]}'"]*(?:[\s"'<>`]|$))/gi;
+
+/**
+ * The web address a cell of a row is part of, or null: `cells` holds each column's text (a wide
+ * character's second column is ""). An address printed as plain text is a link, as a terminal shows it.
+ */
+export function webLinkAt(cells: readonly string[], col: number): string | null {
+  // one character per column, so a match's index is a column; anything an address cannot hold is a blank
+  const row = cells.map((text) => (text.length === 1 && text.charCodeAt(0) < 0x7f ? text : " ")).join("");
+  for (const match of row.matchAll(WEB_ADDRESS)) {
+    if (col >= match.index && col < match.index + match[0].length) return match[0];
+  }
+  return null;
+}
+
 /** The local path a file URI names (Markdown reads file links with it), or null. */
 export function fileUriPath(uri: string): string | null {
   // a control character belongs to no path, and URL drops a trailing one before it can be seen

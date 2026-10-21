@@ -215,6 +215,15 @@ export class ResttyTerminal {
     if (!this.disposed && !this.inputDisabled && data) this.onData(data);
   }
 
+  /** Pastes text as a paste from the clipboard is: bracketed when the screen asked for it, line breaks as Enter. */
+  paste(text: string): void {
+    if (this.disposed || !text) return;
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    // restty's own paste handling on its field, which knows the modes the screen set
+    this.textarea.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }
+
   /** The program reads the mouse (the screen asked for reporting): restty turns presses and the wheel into its reports. */
   mouseReporting(): boolean {
     return this.runtime?.interaction.getMouseStatus().active ?? false;

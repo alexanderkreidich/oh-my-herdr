@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { fileUriPath, isWebLink } from "./terminalLinks.ts";
+import { fileUriPath, isWebLink, webLinkAt } from "./terminalLinks.ts";
 
 describe("isWebLink", () => {
   it("opens http and https addresses, in any case", () => {
@@ -28,5 +28,27 @@ describe("fileUriPath", () => {
     expect(fileUriPath("file:///tmp/Bob's-notes.md")).toBe("/tmp/Bob's-notes.md");
     // a Windows drive path loses the slash a URI puts before it
     expect(fileUriPath("file:///C:/Users/Alice/readme.md")).toBe("C:/Users/Alice/readme.md");
+  });
+});
+
+describe("webLinkAt", () => {
+  const cells = (text: string): string[] => [...text];
+  it("finds the address under a column, without the punctuation that ends the sentence", () => {
+    const row = cells("see https://example.test/621, then (https://a.test/x?y=1).");
+    expect(webLinkAt(row, 10)).toBe("https://example.test/621");
+    // its last column is the 1, and the comma after it is not the address
+    expect(webLinkAt(row, 27)).toBe("https://example.test/621");
+    expect(webLinkAt(row, 28)).toBeNull();
+    expect(webLinkAt(row, 40)).toBe("https://a.test/x?y=1");
+    expect(webLinkAt(row, 2)).toBeNull();
+  });
+
+  it("counts columns, not characters: a wide character before the address keeps its two", () => {
+    expect(webLinkAt(["界", "", " ", ...cells("http://a.test")], 5)).toBe("http://a.test");
+    expect(webLinkAt(["界", "", " ", ...cells("http://a.test")], 1)).toBeNull();
+  });
+
+  it("takes only http and https", () => {
+    expect(webLinkAt(cells("ftp://a.test file:///etc javascript:alert(1)"), 2)).toBeNull();
   });
 });

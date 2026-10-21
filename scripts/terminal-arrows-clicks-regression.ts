@@ -8,6 +8,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import { createServer } from "../server/index.ts";
 import { workspaceCreate, workspaceClose, paneSendText, paneSendKeys, paneRead } from "../server/herdr/client.ts";
 import { chromePath } from "./chrome-path.ts";
+import { screen } from "./terminal-screen.ts";
 
 const root = mkdtempSync(join(tmpdir(), "herdr-arrows-clicks-"));
 const owned: string[] = [];
@@ -62,7 +63,11 @@ async function open(browser: Browser, server: ReturnType<typeof createServer>, n
   page.on("websocket", (socket) => {
     socket.on("framesent", ({ payload }) => {
       const message = JSON.parse(String(payload));
-      if (message.pane_id === pane && (message.type === "input" || message.type === "keys")) frames.push(message);
+      // the input's sequence number (local echo's) is the socket's business, not what was sent
+      if (message.pane_id === pane && (message.type === "input" || message.type === "keys")) {
+        delete message.seq;
+        frames.push(message);
+      }
     });
     socket.on("framereceived", ({ payload }) => {
       const message = JSON.parse(String(payload));
@@ -201,8 +206,8 @@ try {
     await s.page.locator(".terminal-ime").evaluate((element) => {
       for (let i = 0; i < 200; i += 1) {
         element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", code: "ArrowDown", keyCode: 40, repeat: i > 0, bubbles: true, cancelable: true }));
-        // a keypress alone: a synthetic keydown would type the letter a second time
-        if (i === 100) element.dispatchEvent(new KeyboardEvent("keypress", { key: "y", code: "KeyY", charCode: 121, keyCode: 121, bubbles: true, cancelable: true }));
+        // typed text as the terminal takes it, from the field's beforeinput (restty encodes no letter on keydown)
+        if (i === 100) element.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: "y", bubbles: true, cancelable: true }));
       }
     });
     const expected = "\x1b[B".repeat(101) + "y" + "\x1b[B".repeat(99);
@@ -243,7 +248,7 @@ try {
     });
     const link = await s.point(40, 6);
     await s.page.mouse.move(link.x, link.y);
-    await until(async () => (await s.page.locator(".restty-terminal canvas[style*="cursor: pointer"]").count()) === 1, "the link is under the pointer");
+    await until(async () => (await s.page.locator('.restty-terminal canvas[style*="cursor: pointer"]').count()) === 1, "the link is under the pointer");
     await s.page.mouse.click(link.x, link.y);
     await Bun.sleep(NO_SEND_WAIT_MS);
     assert.doesNotMatch(s.received(), /\x1b\[<0;/, "a click on a link sends the program no button");
@@ -292,8 +297,11 @@ try {
     await s.page.mouse.move((at.x + to.x) / 2, at.y, { steps: 4 });
     await s.page.mouse.move(to.x, to.y, { steps: 4 });
     await s.page.mouse.up();
-    // restty draws its selection on the canvas: letting go of a drag copies it, and says so
-    await until(async () => (await s.page.locator(".terminal-banner", { hasText: /clipboard/ }).count()) > 0, "a drag selects and copies");
+    // restty draws its selection on the canvas: the terminal says what it holds
+    await until(async () => {
+      const shown = await screen(s.page);
+      return shown !== null && shown.selection !== null;
+    }, "a drag selects");
     await Bun.sleep(NO_SEND_WAIT_MS);
     assert.doesNotMatch(s.received(), /\x1b\[<0;/, "a drag sends the program no button");
 

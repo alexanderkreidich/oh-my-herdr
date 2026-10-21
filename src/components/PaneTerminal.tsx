@@ -33,7 +33,7 @@ import type { TerminalScreen } from "../lib/terminalScreen.ts";
 import { useT } from "../lib/i18n.ts";
 import { isAppShortcut } from "../lib/shortcuts.ts";
 import { keyboardHoldsGrid, keyboardUp } from "../lib/keyboard.ts";
-import { isWebLink } from "../lib/terminalLinks.ts";
+import { isWebLink, openWebLink, webLinkAt } from "../lib/terminalLinks.ts";
 import { keepDeleteRepeatText, keyboardNeedsText, restoreDeleteRepeatCaret } from "../lib/deleteRepeat.ts";
 import { terminalLabel } from "../lib/terminalLabel.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
@@ -464,7 +464,10 @@ export function PaneTerminal({
     let selectionActive = false;
     onKey = (event) => {
       if (isAppShortcut(event, shortcutSettings.current)) return false;
-      const composing = composingRef.current || compositionCommitPendingRef.current || event.isComposing || event.keyCode === 229;
+      const composing = composingRef.current || event.isComposing || event.keyCode === 229;
+      // restty has already sent compositionend's text before the next key reaches this hook.
+      // While composition is active, no key (including WebKit's keyCode 229) reaches its keymap.
+      if (composing) return false;
       if (hasModifiers(modifiersRef.current) && !term.inputDisabled && !composing && !event.metaKey) {
         const combined = {
           ctrl: modifiersRef.current.ctrl || event.ctrlKey,
@@ -518,12 +521,38 @@ export function PaneTerminal({
         return false;
       }
       if (term.inputDisabled || composing) return true;
+      // macOS Option+arrows move by word, as in the native terminal's readline bindings.
+      if (isMac && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+        && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        event.preventDefault();
+        term.input(event.key === "ArrowLeft" ? "\x1bb" : "\x1bf");
+        return false;
+      }
+      // Ctrl+Left and Ctrl+Right are CSI 1;5 D and C, as in Ghostty and xterm: restty's own keymap
+      // turns them into the shell's word moves (ESC b, ESC f), which a full-screen program never asked for
+      if (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        event.preventDefault();
+        term.input(`\x1b[1;5${event.key === "ArrowLeft" ? "D" : "C"}`);
+        return false;
+      }
       // restty types Shift+Enter and Ctrl+Enter as plain Enter while the program has not asked for
       // the kitty keyboard protocol: Shift+Enter becomes the Alt+Enter newline chord, Ctrl+Enter
       // what modifyOtherKeys makes it (Claude Code's "send now") while the program has asked for
       // that, and stays Enter otherwise. A mirrored pane never hears that request, so its Ctrl+Enter
       // goes as herdr's key, which herdr encodes as the program asked.
       const kitty = (viewRef.current?.screen?.modes.kittyKeyboard ?? 0) !== 0;
+      // Legacy restty drops Alt on Enter and Ctrl/Alt on Backspace. Preserve the terminal's
+      // established sequences; kitty-mode encoding remains restty's own.
+      if (!kitty && event.key === "Enter" && event.altKey && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        term.input("\u001b\r");
+        return false;
+      }
+      if (!kitty && event.key === "Backspace" && (event.ctrlKey || event.altKey)) {
+        event.preventDefault();
+        term.input(event.ctrlKey ? "\b" : "\u001b\u007f");
+        return false;
+      }
       if (event.key === "Enter" && !event.altKey && !event.metaKey && !kitty && event.shiftKey !== event.ctrlKey) {
         event.preventDefault();
         if (event.shiftKey) enterAs = "\x1b\r";
@@ -536,6 +565,9 @@ export function PaneTerminal({
         enterKey = null;
         return false;
       }
+      // Meta+arrows outside plain macOS Cmd+arrow belong to the browser, not restty's word-navigation map.
+      if (event.metaKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")
+        && (!isMac || event.ctrlKey || event.altKey || event.shiftKey)) return false;
       if (!isMac || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return true;
       // Cmd+Backspace uses the terminal's Ctrl+U line-deletion shortcut on macOS
       if (event.key === "Backspace") {
@@ -680,6 +712,8 @@ export function PaneTerminal({
       top: number | null;
       /** the second press of a double click, on the cell of the first */
       double: boolean;
+      /** the web address pressed on: this press is the link's, and restty never sees it */
+      link: string | null;
       /** the pressed cell's row in herdr's history */
       anchorRow: number;
       /** herdr's viewport as the drag scrolls it: rows from the bottom, and the most there are */
@@ -785,24 +819,54 @@ export function PaneTerminal({
     const forceSelection = (event: PointerEvent): void => {
       Object.defineProperty(event, "shiftKey", { value: true });
     };
+    /**
+     * The web address drawn at a cell: an OSC 8 link the screen carries, or an address printed as
+     * plain text, as a terminal shows it. Opened here, never by restty, which would open a popup
+     * window and take any scheme a line names.
+     */
+    const linkAt = (at: Cell): string | null => {
+      const linked = viewRef.current?.linkAt(at.row, at.col) ?? null;
+      if (linked !== null) return isWebLink(linked) ? linked : null;
+      const frame = viewRef.current?.screen;
+      const line = frame?.lines[at.row];
+      return frame && line ? webLinkAt(decodeRow(line.wire, frame.cols).map((cell) => cell.text), at.col) : null;
+    };
+    /** the pointer over a link shows it can be clicked */
+    let pointerOnLink = false;
+    const onHover = (event: PointerEvent): void => {
+      if (event.pointerType !== "mouse" || event.buttons !== 0 || !term.canvas) return;
+      const on = linkAt(cellAt(event)) !== null;
+      if (on) term.canvas.style.cursor = "pointer";
+      else if (pointerOnLink) term.canvas.style.cursor = "";
+      pointerOnLink = on;
+    };
     const onPointerDown = (event: PointerEvent): void => {
       // a click handed on to the program (forwardClick) is not a new press
       if (event.pointerType !== "mouse" || event.button !== 0 || !event.isTrusted) return;
       if (!term.element.contains(event.target as Node)) return;
       const reporting = term.mouseReporting();
-      // restty shows a pointer over a link; a press there opens it and is not the program's click,
-      // and neither is one that ends a selection or makes a double click
-      const onLink = term.canvas?.style.cursor === "pointer";
       const cell = cellAt(event);
+      // a press on a link opens it: neither restty nor the program gets it
+      const link = linkAt(cell);
+      if (link !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        press = {
+          pane: paneRef.current ?? "", cell, moved: false, forced: false, click: null, top: null, double: false, link,
+          anchorRow: 0, offset: 0, maxOffset: 0, scrolled: false, cursor: cell, edge: 0, wheelPixels: 0, sentOffset: 0, sending: false,
+        };
+        return;
+      }
+      // a press that ends a selection or makes a double click is not the program's click either
       const double = lastClick !== null && performance.now() - lastClick.at < DOUBLE_CLICK_MS
         && lastClick.cell.row === cell.row && lastClick.cell.col === cell.col;
-      const click: ClickKeys | null = reporting && !onLink && !selectionActive && !double
+      const click: ClickKeys | null = reporting && !selectionActive && !double
         ? { ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey } : null;
       if (reporting) forceSelection(event);
       selectionGeneration++;
       copiedText = null;
       const p: Press = {
-        pane: paneRef.current ?? "", cell, moved: false, forced: reporting, click, top: null, double,
+        pane: paneRef.current ?? "", cell, moved: false, forced: reporting, click, top: null, double, link: null,
         anchorRow: 0, offset: 0, maxOffset: 0, scrolled: false, cursor: cell, edge: 0, wheelPixels: 0, sentOffset: 0, sending: false,
       };
       press = p;
@@ -874,7 +938,14 @@ export function PaneTerminal({
     // the release of a forced press carries the Shift restty selected with, or it would report a
     // release the program never saw pressed
     const onPointerRelease = (event: PointerEvent): void => {
-      if (press?.forced && event.pointerType === "mouse" && event.isTrusted) forceSelection(event);
+      if (event.pointerType !== "mouse" || !event.isTrusted) return;
+      const p = press;
+      if (p?.link) {
+        // a link's press ends here: restty never sees it (and nothing after this listener does)
+        event.stopPropagation();
+        press = null;
+        if (event.button === 0 && !p.moved && p.pane !== "" && p.pane === paneRef.current) openWebLink(p.link);
+      } else if (p?.forced) forceSelection(event);
     };
     // A press that became no selection was a click, and a program that reads the mouse (a
     // close button in Claude Code's diff, a TUI's menu) expects it: herdr's attach forwards
@@ -926,6 +997,7 @@ export function PaneTerminal({
       if (p.click) forwardClick(event, p.click);
     };
     host.addEventListener("pointerdown", onPointerDown, { capture: true });
+    host.addEventListener("pointermove", onHover);
     host.addEventListener("pointerup", onPointerRelease, { capture: true });
     window.addEventListener("pointermove", onPointerMove, { capture: true });
     window.addEventListener("pointerup", onPointerUp);
@@ -966,7 +1038,11 @@ export function PaneTerminal({
     });
     viewRef.current = view;
     // what the grid shows, read by browser regressions (docs/development.md): a canvas holds no text
-    Object.defineProperty(term.element, "screen", { configurable: true, value: () => ({ ...view.shown(), cols: term.cols, rows: term.rows, cell: term.cellSize(), fontSize: term.currentFontSize }) });
+    Object.defineProperty(term.element, "screen", { configurable: true, value: () => ({
+      ...view.shown(), cols: term.cols, rows: term.rows, cell: term.cellSize(), fontSize: term.currentFontSize,
+      // the selection's text as it would be copied (restty draws the highlight on the canvas), null without one
+      selection: selectionActive ? copiedText ?? "" : null,
+    }) });
     view.setSize(term.cols, term.rows);
     const offViewResize = term.onResize((cols, rows) => view.setSize(cols, rows));
     // what the tools over the grid read (TerminalViewportTools): the synced screen's cells
@@ -1209,14 +1285,9 @@ export function PaneTerminal({
     let pasting = false;
     const onPaste = () => { pasting = true; queueMicrotask(() => { pasting = false; }); };
     host.addEventListener("paste", onPaste, true);
-    // File paths and dropped text are pasted as the program asked: bracketed when it did, with
-    // line breaks as Enter, as a terminal pastes.
-    const pasteText = (text: string): void => {
-      const previous = pasting;
-      pasting = true;
-      const body = text.replace(/\r?\n/g, "\r");
-      try { term.input(viewRef.current?.screen?.modes.bracketedPaste ? `\x1b[200~${body.replaceAll("\x1b[201~", "")}\x1b[201~` : body); } finally { pasting = previous; }
-    };
+    // File paths and dropped text are pasted as a paste from the clipboard is (restty's own paste
+    // event, which the listener above marks as one)
+    const pasteText = (text: string): void => term.paste(text);
     onData = (data) => {
       // the split half following the other half's grid of the same tab draws it only: the active
       // half's terminal answers the program's queries (a second answer would reach it as typing),
@@ -1831,6 +1902,7 @@ export function PaneTerminal({
       for (const type of touchPointerEvents) host.removeEventListener(type, keepTouchFromRestty, { capture: true });
       window.removeEventListener("copy", onCopy, true);
       host.removeEventListener("pointerdown", onPointerDown, { capture: true });
+      host.removeEventListener("pointermove", onHover);
       host.removeEventListener("pointerup", onPointerRelease, { capture: true });
       window.removeEventListener("pointermove", onPointerMove, { capture: true });
       window.removeEventListener("pointerup", onPointerUp);
