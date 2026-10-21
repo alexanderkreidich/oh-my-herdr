@@ -25,6 +25,7 @@ export type {
 } from "./herdr-api.generated.ts";
 
 import type { FrameDiff } from "./ssp.ts";
+import type { GraphicsChunk } from "./ssp-assets.ts";
 import type { AgentStatus, PaneInfo, PaneScrollInfo, SessionSnapshot as HerdrSnapshot, TabInfo, WorkspaceInfo } from "./herdr-api.generated.ts";
 
 /** Friendly aliases used across the UI. */
@@ -785,7 +786,7 @@ export type ClientRole = "interact" | "observe";
 
 export type ClientMessage =
   /** keep_size: the grid is not shown here (a hidden pane, a tab out of use), so the attach leaves the shared pty's size as it is */
-  | { type: "attach"; pane_id: string; cols: number; rows: number; keep_size?: boolean; sync?: "ssp"; resume?: { stream: string; num: number } }
+  | { type: "attach"; pane_id: string; cols: number; rows: number; keep_size?: boolean; sync?: "ssp"; graphics?: boolean; resume?: { stream: string; num: number } }
   | { type: "detach"; pane_id: string }
   /** a pane another web bridge holds (`attach_held`): take herdr's attach slot from it, here, now */
   | { type: "take-over"; pane_id: string }
@@ -806,6 +807,7 @@ export type ClientMessage =
   | { type: "release-size"; pane_id: string }
   /** the newest screen of `stream` this client has (ssp) */
   | { type: "ssp-ack"; pane_id: string; stream: string; num: number }
+  | { type: "ssp-asset-ack"; pane_id: string; stream: string; key: string; offset: number }
   | { type: "role"; mode: ClientRole }
   /** whether this page is in use: visible and focused. While any connection of a server says
    * so, that server sends no web push to any device (#751). Sent on connect and on every change,
@@ -855,6 +857,7 @@ export type ServerMessage =
   /** raw PTY bytes: append to the terminal, never repaint over it. A mirrored pane (HerdrIdentity.terminal_mirror) sends whole screens the same way. */
   /** the pane's screen, as the difference from one the client has (attach sync "ssp") */
   | ({ type: "ssp"; pane_id: string } & FrameDiff)
+  | ({ type: "ssp-asset"; pane_id: string; stream: string } & GraphicsChunk)
   | { type: "pty-data"; pane_id: string; data: string }
   | { type: "pty-exit"; pane_id: string; code: number | null }
   /** a pane that waited for another web bridge to let go of its terminal (error `attach_held`) is attached again */

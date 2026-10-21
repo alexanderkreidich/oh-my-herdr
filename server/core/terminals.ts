@@ -6,6 +6,7 @@
 import type { ClientMessage, ServerMessage } from "../../shared/protocol.ts";
 import { TerminalDisplay } from "../../shared/ssp-display.ts";
 import { type SightingFacts, sightingFacts } from "../input-guard.ts";
+import type { GraphicsChunk } from "../../shared/ssp-assets.ts";
 import { OUTPUT_HARD_BYTES, OUTPUT_HIGH_BYTES, OUTPUT_STALL_MS } from "../transport-limits.ts";
 import { EchoClock, SyncSender } from "../ssp/sync.ts";
 import { type Client, connectionOf, send } from "./connections.ts";
@@ -332,6 +333,7 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
         const paneId = message.pane_id;
         const sender = new SyncSender(attachment.screen, {
           send: (diff) => send(client, { type: "ssp", pane_id: paneId, ...diff }) !== 0,
+          ...(message.graphics === true ? { sendAsset: (chunk: GraphicsChunk, stream: string) => send(client, { type: "ssp-asset", pane_id: paneId, stream, ...chunk }) !== 0 } : {}),
           buffered: () => client.getBufferedAmount(),
           echo: () => client.data.echo.get(paneId)?.echo() ?? 0,
         }, base ? { stream: resume!.stream, base } : undefined);
@@ -382,6 +384,12 @@ export function createTerminalRegistry({ clients, stopped, terminalAttach, holdF
       const sender = client.data.sync.get(message.pane_id);
       if (!sender || sender.stream !== message.stream) return;
       if (!sender.ack(message.num)) send(client, { type: "error", code: "invalid_ack", message: "num must name a screen already sent", pane_id: message.pane_id });
+    },
+    "ssp-asset-ack"(client: Client, message: Frame<"ssp-asset-ack">): void {
+      const sender = client.data.sync.get(message.pane_id);
+      if (!sender || sender.stream !== message.stream) return;
+      if (typeof message.key !== "string" || message.key.length > 200 || !sender.assetAck(message.key, message.offset))
+        send(client, { type: "error", code: "invalid_ack", message: "offset must name an image chunk already sent", pane_id: message.pane_id });
     },
     async resize(client: Client, message: Frame<"resize">): Promise<void> {
       if (connectionOf(client).mode === "observe") {

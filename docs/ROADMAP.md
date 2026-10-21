@@ -95,9 +95,11 @@ with a WebGL2 fallback, TypeScript text shaping.
       styles. xterm, its patches and `scripts/build-xterm.ts` go.
 - [ ] Follow-up measurements: large-output frame time, memory and bundle-size comparison;
       repeat physical IME/device QA against restty (recorded-event browser replays pass).
-- [ ] Kitty graphics end to end. The renderer passes a direct playground-payload comparison,
-      but herdr's per-pane attach transport omits the image scene and SSP has no graphics state.
-      See [the evidence and required transport](restty.md#playground-parity-and-kitty-blocker).
+- [x] Kitty graphics end to end with the companion herdr `feat/kitty-graphics-attach` branch:
+      authoritative attach scene, bounded/acknowledged SSP pixel chunks and native reconciliation.
+      Real-pane WebGPU/WebGL2 checks cover large RGBA, PNG/file medium, stalled pixel ACKs with
+      live text, joins/reconnect, resize/crop and deletion. Stock herdr still needs that patch.
+      See [transport and reproduction](restty.md#kitty-graphics-transport).
 
 Done when: the terminal input, IME, paste, copy and selection regressions pass on restty, and the
 PR shows the measurements against xterm.js. `bun run test:restty` is the owned terminal browser

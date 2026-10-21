@@ -1034,6 +1034,7 @@ export function PaneTerminal({
     const view = new SspView({
       write: (data) => term.write(data),
       ack: (stream, num) => { const pane = paneRef.current; if (pane) socket.sspAck(pane, stream, num); },
+      ackAsset: (stream, key, offset) => { const pane = paneRef.current; if (pane) socket.sspAssetAck(pane, stream, key, offset); },
       clipboard: writeClipboard,
       linkAllowed: isWebLink,
       // the modes the program asked for, as the bridge's screen has them (Ctrl+Enter reads modifyOtherKeys)
@@ -1112,6 +1113,10 @@ export function PaneTerminal({
         } else if (outputRecovering) {
           outputRecovering = false;
         }
+      }
+      if (message.type === "ssp-asset") {
+        if (message.pane_id === paneRef.current && !releasedRef.current) view.receiveAsset(message.stream, message);
+        return;
       }
       if (message.type === "ssp" || message.type === "pty-data") {
         if (message.pane_id !== paneRef.current || releasedRef.current) return;

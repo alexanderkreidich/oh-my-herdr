@@ -14,6 +14,8 @@ import {
   type Cell, type Color, type Cursor, type Frame, type Modes, type Row, type Style,
 } from "./ssp.ts";
 
+import { fitGraphics, GraphicsDisplay } from "./ssp-graphics.ts";
+
 export interface DisplayOptions {
   /** OSC 8 links for which this returns false are drawn as plain text (the app opens only http(s) links) */
   linkAllowed?: (uri: string) => boolean;
@@ -121,6 +123,7 @@ function modeChanges(from: Modes | null, to: Modes, kittyUnknown: boolean): stri
 
 export class TerminalDisplay {
   private readonly linkAllowed: (uri: string) => boolean;
+  private readonly graphics = new GraphicsDisplay();
   /** what the terminal shows: the last frame drawn (null before the first draw and after invalidate()) */
   private last: Frame | null = null;
   /** the SGR sequence the terminal's pen was last set with */
@@ -164,12 +167,11 @@ export class TerminalDisplay {
     };
     const last = this.last;
     this.out = "";
-    if (last === null || last.cols !== cols || last.rows !== rows || last.modes.altScreen !== frame.modes.altScreen) {
-      this.drawWhole(frame, last, penOf);
-    } else if (!this.drawChanges(frame, last, penOf)) {
-      this.last = frame;
-      return "";
-    }
+    const whole = last === null || last.cols !== cols || last.rows !== rows || last.modes.altScreen !== frame.modes.altScreen;
+    if (whole) this.drawWhole(frame, last, penOf);
+    else this.drawChanges(frame, last, penOf);
+    const graphics = this.graphics.draw(fitGraphics(frame.graphics, cols, rows), whole, this.out.length > 0);
+    if (graphics) this.out += `\x1b7${graphics}\x1b8`;
     this.last = frame;
     const out = this.out;
     this.out = "";

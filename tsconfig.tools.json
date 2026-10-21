@@ -14,6 +14,7 @@
     "scripts/i18n-prune.ts",
     "scripts/minimal-ui-regression.ts",
     "scripts/restty-regression.ts",
+    "scripts/kitty-graphics-regression.ts",
     "scripts/terminal-performance.ts",
     "scripts/terminal-input-regression.ts",
     "scripts/terminal-ipad-ime-regression.ts",

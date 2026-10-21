@@ -13,6 +13,8 @@
  * all the difference needs to compare.
  */
 
+import { applyGraphics, graphicsDiff, type GraphicsScene } from "./ssp-graphics.ts";
+
 /** A colour: -1 the terminal's default, 0–255 a palette index, or `RGB | 0x1000000`. */
 export type Color = number;
 
@@ -221,6 +223,7 @@ export interface Frame {
   readonly cursor: Cursor;
   readonly modes: Modes;
   readonly clip: Clip | null;
+  readonly graphics?: GraphicsScene;
 }
 
 export function blankFrame(cols: number, rows: number): Frame {
@@ -251,6 +254,8 @@ export interface FrameDiff {
   cursor: WireCursor;
   modes: Modes;
   clip?: [number, string];
+  /** Visible placements plus pixels absent from the named base frame. */
+  graphics?: GraphicsScene;
   /** the newest input of this client the program has had time to echo (local echo checks its guesses against this screen) */
   echo: number;
   /** the sender's smoothed round trip in ms, once measured: local echo shows its guesses on a slow link only */
@@ -317,6 +322,8 @@ export function diffFrames(stream: string, base: Frame | null, next: Frame, thro
   };
   if (scroll) diff.scroll = scroll;
   if (next.clip && next.clip.seq !== from.clip?.seq) diff.clip = [next.clip.seq, next.clip.payload];
+  const graphics = graphicsDiff(from.graphics, next.graphics);
+  if (graphics) diff.graphics = graphics;
   return diff;
 }
 
@@ -332,6 +339,7 @@ export function applyDiff(base: Frame | null, diff: FrameDiff, styles: Map<numbe
   return {
     num: diff.num, cols: diff.cols, rows: diff.rows, lines, cursor: fromWireCursor(diff.cursor), modes: diff.modes,
     clip: diff.clip ? { seq: diff.clip[0], payload: diff.clip[1] } : from.clip,
+    ...(diff.graphics || from.graphics ? { graphics: applyGraphics(from.graphics, diff.graphics) } : {}),
   };
 }
 

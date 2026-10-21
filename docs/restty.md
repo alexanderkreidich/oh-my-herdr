@@ -58,11 +58,14 @@ Canvas tests read `.restty-terminal.screen()` through `scripts/terminal-screen.t
 querying renderer DOM rows. `selection: null` means no selection; `selection: ""` can be a valid
 selection of blank cells. Assertions about actual input use outgoing frames and an owned PTY.
 
-On 2026-10-21, the whole `test:restty` lane passed. Typecheck, generated-file freshness and build
-passed. The fast lane reported 2712 passing, 2 failing and 22 skipped tests: the macOS headless
-installer assumption (also fails on main) and a plugin-config subprocess deadline (passes alone
-on both branches). Integration reported 357 passing, 2 failing and 3 skipped: attach-query reply
-timeout and child-stdin-close timeout; both failures reproduce on main `26e6440`.
+On 2026-10-21, the whole `test:restty` lane passed, including a repeat against the patched herdr
+0.9.5. Typecheck, generated-file freshness and build passed. The latest default five-worker fast
+run reported 2712 passing, 8 failing and 22 skipped tests: installer/headless assumptions and
+Node/Portal/plugin subprocess deadlines. An earlier run had two failures; the headless installer
+failure reproduces on main and the plugin-config deadline passes alone on both branches. Not all
+latest deadline failures have been independently classified as baseline. Integration against the
+patched binary reported 357 passing, 2 failing and 3 skipped: attach-query reply timeout and
+child-stdin-close timeout; both also reproduced on main `26e6440` with stock herdr.
 These broad lanes are not green and are not reported as such.
 
 ## Startup measurements
@@ -95,7 +98,7 @@ RUNS=5 URL=http://127.0.0.1:7417 bun scripts/terminal-performance.ts
 Point `URL` at a separately built main sandbox for the baseline. The renderer mark is not used by
 main, so its first-screen observation polls the old renderer's nonempty rows on animation frames.
 
-## Playground parity and Kitty blocker
+## Playground parity
 
 The five playground payloads (`kitty`, `demo`, `test`, `ansi-art`, `colors`) were injected as
 identical VT bytes into the actual local playground's mocked WebSocket backend and this app's
@@ -115,18 +118,66 @@ Captured evidence: [playground Kitty reference](screenshots/restty/kitty-playgro
 [wrapper Kitty rendering](screenshots/restty/kitty-wrapper.png),
 [wrapper Unicode/styles](screenshots/restty/capabilities-wrapper.png).
 
-The wrapper renders the Kitty RGB gradient correctly when it receives the graphics APC.
-**This is renderer parity, not end-to-end graphics support in a herdr pane.**
+These comparisons establish renderer parity only. The separate real-pane check below covers the
+transport; a direct playground injection is not evidence of end-to-end support.
 
-Installed herdr 0.9.3's `terminal attach` rebuilds a cell frame and does not emit the `ESC_G`
-Kitty image payload. Capturing the owned pane's attach output while it prints the demo found no
-such APC. Inspection of upstream herdr `143bf5fd` also shows the TerminalAttach/TerminalObserve
-branch building a cell/hyperlink frame, while graphics assets/placements belong to ClientShell
-surfaces. No user installation or live session was updated to investigate this.
+## Kitty graphics transport
 
-SSP currently carries cells/styles/modes, not image assets or placements. Merely enabling graphics
-in the browser, forwarding raw bytes around SSP or replaying APC on reconnect cannot supply a
-correct graphics scene. Completion needs a supported per-pane herdr graphics snapshot/update
-transport, followed by bounded asset/placement state in SSP and renderer reconciliation for
-joins, resize, deletion, reconnect and acknowledgements. Do not label the requested full graphics
-integration complete until a real owned pane passes that path.
+An application prints normal Kitty APC sequences (`ESC_G...ESC\\`) to its existing PTY. There is
+no second browser socket, raw-output bypass, automatic input replay or change to PTY ownership.
+
+1. Herdr keeps its authoritative pixels and placements. Its per-pane renderer exports the
+   visible scene through the existing terminal-ANSI graphics field. Per-client delivery caches
+   advance only after the writer accepts the frame, including graphics-only changes. The thin
+   client opts in with the named `terminal.graphics.v1` endpoint control; older peers ignore it,
+   and clients that do not opt in receive no graphics. No frozen core codec changes.
+2. Owned file-medium sources are copied by bounded background workers, not on the render thread:
+   8 jobs, 64 MiB and 1,024 cache entries. Completion wakes rendering even when the PTY is idle.
+   The attach stream uses inline pixel data, never a source-machine filesystem path.
+3. The bridge's headless restty parses that attach stream. Immutable SSP scenes contain revisioned
+   assets and placements/crops, bounded to 16 MiB and 1,024 visible placements. Text frames carry
+   only metadata; they do not retain a copy of the pixels for every acknowledged screen.
+4. Browsers opt in with `attach.graphics: true`. After a screen ACK, missing assets travel as
+   `ssp-asset` messages: 128 KiB base64 blocks, a two-block acknowledged window, transport
+   backpressure and bounded retries. Pixel receipts use `ssp-asset-ack`; they are never queued
+   across disconnects. Silent views stop receiving retries until another screen/pixel ACK.
+5. The browser validates/reassembles current assets, reconciles local Kitty IDs, and uploads via
+   restty's PTY path. Replacement, deletion, crop/resize, reconnect and stream reset rebuild or
+   remove images; late chunks and receipts cannot resurrect a deleted scene. Cell/input traffic
+   does not wait for pixel ACKs.
+
+Stock herdr 0.9.3 omits images from attach output, so updating only this web app cannot add them.
+The companion implementation is in herdr branch `feat/kitty-graphics-attach`, based on upstream
+`ccc7521a`. Use a release binary built from that branch (`cargo build --release`); a default debug build
+uses `herdr-dev` paths, whereas this app's isolated runner expects the stable `herdr` layout.
+The user's installed herdr and live sessions were not replaced. A stock binary still supplies cells and ordinary terminal input.
+
+```sh
+export CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+export HERDR_WEB_HERDR_BIN=/path/to/patched/herdr
+RENDERER=webgpu bun run test:kitty
+RENDERER=webgl2 bun run test:kitty
+```
+
+The isolated test sends actual PTY output and checks canvas pixels, not an injected browser
+stream: a >1 MiB RGBA image; live text while pixel ACKs stall; reconnect and late join; resize;
+same-ID PNG replacement; file-medium input; scroll clipping; deletion while pixel receipts are
+in flight; and reload without resurrection. It saves screenshots to the printed evidence path.
+It requires the companion herdr binary and the native Node PTY sidecar, unlike `test:restty`,
+which also runs against stock herdr. Mirrored `pane.read` fallback remains cell-only.
+Animated Kitty frames and physical-device GPU certification are not covered by this test.
+
+Real-pane evidence: [WebGPU](screenshots/restty/kitty-pane-webgpu.png),
+[WebGL2](screenshots/restty/kitty-pane-webgl2.png), [deleted](screenshots/restty/kitty-pane-deleted.png).
+
+Companion herdr validation: formatting and Clippy passed; 3912 nextest tests passed, one failed
+and 15 were skipped. The failing `pane_info_and_subscriptions_expose_done_agent_status` timeout
+also fails on the clean upstream `ccc7521a`. Architecture, integration-assets and docs contracts
+passed. Maintenance had one error because the installed Git lacks `diff --default-prefix`.
+`bench-render-scale` ran, but its native-file CoW-retention profile fails on this Mac on both
+branches; it is not reported green. Windows cross-lint was not run.
+
+The added release-profile attach benchmark holds 80x24 geometry, one stable image and changing
+text, with 40 samples after 5 warmups. Median microseconds with graphics disabled/enabled were
+174/186 for one populated pane and 194/179 for 15 populated panes. This local sample shows no
+pane-count multiplication of the added attach work; it is not a throughput or cross-device claim.

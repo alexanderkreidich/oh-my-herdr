@@ -232,15 +232,15 @@ it("attaches a grid the chat lens covers without resizing the shared pty, on a r
   // attached before the socket opened: the open replays it, as a reconnect does
   client.attach("w1:p1", 40, 20, true);
   socket.open();
-  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 40, rows: 20, sync: "ssp", keep_size: true });
+  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 40, rows: 20, sync: "ssp", graphics: true, keep_size: true });
   // the terminal lens is shown and resizes: from then on it drives the size
   client.resize("w1:p1", 100, 30, true);
   socket.open();
-  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp" });
+  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", graphics: true });
   // the chat lens covers it again
   client.keepSize("w1:p1");
   socket.open();
-  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", keep_size: true });
+  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", graphics: true, keep_size: true });
   client.close();
 });
 
@@ -261,7 +261,7 @@ it("releases the shared grid once when the chat lens covers a terminal this tab 
   client.releaseSize("w1:p1");
   expect(releases()).toEqual([{ type: "release-size", pane_id: "w1:p1" }]);
   socket.open();
-  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 53, rows: 33, sync: "ssp", keep_size: true });
+  expect(lastAttach()).toEqual({ type: "attach", pane_id: "w1:p1", cols: 53, rows: 33, sync: "ssp", graphics: true, keep_size: true });
   expect(releases()).toHaveLength(1);
   // an observer never drives the grid, so it never releases it either
   client.setMode("observe");
@@ -291,7 +291,7 @@ it("keeps a visible unfocused grid while changing only its reconnect policy", ()
     socket.open();
     // Control: blur still changes the reconnect policy, without replaying a release.
     expect(socket.sent.filter((m) => m.type === "attach").at(-1))
-      .toEqual({ type: "attach", pane_id: "w1:p1", cols: 120, rows: 40, sync: "ssp", keep_size: true });
+      .toEqual({ type: "attach", pane_id: "w1:p1", cols: 120, rows: 40, sync: "ssp", graphics: true, keep_size: true });
     expect(releases()).toHaveLength(1);
   } finally {
     client.close();
@@ -318,7 +318,7 @@ it("releases the shared grid once when a hidden terminal returns directly to Cha
     client.releaseSize("w1:p1");
     expect(releases()).toHaveLength(1);
     expect(socket.sent.filter((m) => m.type === "attach").at(-1))
-      .toEqual({ type: "attach", pane_id: "w1:p1", cols: 53, rows: 33, sync: "ssp", keep_size: true });
+      .toEqual({ type: "attach", pane_id: "w1:p1", cols: 53, rows: 33, sync: "ssp", graphics: true, keep_size: true });
     // Showing the terminal again at the same dimensions still reclaims its released grid.
     client.resize("w1:p1", 53, 33);
     expect(socket.sent.at(-1)).toEqual({ type: "resize", pane_id: "w1:p1", cols: 53, rows: 33 });
@@ -344,7 +344,7 @@ it("sends no resize for a pane it let go of, and does not attach it again on a r
   expect(socket.sent.slice(after).filter((m) => m.type === "attach" || m.type === "resize")).toEqual([]);
   // the user is back: it attaches at its own size again
   client.attach("w1:p1", 120, 40);
-  expect(socket.sent.at(-1)).toEqual({ type: "attach", pane_id: "w1:p1", cols: 120, rows: 40, sync: "ssp" });
+  expect(socket.sent.at(-1)).toEqual({ type: "attach", pane_id: "w1:p1", cols: 120, rows: 40, sync: "ssp", graphics: true });
   client.close();
 });
 
@@ -792,20 +792,24 @@ it("acknowledges synced screens and resumes from the newest one after a reconnec
   try {
     client.sspAck("w1:p1", "s1", 5);
     client.sspAck("w2:p9", "s9", 1);
+    client.sspAssetAck("w1:p1", "s1", "image", 128);
+    client.sspAssetAck("w2:p9", "s9", "unattached", 128);
+    expect(socket.sent.filter((frame) => frame.type === "ssp-asset-ack")).toEqual([{ type: "ssp-asset-ack", pane_id: "w1:p1", stream: "s1", key: "image", offset: 128 }]);
     expect(socket.sent.filter((frame) => frame.type === "ssp-ack")).toEqual([{ type: "ssp-ack", pane_id: "w1:p1", stream: "s1", num: 5 }]);
     socket.disconnect();
     // an acknowledgement while disconnected is not queued, but the reconnect resumes from it
     client.sspAck("w1:p1", "s1", 6);
+    client.sspAssetAck("w1:p1", "s1", "image", 256);
     jest.advanceTimersByTime(30_000);
     const fresh = FakeSocket.last;
     expect(fresh).not.toBe(socket);
     fresh.open();
-    expect(fresh.sent.filter((frame) => frame.type === "ssp-ack")).toEqual([]);
-    expect(fresh.sent.find((frame) => frame.type === "attach")).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", resume: { stream: "s1", num: 6 } });
+    expect(fresh.sent.filter((frame) => frame.type === "ssp-ack" || frame.type === "ssp-asset-ack")).toEqual([]);
+    expect(fresh.sent.find((frame) => frame.type === "attach")).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", graphics: true, resume: { stream: "s1", num: 6 } });
     // a pane attached again starts a new stream
     client.detach("w1:p1");
     client.attach("w1:p1", 100, 30);
-    expect(fresh.sent.at(-1)).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp" });
+    expect(fresh.sent.at(-1)).toEqual({ type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", graphics: true });
   } finally {
     client.close();
     jest.useRealTimers();
@@ -841,7 +845,7 @@ it("drops an open socket that answers no ping, reconnects at once and replays th
     expect(fresh).not.toBe(socket);
     expect(client.state).toBe("connecting");
     fresh.open();
-    expect(fresh.sent).toEqual([{ type: "role", mode: "interact" }, { type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp" }]);
+    expect(fresh.sent).toEqual([{ type: "role", mode: "interact" }, { type: "attach", pane_id: "w1:p1", cols: 100, rows: 30, sync: "ssp", graphics: true }]);
     expect(client.state).toBe("open");
     // the dead socket's late close changes nothing
     socket.disconnect();
