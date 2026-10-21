@@ -245,9 +245,9 @@ try {
   await input.press("Enter");
   await waitHighlight();
   const hit = (await page.locator(".terminal-find-hit.is-current").first().boundingBox())!;
-  const screen = (await page.locator(".restty-terminal").boundingBox())!;
+  const terminalBox = (await page.locator(".restty-terminal").boundingBox())!;
   const wide = (await screen(page))?.cell.height ?? 0;
-  assert.ok(hit.width > 20 && hit.height > 0 && wide > 0 && hit.x >= screen.x, "wide and combining text has visible cell-aligned emphasis");
+  assert.ok(hit.width > 20 && hit.height > 0 && wide > 0 && hit.x >= terminalBox.x, "wide and combining text has visible cell-aligned emphasis");
   // An older page write must finish before a newer explicit search moves the pane.
   // The fetch observer records dispatch synchronously; no timing sleep is needed to prove
   // Find is waiting while its UI already says Searching… and the POST is held below.
@@ -255,7 +255,7 @@ try {
     const original = window.fetch;
     const probe = { released: false, calls: [] as Array<{ path: string; released: boolean }>, restore: () => { window.fetch = original; } };
     (window as any).__viewportOrderProbe = probe;
-    window.fetch = (input, init) => {
+    window.fetch = Object.assign((input: Parameters<typeof original>[0], init?: Parameters<typeof original>[1]) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.href);
       if (init?.method === "POST" && typeof init.body === "string") {
         const body = JSON.parse(init.body);
@@ -264,7 +264,7 @@ try {
         }
       }
       return original.call(window, input, init);
-    };
+    }, original);
   }, paneId);
   const releaseScroll = Promise.withResolvers<void>();
   const intercepted = Promise.withResolvers<void>();

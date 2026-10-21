@@ -1,4 +1,5 @@
-import type { Browser } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
+import { sessionSnapshot } from "../server/herdr/client.ts";
 
 /**
  * Input typed into a terminal while the app is offline is held for the user to send or discard
@@ -6,6 +7,11 @@ import type { Browser } from "playwright-core";
  * check, so every key goes to the draft and nothing reaches the pane.
  */
 export async function checkHeldDraftPaneSwitch(browser: Browser, origin: string, paneA: string, paneB: string): Promise<void> {
+  const snapshot = await sessionSnapshot();
+  const selectPane = (page: Page, paneId: string) => {
+    const tabId = snapshot.panes.find((pane) => pane.pane_id === paneId)!.tab_id;
+    return page.locator(`.app-header [role="tab"][data-tab-id="${tabId}"]`).click();
+  };
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {
     await context.addInitScript((ids) => {
@@ -15,7 +21,7 @@ export async function checkHeldDraftPaneSwitch(browser: Browser, origin: string,
     await context.routeWebSocket(/\/ws(?:\?|$)/, (socket) => socket.close({ code: 1000, reason: "offline for the held-input check" }));
     const page = await context.newPage();
     const held = page.locator(".pane-frame.is-current .terminal-banner-warning .draft-held");
-    const select = (paneId: string) => page.locator(`.pane-select[title^="${paneId} —"]`).click();
+    const select = (paneId: string) => selectPane(page, paneId);
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneA)}`);
     await page.locator(".pane-frame.is-current .terminal-banner-warning").waitFor();
     await page.locator(".pane-frame.is-current .terminal-ime").focus();
@@ -43,7 +49,7 @@ export async function checkHeldDraftPaneSwitch(browser: Browser, origin: string,
     });
     const page = await notReady.newPage();
     const held = page.locator(".pane-frame.is-current .terminal-banner-draft .draft-text");
-    const select = (paneId: string) => page.locator(`.pane-select[title^="${paneId} —"]`).click();
+    const select = (paneId: string) => selectPane(page, paneId);
     await page.goto(`${origin}/?pane=${encodeURIComponent(paneA)}`);
     await page.locator(".conn-live").waitFor();
     await page.locator(".pane-frame.is-current .terminal-ime").focus();

@@ -86,16 +86,22 @@ lists the bundle size and line count before and after.
 Replace xterm.js with restty: libghostty-vt in WASM for VT parsing and state, WebGPU rendering
 with a WebGL2 fallback, TypeScript text shaping.
 
-- [ ] Spike behind a setting: restty's `restty/xterm` compatibility wrapper against its native
-      `Restty` API; pick one with numbers (frame time while `cat`-ing a large file, input
-      latency, memory, bundle size).
-- [ ] `PaneTerminal` on restty: the attach stream in; keys, IME, paste and mouse out; selection
+- [x] Native runtime selected, pinned to the `alexanderkreidich/restty` fork. No compatibility
+      renderer or xterm fallback remains. Startup/input and playground comparisons are in
+      [restty integration](restty.md).
+- [x] `PaneTerminal` on restty: the attach stream in; keys, IME, paste and mouse out; selection
       and copy, links, search, resize and fit, the mirrored (read-only) pane.
-- [ ] Ghostty look: themes from Ghostty's palette set, font rendering and ligatures, cursor
+- [x] Ghostty look: themes from Ghostty's palette set, font rendering and ligatures, cursor
       styles. xterm, its patches and `scripts/build-xterm.ts` go.
+- [ ] Follow-up measurements: large-output frame time, memory and bundle-size comparison;
+      repeat physical IME/device QA against restty (recorded-event browser replays pass).
+- [ ] Kitty graphics end to end. The renderer passes a direct playground-payload comparison,
+      but herdr's per-pane attach transport omits the image scene and SSP has no graphics state.
+      See [the evidence and required transport](restty.md#playground-parity-and-kitty-blocker).
 
 Done when: the terminal input, IME, paste, copy and selection regressions pass on restty, and the
-PR shows the measurements against xterm.js.
+PR shows the measurements against xterm.js. `bun run test:restty` is the owned terminal browser
+lane; renderer-only Kitty evidence must not be represented as herdr/SSP end-to-end support.
 
 ## Phase 5 — State Synchronization Protocol
 

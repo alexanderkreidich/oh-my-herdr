@@ -1,7 +1,8 @@
 # Terminal input
 
-The terminal keeps xterm.js and the herdr-owned PTY. Mobile input improvements live at the
-input boundary; the terminal screen is still rendered from the attach stream.
+The terminal uses restty's native runtime and the herdr-owned PTY. The bridge derives SSP
+screen state from the attach stream; the browser paints it with restty. See
+[restty integration](restty.md) for Appearance, rendering, measurements and graphics limits.
 
 ## Input modes and drafts
 
@@ -17,44 +18,19 @@ browser, OS and installed-app mode. These settings belong to this browser, not t
 Global bindings do not replace focus-local list/tab controls or text-field selection keys.
 
 The input line keeps its unsent text per `paneStorageId(machineId, paneId)`, including across
-lens changes and reloads. Storage refusal falls back to memory for view changes. Pending sends
+pane changes and reloads. Storage refusal falls back to memory for view changes. Pending sends
 are shared across mounts, so switching modes cannot submit the same pending line twice. A late
 acknowledgement removes only an unchanged sent prefix; replacement text stays even if it happens
 to equal the text sent before it. Editing remains available while disconnected; sending does not.
 Passwords continue to use the separate non-persistent secret-input path.
 
-Chat Send during work asks a `pending-input` bridge to retain an identified message until the
-current response ends. The same server ID is claimed by automatic delivery or a pending row's
-explicit send-now action. The bridge checks its original connection, attachment, agent and
-visible prompt before input and Enter; each automatic next message also waits for evidence that
-the preceding turn started and finished, and an explicit send refused in between does not end that wait. It never sends native Tab and then resends that text.
-Tab/workspace navigation on the same PC retains the original pane attachment while its automatic
-queue waits.
-A page left for another address ends its connection at `pagehide`, also when the browser keeps the
-page for Back (the back/forward cache): its queue is then lost like any closed connection's, and the
-page connects again when it is shown.
-Pending acceptance is distinct from a committing-key receipt. Connection loss, actual pane detachment
-and observe mode pause the pending list; reconnect or reload cannot rearm it. Losing a pane
-lease permanently cancels its in-flight send, even if that connection rejoins the same attachment
-or returns to interact before Enter. A queue request that arrives after the agent finishes uses
-the same guarded paste-and-Enter path; one that finds no agent in front of the pane is refused,
-and nothing is typed into the program there; one that finds an earlier message still waiting takes
-its place behind it. The checks read the pane's live screen, not a viewport scrolled into its
-history, and leave a model list alone even when no reader could read it, since Enter there saves
-a default. An uncertain delivery never retries automatically. Secret
-input remains outside this path, and legacy held messages retain their explicit Send now/Discard
-recovery. Older bridges cannot silently turn a working queue request into immediate input. Send now delivers through the existing paste-and-Enter
-path; each agent controls when it consumes that input. It is not a native app-server steering API.
-
 Direct input arriving before readiness or during a disconnect is held for explicit Send/Discard.
 An IME may commit several code points at once, so printable chunks (including emoji) are retained.
-Control sequences are left out, never saved for later execution, and not counted: xterm's own
+Control sequences are left out, never saved for later execution, and not counted: the renderer's own
 answers to a program (cursor position, focus, mouse) arrive the same way. Send transmits the held
 text alone, without an Enter typed meanwhile. The draft holds 1,024 characters; text past that is
 left out whole and the notice says some input was left out, also when nothing else is held. No
-draft is replayed on reconnect. The chat message box's Send, tapped during composition,
-finishes the word the same way, with the same notes, and sends the box as shown. The input-line
-Send tapped during composition finishes the word itself (a blur and refocus inside the tap, which
+draft is replayed on reconnect. The input-line Send tapped during composition finishes the word itself (a blur and refocus inside the tap, which
 ends the composition in Chrome and keeps the keyboard up) and sends the committed line, read from
 the draft; "Finishing the word…" shows only while the word is still open after the tap. A keyboard
 that still does not commit within 300 ms of the tap (a fixed deadline, which a chain of new
@@ -62,7 +38,7 @@ compositions does not extend) gets the tap withdrawn with "Finish the word, then
 commit sends nothing. A terminal that drops meanwhile withdraws the tap at once with "Not sent: the
 terminal is disconnected.", even if it reconnects within the wait. A word that commits empty (the
 preedit deleted or cancelled) sends nothing, not a bare Enter.
-The key bar waits only for a direct-typing (xterm) composition, so a key cannot overtake xterm's
+The key bar waits only for a direct-typing composition, so a key cannot overtake the terminal's
 pending commit. A composition in the input line leaves the key bar live: Esc, ^C and the arrows
 go to the pane at once, Ctrl, Alt and Shift arm, and the line's unfinished text stays where it is.
 Only the switch to direct typing waits for it, so the line is not removed mid-word.
@@ -87,15 +63,27 @@ once. A sideways swipe scrolls the row without sending a key. Long presses on ke
 Direct typing and arrow buttons send logical key chords; Herdr encodes them for the
 PTY's keyboard protocol. Home/End, Page and Delete/Insert keys use CSI navigation through the attach
 stream because Herdr's RPC key parser lacks those names. Paste, IME commits and terminal reports pass through unchanged.
-The input line and chat composer send their text as typed. Changing panes, leaving the
+The input line sends its text as typed. Changing panes, leaving the
 terminal view or disconnecting clears the held modifiers.
 
 On macOS, Cmd+Left and Cmd+Right in direct typing send Ctrl+A and Ctrl+E, moving to the
 beginning and end of the input line in shells and agents that use those bindings.
-Pending IME text is sent first. Additional modifiers retain xterm's behavior; the input line
-and chat composer keep their native text editing. Ctrl+Left and Ctrl+Right are sent as xterm
-sends them on every platform, so a program in the pane that binds them (tmux, an editor) still
-receives them; Option+Left and Option+Right move by word.
+Pending IME text is sent first. Additional Meta modifiers and non-Mac Meta arrows stay with
+the browser; the input line keeps its native text editing. Ctrl+Left and Ctrl+Right send
+CSI `1;5D` and `1;5C` on every platform; macOS Option+Left and Option+Right send ESC+b/f.
+
+## Restty IME boundary
+
+`src/lib/restty/nativeIme.ts` reads corrected DOM text before restty clears its scratch editor.
+Commits wait one task, drain in order before the following key or punctuation, and are cancelled
+on pane reset/disposal. `replacementIme.ts` maps Safari's non-composition Hangul replacement edits
+to local preedit, committing before a normal key, paste or blur. Synthetic replacement events do
+not enter the app's native-composition gate. Gboard's stale context is cleared on non-composing
+Backspace/Delete. The iOS kept-space editor still supports held Backspace.
+
+These adapters replace the removed xterm source patches. Recorded Safari, iPad/iPhone and Gboard
+sequences pass against restty; the historical native-device checks below describe the older
+xterm build and must not be presented as physical-device validation of restty.
 
 ## Readiness and failures
 
@@ -121,25 +109,31 @@ The new readiness frame is also implemented in the website demo transport.
   mode switching, pane and reload persistence, an unfinished composition, unmount during composition,
   phone key-bar Esc and ^C (and a held direct-typing toggle) while the input line composes,
   pending-send remounts, replacement text, shortcut customization, first held-input persistence,
-  readiness delay, an xterm composition commit, batched commits before punctuation, and Korean
+  readiness delay, a restty composition commit, batched commits before punctuation, and Korean
   final-consonant movement. Submit/input interception isolates UI assertions;
   contract tests separately verify real delivery.
-- `bun run test:ui`: includes those checks plus the existing mobile, clipboard, secret-entry,
-  reconnect, prompt, queue and viewport checks. `UI_EVIDENCE_DIR` saves screenshots.
+- `CHROME_PATH=/path/to/chrome bun run test:restty`: the isolated kept-terminal browser lane,
+  including IME replays, clipboard/history selection, drafts, paste/drop, splits, Appearance,
+  viewport, pinch, keys, search and SSP latency. The old `test:ui` still assumes removed UI.
 - `bun run build && bun scripts/terminal-safari-ime-regression.ts`: replays Safari's recorded
   non-composition Hangul replacement events in Chromium, including commit keys, final-consonant
-  movement, deletion, paste, blur and pane reset. Also included in `bun run test:ui`.
+  movement, deletion, paste, blur and pane reset. Also included in `bun run test:restty`.
 - `bun run build && bun scripts/terminal-command-arrows-regression.ts`: Cmd+Left/Right line
   movement, exact bytes and real readline cursor positions, IME ordering, repeat, modifier,
   unchanged Ctrl+arrows, Windows and Linux checks.
   Uses Chromium with a simulated Mac platform, not native macOS Safari or an OS IME.
-- `bun scripts/file-viewer-regression.ts`: existing navigation and touch regressions.
 
 Synthetic composition events exercise event handling, not a real Samsung/Gboard/iOS IME.
 Validate rapid Hangul, final-consonant movement, Enter, Backspace, dictation, keyboard-app round
 trips and pane changes on those keyboards before claiming universal IME compatibility.
 
-## Upstream findings and limits (2026-10-03)
+## Historical xterm findings and native-device evidence
+
+The following records concern the pre-restty implementation. Its xterm dependency, patches and
+build script have been removed. Current automated checks run with `bun run test:restty`;
+physical IME testing must be repeated before extending these historical claims to restty.
+
+### Upstream findings and limits (2026-10-03)
 
 - [xterm #6089](https://github.com/xtermjs/xterm.js/issues/6089) and
   [PR #6090](https://github.com/xtermjs/xterm.js/pull/6090): rapid composition under renderer load;
