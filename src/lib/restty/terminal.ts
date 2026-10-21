@@ -8,7 +8,7 @@
  * The grid is the app's to size: restty measures cells and fits the canvas only when asked.
  */
 import { createResttyRuntime, type ResttyFontInput, type ResttyRuntime } from "restty/internal/runtime";
-import type { GhosttyTheme, PtyTransport } from "restty";
+import type { GhosttyTheme, PtyCallbacks, PtyTransport } from "restty";
 import { fallbackFonts, loadFallbacks, missingFallbacks, onFallbacks } from "./fonts.ts";
 import { resttySession } from "./session.ts";
 
@@ -52,6 +52,10 @@ export class ResttyTerminal {
   /** typing reaches nothing while set (observing, a held or ended pane): keys, pastes and reports alike */
   inputDisabled = false;
   private runtime: ResttyRuntime | null = null;
+  /** restty's side of the "pty": output goes in through it */
+  private connection: PtyCallbacks | null = null;
+  private lifecycleReady = false;
+  /** output written before the connection: it goes in, in order, once there is one */
   private readonly pending: string[] = [];
   private gridCols: number;
   private gridRows: number;
@@ -125,9 +129,17 @@ export class ResttyTerminal {
   }
 
   private start(canvas: HTMLCanvasElement, fonts: ResttyFontInput[]): void {
+    // restty's pty path is the one that reads output as a terminal must: it tracks the modes the
+    // screen sets (mouse reporting, bracketed paste, focus events) and holds synchronized output.
+    // This "pty" connects as soon as restty is up, and its output is what write() is given.
     const transport: PtyTransport = {
-      connect: () => undefined,
-      disconnect: () => undefined,
+      connect: ({ callbacks }) => {
+        this.connection = callbacks;
+        callbacks.onConnect?.();
+        for (const data of this.pending.splice(0)) callbacks.onData?.(data);
+        this.becomeReady();
+      },
+      disconnect: () => { this.connection = null; },
       // what restty would send a pty: keys, a paste, IME text and the reports it makes itself
       sendInput: (data) => {
         this.input(data);
@@ -142,7 +154,7 @@ export class ResttyTerminal {
         this.setGrid(cols, rows);
         return true;
       },
-      isConnected: () => true,
+      isConnected: () => this.connection !== null,
     };
     const runtime = createResttyRuntime({
       mount: { canvas, imeInput: this.textarea, session: resttySession() },
@@ -169,16 +181,25 @@ export class ResttyTerminal {
     });
     this.runtime = runtime;
     runtime.events.subscribe((event) => {
-      if (event.type !== "state" || event.state !== "ready" || this.isReady || this.disposed) return;
-      this.isReady = true;
-      // how long a terminal takes to come up, for the browser's performance tools (and the PR's numbers)
-      performance.mark("restty:ready", { detail: { since: performance.now() - this.createdAt, backend: runtime.render.getBackend() } });
-      // a grid set before the runtime could draw it (an adopted one) is applied now
-      if (this.fixed) this.applyFixed(this.fixed.cols, this.fixed.rows);
-      for (const listener of [...this.readyListeners]) listener();
+      if (event.type !== "state" || event.state !== "ready") return;
+      this.lifecycleReady = true;
+      this.becomeReady();
     });
-    for (const data of this.pending.splice(0)) runtime.io.sendInput(data, "pty");
     void runtime.lifecycle.init().catch(() => undefined);
+    // once restty is up (the init above), it calls connect above; asked before init, it would start
+    // an init of its own that the one above supersedes, and never connect
+    runtime.io.connectPty("");
+  }
+
+  /** Up and connected: the grid is measured and output draws. */
+  private becomeReady(): void {
+    if (this.isReady || this.disposed || !this.lifecycleReady || !this.connection || !this.runtime) return;
+    this.isReady = true;
+    // how long a terminal takes to come up, for the browser's performance tools (and the PR's numbers)
+    performance.mark("restty:ready", { detail: { since: performance.now() - this.createdAt, backend: this.runtime.render.getBackend() } });
+    // a grid set before the runtime could draw it (an adopted one) is applied now
+    if (this.fixed) this.applyFixed(this.fixed.cols, this.fixed.rows);
+    for (const listener of [...this.readyListeners]) listener();
   }
 
   get cols(): number { return this.gridCols; }
@@ -212,7 +233,7 @@ export class ResttyTerminal {
     // text the bundled faces may lack (symbols, emoji, CJK) brings its fallback in
     const missing = missingFallbacks(data);
     if (missing.length > 0) loadFallbacks(missing);
-    if (this.runtime) this.runtime.io.sendInput(data, "pty");
+    if (this.connection) this.connection.onData?.(data);
     else this.pending.push(data);
   }
 
