@@ -2,7 +2,8 @@
  * The minimal chrome (docs/ROADMAP.md, Phase 1) in a real browser, on a herdr of its own: the bar
  * holds the sidebar toggle and the tabs as pills and nothing else; the sidebar lists workspaces
  * only; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
- * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU).
+ * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU). Focus mode
+ * (Mod+Shift+.) moves the tabs under their workspace, and a hidden sidebar hands them back to the bar.
  *
  *   bun run build && bun run check run bun scripts/minimal-ui-regression.ts
  */
@@ -71,6 +72,29 @@ try {
   // the lens switch's old chord does nothing
   await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+J" : "Control+Shift+J");
   assert.equal(await page.locator(".chat-view, .composer").count(), 0, "Mod+Shift+J opens no chat");
+
+  // focus mode (Mod+Shift+.): the tabs are rows under their workspace and the bar over the pane goes
+  const mod = process.platform === "darwin" ? "Meta" : "Control";
+  const rows = page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-tab-select`);
+  await page.keyboard.press(`${mod}+Shift+Period`);
+  await rows.nth(1).waitFor({ timeout: 5_000 });
+  assert.equal(await tabs.count(), 0, "no pills in the bar in focus mode");
+  assert.equal(await rows.count(), 2, "both tabs are rows under their workspace");
+  assert.equal(await page.locator(".pane-column").evaluate((column) => Math.round(column.getBoundingClientRect().top)), 0, "the pane runs to the window's top");
+  assert.equal(await page.locator(".app-header .sidebar-toggle").count(), 1, "the sidebar toggle stays, in the sidebar's top row");
+  await rows.nth(1).click();
+  await page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-tab.is-selected .workspace-tab-select`).nth(0).waitFor();
+  assert.equal(await rows.nth(1).getAttribute("aria-current"), "true", "a row opens its tab's pane");
+  // a hidden sidebar hands the tabs back to the bar, and showing it takes them again
+  await page.keyboard.press(`${mod}+Shift+B`);
+  await tabs.nth(1).waitFor({ timeout: 5_000 });
+  assert.equal(await page.locator(".app-header [role=tab][aria-selected=true] .tab-strip-label").textContent(), await rows.nth(1).locator(".workspace-tab-name").textContent(), "the bar opens on the same tab");
+  await page.keyboard.press(`${mod}+Shift+B`);
+  await tabs.first().waitFor({ state: "detached", timeout: 5_000 });
+  // and the same chord leaves focus mode
+  await page.keyboard.press(`${mod}+Shift+Period`);
+  await tabs.nth(1).waitFor({ timeout: 5_000 });
+  assert.equal(await page.locator(".workspace-tab").count(), 0, "no tab rows outside focus mode");
 
   console.log("minimal-ui-regression: ok");
 } finally {

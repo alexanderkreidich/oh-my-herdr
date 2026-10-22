@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type AnimationEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, Terminal, Trash2, TriangleAlert, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, SquareTerminal, Terminal, Trash2, TriangleAlert, X } from "lucide-react";
 
 import "./Sidebar.css";
 
-import type { AgentStatus, PaneInfo, SessionSnapshot, WorkspaceInfo } from "../../shared/protocol.ts";
+import type { AgentStatus, HerdrPane, HerdrTab, PaneInfo, SessionSnapshot, WorkspaceInfo } from "../../shared/protocol.ts";
 import { paneTitle } from "../../shared/notify-policy.ts";
 import { MAX_LABEL_CHARS } from "../../shared/labels.ts";
 import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
@@ -28,6 +28,8 @@ import { watchTouchReorder } from "../lib/touchReorder.ts";
 import { placeBlock, workspaceMoves, worktreeGroups as groupWorktrees } from "../lib/workspaceOrder.ts";
 import { worktreeLabel } from "../lib/worktreeName.ts";
 import { lastViewedPane, rememberViewedPane } from "../lib/lastViewedPane.ts";
+import { customTabLabel, tabLabel } from "../lib/tabName.ts";
+import { tabCloseAsks, tabPane } from "../lib/tabs.ts";
 import { paneMark, sidebarAgents, workspaceAgentLabels } from "../lib/sidebarAgents.ts";
 import { PANE_DRAG_TYPE, paneDragData } from "../lib/split.ts";
 import { currentSidebarPins, pinnedGroupIds, pinnedWorkspaceIds, pruneWorkspacePins, reorderWorkspacePins, setSidebarPins, splitPinnedGroups, subscribeSidebarPins, toggleSidebarPin, workspacePinKey, type WorkspaceGroup } from "../lib/sidebarPins.ts";
@@ -156,6 +158,10 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
   const t = useT();
   const { settings } = useSettings();
   const twoLine = settings.sidebarRows === "two";
+  // focus mode (App): from 769px each workspace's tabs are rows under it; App hides the sidebar,
+  // tabs and all, when it hands them back to the bar
+  const wide = useMediaQuery("(min-width: 769px)");
+  const tabsUnder = settings.focusMode && wide;
   const machineId = useMachineId();
   const activity = useSidebarActivity();
   const { closeWorkspace, listWorktrees, moveWorkspace, removeWorktree, renameWorkspace } = useMachineApi();
@@ -598,7 +604,9 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
     const collapsed = children.length > 0 && repoKey !== undefined && collapsedWorktrees.has(repoKey);
     // a folded group's parent stands for its worktrees too, as herdr's collapsed parent does:
     // a checkout that waits or has finished must not hide behind the fold
-    const statusPanes = collapsed ? [...panes, ...children.flatMap((child) => roster.filter((candidate) => candidate.workspace_id === child.workspace_id))] : panes;
+    const foldedPanes = collapsed ? children.flatMap((child) => roster.filter((candidate) => candidate.workspace_id === child.workspace_id)) : [];
+    // in focus mode a workspace's own tabs say their states under it: the row says only what its fold hides
+    const statusPanes = tabsUnder ? foldedPanes : [...panes, ...foldedPanes];
     // on two lines the row says what its pane is doing, and the workspace it has named until now sits under that
     const lines = twoLine ? taskRowLines({ paneTitle: displayPaneTitle(pane), labelled: Boolean(pane.label?.trim()), folder: cwdBasename(pane.cwd), workspace: rowTitle, alias: secondaryBranch }) : null;
     // a folded group still shows the checkout that is open; the count is of the ones put away
@@ -697,7 +705,19 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
             <Ellipsis aria-hidden="true" />
           </button>
         </div>
+        {/* focus mode: the + the bar over the pane had, on the row of the workspace it adds to */}
+        {tabsUnder && <button
+          type="button"
+          className="sidebar-row-action workspace-new-tab"
+          aria-label={t("New terminal in {name}", { name: rowTitle })}
+          title={t("New terminal in {name}", { name: rowTitle })}
+          onClick={() => void actions.openTerminalTab({ machineId, workspaceId: workspace.workspace_id }).catch((reason: unknown) => {
+            const failure = userErrorMessage(reason);
+            noteError(t("New terminal failed: {reason}", { reason: failure.message }), workspace.workspace_id, failure.detail);
+          })}
+        ><Plus aria-hidden="true" /></button>}
       </div>
+      {tabsUnder && snapshot && <WorkspaceTabs snapshot={snapshot} workspace={workspace} panes={panes} selectedPaneId={selectedPaneId} online={online} actions={actions} noteError={noteError} />}
       {inlineError?.workspaceId === workspace.workspace_id && <p className="sidebar-inline-error" role="alert">{inlineError.message}{inlineError.detail !== null && <><br /><code>{inlineError.detail}</code></>}</p>}
     </li>;
   };
@@ -721,7 +741,7 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
   };
 
   return (
-    <div className={`machine-workspaces${twoLine ? " is-two-line" : ""}`} ref={workspaceRoot}>
+    <div className={`machine-workspaces${twoLine ? " is-two-line" : ""}${tabsUnder ? " is-focus" : ""}`} ref={workspaceRoot}>
       <nav className="sidebar-list" aria-label={t("Herdr workspaces")}>
         <>
           <p className={loadingWords === null ? "visually-hidden" : "tree-state"} role="status">{loadingWords}</p>
@@ -752,5 +772,221 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
         actions.selectPane(opened.pane_id);
       }} />}
     </div>
+  );
+}
+
+interface WorkspaceTabsProps {
+  snapshot: SessionSnapshot;
+  workspace: WorkspaceInfo;
+  /** the workspace's panes on the roster (lib/dagPane.ts) */
+  panes: PaneInfo[];
+  selectedPaneId: string | null;
+  online: boolean;
+  actions: AppActions;
+  noteError: (message: string, workspaceId?: string, detail?: string | null) => void;
+}
+
+/**
+ * Focus mode: a workspace's tabs as rows under it, in herdr's order. A row is what the tab strip's
+ * pill is (TabStrip): its pane's mark and the tab's name, and its state in the status cell every
+ * sidebar row has. A tab with no agent in it is dimmer: nothing is at work there. A click opens the
+ * pane the strip would; the strip's menu is a right-click, Shift+F10 or the context-menu key away,
+ * F2 names a tab and Delete closes it.
+ */
+function WorkspaceTabs({ snapshot, workspace, panes, selectedPaneId, online, actions, noteError }: WorkspaceTabsProps) {
+  const t = useT();
+  const machineId = useMachineId();
+  const activity = useSidebarActivity();
+  const { closeTab, renameTab } = useMachineApi();
+  const list = useRef<HTMLUListElement>(null);
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; point?: { x: number; y: number }; previousFocus: HTMLElement | null; tab: HerdrTab } | null>(null);
+  const [editing, setEditing] = useState<{ tabId: string; value: string } | null>(null);
+  // the name just sent, shown until herdr's snapshot carries it
+  const [sent, setSent] = useState<{ tabId: string; label: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ tab: HerdrTab; title: string; body: string } | null>(null);
+  // what is open now, for a close that answers after another pane was opened
+  const selected = useRef(selectedPaneId);
+  selected.current = selectedPaneId;
+  const tabs = snapshot.tabs.filter((tab) => tab.workspace_id === workspace.workspace_id);
+  const panesOf = (tab: HerdrTab): PaneInfo[] => panes.filter((pane) => pane.tab_id === tab.tab_id);
+  const paneFor = (tab: HerdrTab): PaneInfo | undefined => tabPane(panesOf(tab), lastViewedPane("tab", machineId, tab.tab_id),
+    snapshot.layouts?.find((layout) => layout.tab_id === tab.tab_id)?.focused_pane_id);
+  const placeOf = (tab: HerdrTab): number => tabs.findIndex((candidate) => candidate.tab_id === tab.tab_id) + 1;
+  // as the strip names a tab: the name it was given, else what runs in it, else its place
+  const nameOf = (tab: HerdrTab): string => {
+    if (sent?.tabId === tab.tab_id) return sent.label;
+    const pane = paneFor(tab);
+    return customTabLabel(tab, placeOf(tab)) ?? (pane ? displayPaneTitle(pane) : tabLabel(tab, t, placeOf(tab)));
+  };
+  const focusRow = (tabId: string): void => {
+    window.requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(tabId)}"]`)?.focus());
+  };
+
+  // the strip, which keeps the pane each tab was last seen on, is not drawn in focus mode
+  const openPane = panes.find((pane) => pane.pane_id === selectedPaneId);
+  const openTabId = openPane?.tab_id;
+  useEffect(() => {
+    if (openTabId && selectedPaneId) rememberViewedPane("tab", machineId, openTabId, selectedPaneId);
+  }, [machineId, openTabId, selectedPaneId]);
+
+  // tabs that arrive while the rows are on screen enter (Sidebar.css); the ones there when focus mode
+  // came on are just there
+  const seen = useRef<ReadonlySet<string> | null>(null);
+  const arrived = (tabId: string): boolean => seen.current !== null && !seen.current.has(tabId);
+  useLayoutEffect(() => {
+    seen.current = new Set(tabs.map((tab) => tab.tab_id));
+  });
+
+  // a menu, a name field or a question whose tab left (closed in the TUI) goes with it
+  useEffect(() => {
+    const here = (tabId: string): boolean => tabs.some((tab) => tab.tab_id === tabId);
+    if (menu && !here(menu.tab.tab_id)) setMenu(null);
+    if (editing && !here(editing.tabId)) setEditing(null);
+    if (confirm && !here(confirm.tab.tab_id)) setConfirm(null);
+    if (sent && tabs.find((tab) => tab.tab_id === sent.tabId)?.label.trim() === sent.label) setSent(null);
+  });
+  // a name herdr never showed back (renamed again elsewhere) does not stay on the row
+  useEffect(() => {
+    if (!sent) return;
+    const timer = window.setTimeout(() => setSent(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [sent]);
+
+  const beginRename = (tab: HerdrTab): void => {
+    setEditing({ tabId: tab.tab_id, value: sent?.tabId === tab.tab_id ? sent.label : customTabLabel(tab, placeOf(tab)) ?? "" });
+  };
+  // an empty name is not sent: herdr would keep it, and its own tab row would show nothing
+  const saveRename = (tab: HerdrTab): void => {
+    const label = editing?.value.trim() ?? "";
+    if (label === "") { noteError(t("A tab needs a name."), workspace.workspace_id); return; }
+    setEditing(null);
+    focusRow(tab.tab_id);
+    if (label === nameOf(tab)) return;
+    setSent({ tabId: tab.tab_id, label });
+    void renameTab(tab.tab_id, label).catch((reason: unknown) => {
+      setSent((current) => current?.tabId === tab.tab_id ? null : current);
+      const failure = userErrorMessage(reason);
+      noteError(t("Rename failed: {reason}", { reason: failure.message }), workspace.workspace_id, failure.detail);
+    });
+  };
+
+  // the tab beside a closed open one takes its place, and the focus with it
+  const close = async (tab: HerdrTab): Promise<void> => {
+    const index = tabs.findIndex((candidate) => candidate.tab_id === tab.tab_id);
+    const beside = tabs[index + 1] ?? tabs[index - 1];
+    const besidePane = beside ? paneFor(beside) : undefined;
+    const ownIds = panesOf(tab).map((pane) => pane.pane_id);
+    const hadFocus = list.current?.contains(document.activeElement) === true;
+    await closeTab(tab.tab_id);
+    // the last tab took its workspace, and these rows, with it: focus goes where a closed row's goes
+    if (!beside) { if (hadFocus) focusWorkspaceListToggle(); return; }
+    if (besidePane && selected.current !== null && ownIds.includes(selected.current)) actions.selectPane(besidePane.pane_id);
+    if (hadFocus) focusRow(beside.tab_id);
+  };
+  const requestClose = (tab: HerdrTab): void => {
+    // a turn that waits on its background work would lose that work too
+    if (!tabCloseAsks(panesOf(tab) as HerdrPane[], tabs.length)) {
+      void close(tab).catch((reason: unknown) => {
+        const failure = userErrorMessage(reason);
+        noteError(t("Close failed: {reason}", { reason: failure.message }), workspace.workspace_id, failure.detail);
+      });
+      return;
+    }
+    setConfirm({
+      tab,
+      title: t("Close tab {name}?", { name: nameOf(tab) }),
+      body: tabs.length > 1
+        ? t("An agent in it is still at work, and stops with the tab.")
+        : t("It is the last tab of {workspace}: the workspace closes with it, and the agents and shells in it stop.", { workspace: workspace.label }),
+    });
+  };
+
+  // the strip's menu: a new tab is a shell from the workspace row's +, so this one picks an agent
+  const menuItems = (tab: HerdrTab): RowMenuItem[] => [
+    { id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: () => actions.openNewTab({ machineId, workspaceId: workspace.workspace_id }) },
+    { id: "rename-tab", label: t("Rename tab"), icon: Pencil, run: () => beginRename(tab) },
+    { id: "close-tab", label: t("Close tab"), icon: X, danger: true, run: () => requestClose(tab) },
+  ];
+  const openMenu = (event: MouseEvent<HTMLButtonElement>, tab: HerdrTab): void => {
+    event.preventDefault();
+    setMenu({ anchor: event.currentTarget, tab, point: event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined,
+      previousFocus: document.activeElement instanceof HTMLElement ? document.activeElement : null });
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLUListElement>): void => {
+    const row = event.target as HTMLElement;
+    const tab = tabs.find((candidate) => candidate.tab_id === row.dataset["tabId"]);
+    if (!tab) return;
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+      event.preventDefault();
+      if (!event.repeat) setMenu({ anchor: row, tab, previousFocus: row });
+      return;
+    }
+    if (event.key !== "F2" && event.key !== "Delete") return;
+    event.preventDefault();
+    // a held key is one press: the focus moves to the row beside a closed one
+    if (event.repeat) return;
+    if (event.key === "F2") beginRename(tab); else requestClose(tab);
+  };
+
+  return (
+    <>
+      <ul ref={list} className="workspace-tabs" aria-label={t("Tabs of {workspace}", { workspace: workspace.label })} onKeyDown={onKeyDown}>
+        {tabs.map((tab) => {
+          const own = panesOf(tab);
+          const pane = paneFor(tab);
+          if (!pane) return null;
+          const name = nameOf(tab);
+          const open = own.some((candidate) => candidate.pane_id === selectedPaneId);
+          const quiet = !own.some((candidate) => candidate.agent);
+          const status = online ? rollupStatus(own.map((candidate) => activity.status(machineId, candidate))) : undefined;
+          return (
+            <li key={tab.tab_id} className={`workspace-tab${open ? " is-selected" : ""}${quiet ? " is-quiet" : ""}${arrived(tab.tab_id) ? " is-new" : ""}`}>
+              {editing?.tabId === tab.tab_id ? (
+                <input
+                  className="input workspace-tab-rename"
+                  aria-label={t("Tab name")}
+                  autoFocus
+                  maxLength={MAX_LABEL_CHARS}
+                  placeholder={name}
+                  value={editing.value}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setEditing({ tabId: tab.tab_id, value: event.target.value })}
+                  onBlur={() => setEditing(null)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    // an IME's Enter and Escape are the composition's, not the field's
+                    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                    if (event.key === "Enter") saveRename(tab);
+                    if (event.key === "Escape") { setEditing(null); focusRow(tab.tab_id); }
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="workspace-tab-select"
+                  data-tab-id={tab.tab_id}
+                  aria-current={open ? "true" : undefined}
+                  aria-haspopup="menu"
+                  aria-keyshortcuts="Shift+F10 F2 Delete"
+                  title={own.length === 1 ? displayPaneTitle(pane) : t("{n} panes", { n: own.length })}
+                  onMouseDown={(event) => { if (event.button === 2 || (event.button === 0 && event.ctrlKey)) event.preventDefault(); }}
+                  onClick={(event) => { if (!event.ctrlKey) actions.selectPane(pane.pane_id); }}
+                  onDoubleClick={() => beginRename(tab)}
+                  onContextMenu={(event) => openMenu(event, tab)}
+                  // the middle button closes a tab, as it does a browser's
+                  onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); requestClose(tab); } }}
+                >
+                  <span className="workspace-tab-mark" aria-hidden="true">{pane.agent ? <AgentMark agent={pane.agent} size={14} /> : <SquareTerminal />}</span>
+                  <span className="workspace-tab-name">{name}</span>
+                  {online && pane.restore_error ? <RestoreErrorBadge reason={pane.restore_error} /> : <StatusBadge compact status={status} />}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {menu && <RowMenu anchor={menu.anchor} point={menu.point} restoreFocusTo={menu.previousFocus} title={nameOf(menu.tab)} items={menuItems(menu.tab)} align="start" onClose={() => setMenu(null)} />}
+      {confirm && <ConfirmDialog title={confirm.title} body={confirm.body} confirmLabel={t("Close tab")} onConfirm={async () => { await close(confirm.tab); setConfirm(null); }} onClose={() => setConfirm(null)} />}
+    </>
   );
 }

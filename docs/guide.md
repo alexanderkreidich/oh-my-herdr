@@ -540,6 +540,7 @@ Optional integrations and the updater have separate network behavior. See [the s
 | `Mod+Shift+E` | Focus the current pane's message box, terminal input line or terminal |
 | `Mod+Shift+PageUp` / `PageDown` | Scroll the current pane up / down, retaining one line |
 | `Mod+Shift+B` | Toggle sidebar |
+| `Mod+Shift+.` | Focus mode: each workspace's tabs as rows under it in the sidebar, no bar over the pane (a hidden sidebar hands the tabs back to the bar) |
 | `Mod+Shift+O` | New workspace (`Mod+Shift+N` too, in the installed app: a Chrome tab keeps `Ctrl+Shift+N` for an incognito window) |
 | `Mod+Shift+↑` / `↓` | Previous / next pane |
 | `Mod+Shift+,` | Settings |

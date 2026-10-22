@@ -1957,6 +1957,35 @@ button {
   }
 }
 
+/* Focus mode (App focusLayout, from 769px with the sidebar shown): the tabs are rows in the sidebar,
+   so the header is the sidebar's own top row alone, the sidebar toggle and the connection's state in
+   it, laid over the sidebar's top. The pane column runs to the window's top edge. */
+@media (min-width: 769px) {
+  .app.is-focus {
+    position: relative;
+  }
+
+  .app.is-focus .app-header {
+    position: absolute;
+    inset: 0 auto auto 0;
+    z-index: var(--z-header);
+    width: var(--sidebar-shown-w);
+    padding-right: 0;
+    border-bottom: 0;
+  }
+
+  .app.is-focus .header-side {
+    gap: var(--space-1);
+    justify-content: flex-end;
+    margin-right: 0;
+    margin-bottom: 0;
+  }
+
+  .app.is-focus .sidebar {
+    padding-top: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  }
+}
+
 /* Installed desktop app with the title bar folded away (manifest display_override): the header
    takes the title bar's place, so it drags the window and leaves room for the window controls
    Chrome draws over its left (macOS) or right edge. */
@@ -1977,6 +2006,15 @@ button {
 @media (display-mode: window-controls-overlay) and (min-width: 769px) {
   .app:not(.sidebar-collapsed) .header-side {
     padding-left: calc(var(--space-3) + env(titlebar-area-x, 0px));
+  }
+
+  /* focus mode: the title bar's strip over the pane stays the window's to drag, and clear of the
+     window controls Chrome draws at its right edge (Windows) */
+  .app.is-focus .pane-column::before {
+    flex: 0 0 env(titlebar-area-height, 0px);
+    content: "";
+    -webkit-app-region: drag;
+    app-region: drag;
   }
 }
 

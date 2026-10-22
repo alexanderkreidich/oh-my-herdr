@@ -647,3 +647,186 @@
   }
 }
 
+
+/* ---------- focus mode: a workspace's tabs as rows under it (WorkspaceTabs) ---------- */
+
+/* The tabs hang from the workspace's mark on a dim guide, as a worktree hangs from its repository:
+   a line down the rows and a rounded elbow into the last. A row's mark starts where the
+   workspace's name does; its state sits in the status column every row shares. */
+.workspace-tabs {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.worktree-children .workspace-tabs { padding-left: var(--side-box); }
+
+/* a worktree with more under it: the repository's branch runs on past its tabs */
+.worktree-children .workspace-group:not(:last-child) > .workspace-tabs { position: relative; }
+
+.worktree-children .workspace-group:not(:last-child) > .workspace-tabs::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--side-box) / 2);
+  width: var(--hairline);
+  content: "";
+  background: var(--border-strong);
+  pointer-events: none;
+}
+
+/* a tab that arrives enters, as the strip's does (occasional, and seeing it arrive says where it
+   went); the rows there when focus mode comes on, by its shortcut, are drawn at once */
+.workspace-tab {
+  position: relative;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+@starting-style {
+  .workspace-tab.is-new {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-1)));
+  }
+}
+
+.workspace-tab::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--side-box) / 2);
+  width: var(--hairline);
+  content: "";
+  background: var(--border-strong);
+  pointer-events: none;
+}
+
+.workspace-tab:last-child::before {
+  bottom: 50%;
+  width: calc(var(--side-box) / 2 - var(--space-2));
+  background: transparent;
+  border-bottom: var(--hairline) solid var(--border-strong);
+  border-left: var(--hairline) solid var(--border-strong);
+  border-bottom-left-radius: var(--radius-md);
+}
+
+.workspace-tab-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: calc(100% - var(--side-box) + var(--space-2));
+  min-height: calc(var(--side-row) - var(--space-1));
+  margin-left: calc(var(--side-box) - var(--space-2));
+  padding: 0 0 0 var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* the fill moves with the open tab at once: a tab is picked by key as often as by pointer */
+@media (hover: hover) {
+  .workspace-tab-select:hover { background: var(--side-hover); }
+}
+
+/* a tab with no agent in it reads quieter: nothing is at work there */
+.workspace-tab.is-quiet > .workspace-tab-select { color: var(--text-dim); }
+
+.workspace-tab.is-selected > .workspace-tab-select {
+  background: var(--side-selected);
+  color: var(--text-strong);
+}
+
+.workspace-tab-select:focus-visible {
+  outline: var(--ring);
+  outline-offset: calc(var(--ring-offset) * -1);
+}
+
+/* what runs in the tab, as its pill says it: an agent's mark or the terminal glyph */
+.workspace-tab-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.workspace-tab-mark > .lucide {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.75;
+}
+
+/* a long name fades out before the status cell instead of ending in an ellipsis */
+.workspace-tab-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(to right, currentColor calc(100% - var(--space-5)), transparent);
+}
+
+.workspace-tab-rename {
+  width: calc(100% - var(--side-box) + var(--space-2));
+  height: calc(var(--side-row) - var(--space-2));
+  margin: var(--space-1) 0 var(--space-1) calc(var(--side-box) - var(--space-2));
+  padding: 0 var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+/* the open tab's row is the filled one; its workspace's name says where it is */
+.machine-workspaces.is-focus .workspace-group.is-selected > .workspace-header { background: transparent; }
+
+@media (hover: hover) {
+  .machine-workspaces.is-focus .workspace-group.is-selected > .workspace-header:hover { background: var(--side-hover); }
+}
+
+/* The workspace row's + (a new terminal), where the bar over the pane had it: it takes the status
+   cell under a pointer or the keyboard, the row's own state being in its tab rows. Touch, with
+   nothing to hover, always shows it. */
+.sidebar-row-action.workspace-new-tab {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: var(--side-box);
+  height: auto;
+  border-radius: var(--radius-md);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.workspace-header:focus-within > .workspace-new-tab {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .workspace-header:hover > .workspace-new-tab {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (hover: none) {
+  .sidebar-row-action.workspace-new-tab {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.workspace-new-tab:active:not(:disabled) { transform: scale(0.95); }
+
+@media (prefers-reduced-motion: reduce) {
+  @starting-style {
+    .workspace-tab.is-new { transform: none; }
+  }
+
+  .workspace-new-tab:active:not(:disabled) { transform: none; }
+}

@@ -70,6 +70,8 @@ export interface Settings {
   density: Density;
   /** How much a workspace row says: its name, or its pane's title over its place. */
   sidebarRows: SidebarRows;
+  /** Focus mode: from 769px, with the sidebar shown, the tabs live under their workspaces and the bar over the pane goes */
+  focusMode: boolean;
   /** The Agents list's order. Activity is display-only: herdr's own order never changes. */
   agentOrder: AgentOrder;
   /** Agent logos: brand colors, or without color, so a list of one agent is not a stripe of tiles */
@@ -194,7 +196,7 @@ export const SETTING_SCOPE = {
   terminalInputMode: "device", keyBarExtras: "device", keyBarItems: "device", shortcutOverrides: "device", density: "device",
   terminalFontSize: "device",
   terminalWheelSpeed: "device", terminalFontFamily: "device", terminalLigatures: "device", terminalRenderer: "device", terminalThemeName: "device",
-  paneClipboard: "device", releasePaneAway: "device",
+  paneClipboard: "device", releasePaneAway: "device", focusMode: "device",
   chatFontSize: "device", chatFontFamily: "device", uiFontSize: "device", chatWidth: "device", enterSends: "device",
   keepScreenOn: "device", alertsOn: "device", alertInput: "device", alertDone: "device", alertInApp: "device", alertSound: "device",
   paletteLight: "device", paletteDark: "device", statusIndicators: "device",
@@ -218,6 +220,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   density: "comfortable",
   sidebarRows: "one",
+  focusMode: false,
   agentOrder: "workspace",
   agentMarks: "color",
   statusIndicators: "classic",
@@ -355,6 +358,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     theme: theme === "dark" || theme === "light" || theme === "system" ? theme : DEFAULT_SETTINGS.theme,
     density: density === "compact" || density === "comfortable" ? density : DEFAULT_SETTINGS.density,
     sidebarRows: record["sidebarRows"] === "one" || record["sidebarRows"] === "two" ? record["sidebarRows"] : DEFAULT_SETTINGS.sidebarRows,
+    focusMode: record["focusMode"] === true,
     agentOrder: record["agentOrder"] === "workspace" || record["agentOrder"] === "activity" ? record["agentOrder"] : DEFAULT_SETTINGS.agentOrder,
     agentMarks: record["agentMarks"] === "color" || record["agentMarks"] === "mono" ? record["agentMarks"] : DEFAULT_SETTINGS.agentMarks,
     statusIndicators: record["statusIndicators"] === "classic" || record["statusIndicators"] === "dots" || record["statusIndicators"] === "symbols" ? record["statusIndicators"] : DEFAULT_SETTINGS.statusIndicators,
