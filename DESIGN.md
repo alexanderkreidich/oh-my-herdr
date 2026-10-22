@@ -466,7 +466,7 @@ The values are the ones in `src/styles.css`. Every token but `--fs-input` is `ca
 | Token | Value | Usage |
 |-------|-------|-------|
 | `--ui-scale` | `1`; Settings → Appearance → Interface font size over the density's body size, written on `<html>` | Multiplies every `--fs-*` token but `--fs-input` |
-| `--font-ui` | `"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Malgun Gothic", sans-serif` | Chrome and chat prose |
+| `--font-ui` | `"JetBrains Mono Web", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Malgun Gothic", sans-serif` | Chrome and chat prose |
 | `--font-mono` | `"Symbols Nerd Font Mono", "JetBrains Mono Web", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "D2Coding", monospace` | Code, paths, keys, terminal-adjacent metadata |
 | `--lh-tight` | `1.2` | Titles |
 | `--lh-base` | `1.5` comfortable / `1.45` compact | Body copy |
@@ -484,7 +484,10 @@ The values are the ones in `src/styles.css`. Every token but `--fs-input` is `ca
 - The app ships its typefaces (`src/fonts/`, licenses in `THIRD_PARTY_NOTICES.md`) and loads
   nothing from another host: it is served from the user's PC, often with no internet route.
   Both are `font-display: swap`.
-- Pretendard Variable, the first name in `--font-ui`, is upstream's dynamic subset: 92 chunks
+- JetBrains Mono is the face of the whole interface, as in the terminal: the first name in
+  `--font-ui` and the code face of `--font-mono`, loaded as two variable files (upright and
+  italic, weights 100 to 800) under the family name `"JetBrains Mono Web"`.
+- Pretendard Variable, the fallback in `--font-ui` for the Hangul and kana JetBrains Mono lacks, is upstream's dynamic subset: 92 chunks
   split by `unicode-range`, so the browser fetches only those whose characters a page draws
   (measured on the demo's chat: three chunks, 90 KB, in English; eight more, 200 KB, with the
   interface and an answer in Korean). The service worker precaches none and keeps each one once
@@ -494,8 +497,7 @@ The values are the ones in `src/styles.css`. Every token but `--fs-input` is `ca
   Latin and Korean only. Kanji and Chinese text fall through `--font-ui` to the device's sans-serif,
   so a Japanese line is kana in Pretendard beside kanji in the device's face, and Chinese is
   the device's face almost throughout. The app ships no Japanese or Chinese face.
-- JetBrains Mono regular is the code face of the chat and the chrome, loaded under the family
-  name `"JetBrains Mono Web"`. The name is the app's own so that the terminal never takes it:
+- The family name `"JetBrains Mono Web"` is the app's own so that the terminal never takes it:
   xterm's stack (`src/lib/fontFamily.ts`) names `"JetBrains Mono"`, sizes every cell from the
   first font that matches, and keeps meaning the copy installed on the device.
 - Chat reading scale: prose, the user's bubble and live narration are `--fs-chat` on
