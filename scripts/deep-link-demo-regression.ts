@@ -108,7 +108,7 @@ try {
         const here = await page.evaluate(() => window.location.search);
         // the entries a PC removed since would have left: one for its pane, then this pane's again
         await page.evaluate((search) => {
-          history.pushState(null, "", `?machine=removed&ws=w9-gone&pane=${encodeURIComponent("w9:p1")}&new=workspace&name=Elsewhere`);
+          history.pushState(null, "", `?machine=removed&ws=w9-gone&pane=${encodeURIComponent("w9:p1")}`);
           history.pushState(null, "", `${window.location.pathname}${search}`);
         }, here);
         const length = await page.evaluate(() => history.length);
@@ -117,8 +117,6 @@ try {
         await waitQuery(page, "machine", null);
         await waitQuery(page, "pane", INFRA);
         assert.equal(await selected(page), INFRA, "the app stays on the pane it showed");
-        await page.waitForTimeout(300);
-        assert.equal(await page.getByRole("dialog", { name: /New workspace/ }).count(), 0, "no New workspace dialog for a PC that is gone");
         await page.goForward();
         await waitQuery(page, "pane", INFRA);
         assert.equal(await page.evaluate(() => history.length), length, "Back and Forward kept every entry");
@@ -274,93 +272,6 @@ try {
         assert.equal(await page.evaluate(() => navigator.clipboard.readText()), page.url());
       });
       console.log("PASS Copy link puts the address on the clipboard");
-
-      // a link to the New workspace dialog fills its fields and creates nothing by itself; the
-      // address follows what is typed, and closing the dialog takes it off
-      await withPage(browser, `?new=workspace&cwd=${encodeURIComponent("/home/demo/infra")}&name=Fix%20backup&agent=codex`, async (page) => {
-        const dialog = page.getByRole("dialog", { name: /New workspace/ });
-        await dialog.waitFor();
-        assert.equal(await page.locator("#new-session-cwd").inputValue(), "/home/demo/infra");
-        assert.equal(await dialog.getByRole("textbox", { name: "Name" }).inputValue(), "Fix backup");
-        await dialog.locator(".agent-picker-label", { hasText: /codex/i }).waitFor();
-        const workspaces = async () => (await page.evaluate(async () => (await (await fetch("/api/session")).json()).snapshot.workspaces.length)) as number;
-        const before = await workspaces();
-        await page.waitForTimeout(800);
-        assert.equal(await workspaces(), before, "a link fills the form; Create is still the user's");
-        await waitQuery(page, "name", "Fix backup");
-        await dialog.getByRole("textbox", { name: "Name" }).fill("Fix the nightly backup");
-        await waitQuery(page, "name", "Fix the nightly backup");
-        assert.equal((await query(page))["new"], "workspace");
-        await page.keyboard.press("Escape");
-        await dialog.waitFor({ state: "detached" });
-        await waitQuery(page, "new", null);
-        await waitQuery(page, "name", null);
-      });
-      // an agent herdr does not offer is left out, and a tab link opens the dialog for the linked workspace
-      await withPage(browser, `?ws=${wsOf(INFRA)}-infra&new=tab&agent=nope`, async (page) => {
-        const dialog = page.getByRole("dialog", { name: /New tab · cli-tools/ });
-        await dialog.waitFor();
-        await waitQuery(page, "new", "tab");
-        // the dialog drops it once herdr's agents are in, and the address follows a moment later
-        await page.waitForFunction(() => new URLSearchParams(window.location.search).get("agent") !== "nope", undefined, { timeout: 5_000 });
-      });
-      console.log("PASS a link to the New workspace dialog fills it and creates nothing; the address follows the fields, and a tab link opens it for its workspace");
-
-      // the agent picker in that dialog closes when its anchor can move (an ancestor scrolls, the window resizes),
-      // not when something else scrolls, such as a text field's own text; its keys scroll the list alone
-      await withPage(browser, "?new=workspace", async (page) => {
-        const dialog = page.getByRole("dialog", { name: /New workspace/ });
-        await dialog.waitFor();
-        const trigger = dialog.locator(".agent-picker-trigger");
-        const menu = page.locator(".agent-picker-menu");
-        const body = dialog.locator(".modal-body");
-        const open = async () => {
-          await trigger.focus();
-          await page.keyboard.press("ArrowDown");
-          await menu.waitFor();
-        };
-        // a scroll event is delivered on the next frame; give a wrong close time to show
-        const settle = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        await open();
-        assert.equal(await menu.evaluate((node) => node.scrollHeight > node.clientHeight), true, "the demo's agents are more than the list shows");
-        await page.locator("#new-session-cwd").evaluate((input: HTMLInputElement) => {
-          input.value = "/home/demo/".concat("a-long-folder-name/".repeat(20));
-          input.scrollLeft = input.scrollWidth;
-          input.dispatchEvent(new Event("scroll"));
-        });
-        await settle();
-        assert.equal(await trigger.getAttribute("aria-expanded"), "true", "a text field scrolling its own text leaves the picker open");
-        // the keys move through the list and scroll it alone: neither the dialog nor the page moves
-        const scrolls = () => page.evaluate(() => ({ page: scrollY, dialog: document.querySelector(".modal-body")!.scrollTop }));
-        const before = await scrolls();
-        await page.keyboard.press("End");
-        await settle();
-        const inView = (option: string) => menu.evaluate((node, id) => {
-          const list = node.getBoundingClientRect();
-          const row = document.getElementById(id)!.getBoundingClientRect();
-          return row.top >= list.top && row.bottom <= list.bottom;
-        }, option);
-        const last = (await menu.locator('[role="option"]').last().getAttribute("id"))!;
-        assert.equal(await trigger.getAttribute("aria-expanded"), "true", "End keeps the picker open");
-        assert.equal(await trigger.getAttribute("aria-activedescendant"), last);
-        assert.equal(await menu.evaluate((node) => node.scrollTop > 0), true, "End scrolls the list to the last agent");
-        assert.equal(await inView(last), true, "the last agent is in view");
-        await page.keyboard.press("Home");
-        await settle();
-        assert.equal(await trigger.getAttribute("aria-expanded"), "true", "Home keeps the picker open");
-        assert.equal(await inView((await trigger.getAttribute("aria-activedescendant"))!), true, "the first row is in view");
-        assert.deepEqual(await scrolls(), before, "the keys scroll neither the page nor the dialog");
-        // an ancestor of the picker moves it: its scroll closes the list, and so does the window's size
-        await body.evaluate((node) => node.dispatchEvent(new Event("scroll")));
-        await menu.waitFor({ state: "detached" });
-        await open();
-        await page.evaluate(() => document.dispatchEvent(new Event("scroll")));
-        await menu.waitFor({ state: "detached" });
-        await open();
-        await page.setViewportSize({ width: 1180, height: 760 });
-        await menu.waitFor({ state: "detached" });
-      });
-      console.log("PASS the agent picker stays open when a text field scrolls and closes when its anchor moves; its keys scroll the list alone");
 
       // sidebar=hidden opens a desktop with the sidebar collapsed; the address follows the toggle both ways
       await withPage(browser, `?ws=${wsOf(INFRA)}&pane=${encodeURIComponent(INFRA)}&sidebar=hidden`, async (page) => {

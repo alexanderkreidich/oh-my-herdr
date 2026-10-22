@@ -83,12 +83,12 @@ describe("a phone's sheet in the history", () => {
   });
 
   it("keeps its entry for an item that changed the address on it, instead of stepping back", async () => {
-    // the New tab dialog: the app replaces the entry's address while the sheet leaves
+    // the app replaces the entry's address while the sheet leaves
     const leave = hooks.enter(() => {});
     leave();
-    h.replaceState(h.state, "", "/?pane=b&new=tab");
+    h.replaceState(h.state, "", "/?pane=b&sidebar=shown");
     await settled();
-    expect(fake.window.location.href).toBe("/?pane=b&new=tab");
+    expect(fake.window.location.href).toBe("/?pane=b&sidebar=shown");
     expect(fake.marks().at(-1)).toBe(false);
     h.back(); await settled();
     expect(fake.window.location.href).toBe("/?pane=b");

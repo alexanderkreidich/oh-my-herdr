@@ -33,7 +33,6 @@ export function useMachineApi() {
     fetchAgentKinds: () => api.fetchAgentKinds(id),
     fetchIntegrations: () => api.fetchIntegrations(id),
     fetchDirectories: (path: string, hidden: boolean) => api.fetchDirectories(path, hidden, id),
-    createDirectory: (path: string, name: string) => api.createDirectory(path, name, id),
     createWorkspace: (request: api.CreateWorkspaceRequest) => api.createWorkspace(request, id),
     createTab: (request: api.CreateTabRequest) => api.createTab(request, id),
     renameTab: (tab: string, label: string) => api.renameTab(tab, label, id),

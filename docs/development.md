@@ -145,7 +145,6 @@ bun scripts/pane-input-focus-demo-regression.ts # the input focus shortcut again
 bun scripts/shortcut-exact-modifiers-demo-regression.ts # recording exact-modifier chords: confirm, refusals, dispatch
 bun run check run bun scripts/ssp-latency.ts # local echo at a 200 ms round trip in a real browser
 bun scripts/math-browser-qa.ts  # chat math: KaTeX loads with the first expression
-bun scripts/recent-folders-regression.ts # owned workspaces: PC-scoped history, reload, three chips on one row that fill Directory, pending and failures
 bun scripts/phone-worktree-sheet-regression.ts # a phone's New worktree sheet: the agent list's own stroke, and a Shell checkout's terminal opening
 bun run test:ssh                # remote-PC integration over SSH
 bun scripts/fresh-install-docker.ts [owner/repo] [ref]  # a new user's install in a bare Ubuntu (Docker)

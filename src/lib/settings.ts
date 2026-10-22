@@ -170,7 +170,7 @@ export interface Settings {
   fileOpen: FilePresentation;
   /** where a click on a web address opens it: a new tab, or the panel beside the pane (lib/webPanel.ts); Shift opens the other one */
   webLinks: WebLinkTarget;
-  /** the mode a Claude Code started from the new workspace, tab and worktree dialogs runs in (lib/agentLaunchMode.ts); default adds no flag */
+  /** the mode a Claude Code started from the New worktree dialog runs in (lib/agentLaunchMode.ts); default adds no flag */
   claudeLaunchMode: ClaudeLaunchMode;
   /** the same for Codex: a sandbox and approval preset */
   codexLaunchMode: CodexLaunchMode;

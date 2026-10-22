@@ -9,7 +9,7 @@
  * menu lists them first; it also carries the open pane's actions.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Bot, Ellipsis, Pencil, Plus, SquareTerminal, Terminal, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ellipsis, Pencil, Plus, SquareTerminal, Terminal, X } from "lucide-react";
 
 import "./TabStrip.css";
 
@@ -44,8 +44,6 @@ export interface TabStripProps {
   workspace: WorkspaceInfo;
   selectedPane: PaneInfo;
   onSelectPane: (paneId: string) => void;
-  /** the New tab dialog, where an agent is picked */
-  onNewTab: () => void;
   /** a shell tab in this workspace, with no dialog; rejects with herdr's refusal */
   onNewTerminal: () => Promise<void>;
   /** the open pane's actions (PaneCanvas), offered in the touch menu */
@@ -58,7 +56,7 @@ export interface TabStripProps {
   end?: ReactNode;
 }
 
-export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNewTab, onNewTerminal, paneActions, panelId = PANE_TABPANEL_ID, splitDrag = false, end }: TabStripProps) {
+export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNewTerminal, paneActions, panelId = PANE_TABPANEL_ID, splitDrag = false, end }: TabStripProps) {
   const t = useT();
   const { settings } = useSettings();
   const machineId = useMachineId();
@@ -351,13 +349,11 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
     ].filter((group) => group.length > 0);
     return groups.flatMap((group, at) => at === 0 ? group : group.map((item, index) => index === 0 ? { ...item, divider: true } : item));
   };
-  // the strip's + opens a shell tab; the menu keeps the dialog, where an agent is picked
   const tabActions = (tab: HerdrTab): RowMenuItem[] => [
     ...(!reorder.moving && tabs.findIndex((entry) => entry.tab_id === tab.tab_id) > 0
       ? [{ id: "move-left", label: t("Move tab left"), icon: ArrowLeft, run: () => reorder.moveAdjacent(tab.tab_id, -1) }] : []),
     ...(!reorder.moving && tabs.findIndex((entry) => entry.tab_id === tab.tab_id) < tabs.length - 1
       ? [{ id: "move-right", label: t("Move tab right"), icon: ArrowRight, run: () => reorder.moveAdjacent(tab.tab_id, 1) }] : []),
-    { id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: onNewTab },
     { id: "rename-tab", label: t("Rename tab"), icon: Pencil, run: () => beginRename(tab) },
     { id: "close-tab", label: t("Close tab"), icon: X, danger: true, run: () => requestClose(tab) },
   ];

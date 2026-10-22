@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Menu, PanelLeft, X } from "lucide-react";
 
 import type { AgentStatus, ServerMessage, AccessRefusal, HealthAuth, HerdrPane } from "../shared/protocol.ts";
-import { ApiError, authenticate, createTab, fetchHealth, fetchBridgeHealth, fetchMachines, fetchSession, pairDevice, routeMissing, sendTestPush, signOut, splitPane, zoomPane, type HealthInfo } from "./lib/api.ts";
+import { ApiError, authenticate, createTab, createWorkspace, fetchHealth, fetchBridgeHealth, fetchMachines, fetchSession, pairDevice, routeMissing, sendTestPush, signOut, splitPane, zoomPane, type HealthInfo } from "./lib/api.ts";
 import { deviceLabel, takePairCode } from "./lib/phone.ts";
 import { alertPaneTitle, displayPaneTitle } from "./components/Sidebar.tsx";
 import { PaneCanvas } from "./components/PaneCanvas.tsx";
@@ -12,14 +12,13 @@ import { PaneTerminal } from "./components/PaneTerminal.tsx";
 import { paneCovered, paneContentKey, paneContentPresented } from "./lib/panePresentation.ts";
 import { PANE_TABPANEL_ID, paneTabPanelLabel } from "./lib/paneRegion.ts";
 import { AccessGate } from "./components/AccessGate.tsx";
-import { NewSessionDialog, type NewTabTarget } from "./components/NewSessionDialog.tsx";
 import { passingFolder, recentDirectories } from "./lib/recent-directories.ts";
 import { usePreferencesSync } from "./lib/preferencesSync.ts";
 import { TabStrip } from "./components/TabStrip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { loadedOnSettingsEntry, onSettingsHistory, recordSettings, settingsEntry } from "./lib/settingsHistory.ts";
 import { sheetSteppedOff } from "./lib/sheetHistory.ts";
-import { isNavigation, linkSearch, linksSomewhere, NAV_KEY, readLink, resolveLink, slugOf, type AppLink, type CreateDraft, type LinkNote } from "./lib/deepLink.ts";
+import { isNavigation, linkSearch, linksSomewhere, NAV_KEY, readLink, resolveLink, slugOf, type AppLink, type LinkNote } from "./lib/deepLink.ts";
 import { CommandPalette } from "./components/CommandPalette.tsx";
 import { paletteOpenQuery } from "./lib/paletteSeed.ts";
 import { MachineContext } from "./lib/machineContext.tsx";
@@ -58,6 +57,7 @@ import { UpdateNotice } from "./components/UpdateControls.tsx";
 import { LanExposureNotice } from "./components/LanExposureNotice.tsx";
 import { useT } from "./lib/i18n.ts";
 import { markSelection, selectionStill, type SelectionMark } from "./lib/selectionMark.ts";
+import { userErrorMessage } from "./lib/userError.ts";
 import { useScreenWakeLock } from "./lib/wakeLock.ts";
 import { watchDrawerSwipe } from "./lib/edgeSwipe.ts";
 import { Droplet } from "./components/Droplet.tsx";
@@ -210,7 +210,6 @@ export function App() {
     addPcFocusReturn.current = false;
     focusWorkspaceListToggle();
   }, []);
-  const [newSessionMachineId, setNewSessionMachineId] = useState("local");
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   // a palette layout call a PC's bridge could not take: a line over the pane, gone after a moment as the tab strip's is
@@ -389,15 +388,8 @@ export function App() {
     else setSettingsOpen(true);
   }), [closeSettings]);
   useEffect(() => { if (!settingsOpen) recordSettings([]); }, [settingsOpen]);
-  const [newSessionOpen, setNewSessionOpen] = useState(false);
-  // the New workspace dialog in the address (lib/deepLink.ts): the fields a link filled for this
-  // opening, and what the fields say now
-  const [newPrefill, setNewPrefill] = useState<Omit<CreateDraft, "kind"> | null>(null);
-  const [newFields, setNewFields] = useState<Omit<CreateDraft, "kind"> | null>(null);
-  // a link to the dialog, opened once the PCs are in (a tab, once its workspace is found)
-  const pendingCreate = useRef<CreateDraft | null>(initialLink?.create ?? null);
-  // the dialog makes a tab in this workspace instead of a workspace, while set
-  const [newTab, setNewTab] = useState<NewTabTarget | null>(null);
+  // a new workspace herdr has not answered for yet: another press makes no second one
+  const creatingWorkspace = useRef(false);
   const [connected, setConnected] = useState(false);
   /** the active terminal's socket has been connected on this page before (PaneTerminal reports it): not
    *  connected, the chip says reconnecting; before this page's first connection to the PC, connecting */
@@ -880,12 +872,12 @@ export function App() {
     update();
     return () => observer.disconnect();
   }, [contentKey]);
-  const paneInFront = useCallback(() => locked === false && linkLanded && pendingCreate.current === null
-    && !drawerOpen && !settingsOpen && !newSessionOpen
+  const paneInFront = useCallback(() => locked === false && linkLanded
+    && !drawerOpen && !settingsOpen
     && !machineDialog && !paletteOpen
     && !dialogCover && !paneCovered()
     && contentReady && paneContentPresented(contentKey),
-  [locked, linkLanded, drawerOpen, settingsOpen, newSessionOpen, machineDialog, paletteOpen, dialogCover, contentReady, contentKey]);
+  [locked, linkLanded, drawerOpen, settingsOpen, machineDialog, paletteOpen, dialogCover, contentReady, contentKey]);
 
   // The split view (lib/split.ts): drawn only where the sidebar stands beside the pane, and only
   // while a pane is selected; a narrower window shows the active half alone and keeps the split
@@ -1054,7 +1046,6 @@ export function App() {
   const writtenLink = useRef<AppLink | null>(null);
   // Back or Forward landed somewhere other than its entry said: that place is written over the entry
   const poppedTo = useRef(false);
-  const newSessionOpenRef = useRef(newSessionOpen); newSessionOpenRef.current = newSessionOpen;
   const linkWorkspaceId = selectedPane?.workspace_id ?? (selectedPaneId === null ? null : undefined);
   const linkSlug = slugOf(selectedWorkspace?.label) || null;
   useEffect(() => {
@@ -1063,7 +1054,6 @@ export function App() {
       machine: selectedMachineId, workspace: linkWorkspaceId, workspaceSlug: linkSlug, pane: selectedPaneId,
       settings: settingsOpen ? settingsPage : null, section: settingsOpen && settingsPage === settingsLinkPage ? settingsLinkSection : null,
       sidebar: wideScreen && sidebarCollapsed ? "hidden" : null,
-      create: newSessionOpen ? { kind: newTab ? "tab" : "workspace", cwd: newFields?.cwd ?? null, name: newFields?.name ?? null, agent: newFields?.agent ?? null } : null,
     };
     const previous = writtenLink.current;
     writtenLink.current = link;
@@ -1073,10 +1063,10 @@ export function App() {
     // Back and Forward land where the address already says: nothing to write
     if (search === window.location.search) return;
     const url = `${window.location.pathname}${search}${window.location.hash}`;
-    if (previous !== null && !popped && !autoSelected && !settingsOpen && !newSessionOpen && isNavigation(previous, link)) {
+    if (previous !== null && !popped && !autoSelected && !settingsOpen && isNavigation(previous, link)) {
       window.history.pushState({ [NAV_KEY]: true }, "", url);
     } else window.history.replaceState(window.history.state, "", url);
-  }, [locked, machines.length, snapshot, linkLanded, selectedMachineId, selectedPaneId, linkWorkspaceId, linkSlug, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, newSessionOpen, newTab, newFields, wideScreen, sidebarCollapsed, autoSelected]);
+  }, [locked, machines.length, snapshot, linkLanded, selectedMachineId, selectedPaneId, linkWorkspaceId, linkSlug, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, wideScreen, sidebarCollapsed, autoSelected]);
 
 
   // Back and Forward between panes: the entry's address says which one. Settings' own entries
@@ -1100,10 +1090,6 @@ export function App() {
       }
       const machine = machinesRef.current.find((candidate) => candidate.id === link.machine);
       const missing = !machine && machinesRef.current.length > 0;
-      // the New workspace dialog is part of the address it was open on: Back closes it, Forward opens
-      // it again, but not for a PC removed since
-      if (!link.create) setNewSessionOpen(false);
-      else if (!missing && !newSessionOpenRef.current) pendingCreate.current = link.create;
       // an entry naming a PC since removed leaves the app where it is and says so, as a link to it would
       if (missing) setHeaderNote("machine-missing");
       else {
@@ -1173,6 +1159,21 @@ export function App() {
     return { machineId, workspace, cwd: workspace.worktree?.checkout_path ?? inFront?.cwd ?? null };
   };
 
+  const terminalTab = async (target?: { machineId: string; workspaceId: string }): Promise<void> => {
+    const found = newTabTarget(target);
+    if (!found) return;
+    const asked = selectionRef.current;
+    const created = await createTab({ workspace_id: found.workspace.workspace_id, cwd: found.cwd, label: null, agent: null }, found.machineId);
+    if (created.tab && created.pane) {
+      snapshotRequests.current.invalidate();
+      createdTabs.current.add(found.machineId, created);
+      setMachines((machines) => createdTabs.current.apply(machines));
+    }
+    void load();
+    // what the user went to while herdr answered is theirs to keep
+    if (selectionStill(asked, selectionRef.current)) selectTargetRef.current(found.machineId, created.pane_id);
+  };
+
   const actions = useMemo<AppActions>(
     () => ({
       selectPane,
@@ -1186,35 +1187,25 @@ export function App() {
       },
       focusInput: () => paneControls.current?.focusInput(),
       scrollPage: (direction) => paneControls.current?.scrollPage(direction),
-      openNewSession: () => {
+      openNewSession: (machineId = selectedMachineId) => {
+        if (creatingWorkspace.current) return;
+        creatingWorkspace.current = true;
         setDrawerOpen(false);
-        setNewSessionMachineId(selectedMachineId);
-        setNewTab(null);
-        setNewSessionOpen(true);
-      },
-      openNewTab: (target) => {
-        const found = newTabTarget(target);
-        if (!found) return;
-        const { machineId, workspace, cwd } = found;
-        setDrawerOpen(false);
-        setNewSessionMachineId(machineId);
-        setNewTab({ workspaceId: workspace.workspace_id, workspaceLabel: workspace.label, cwd, number: workspace.tab_count + 1 });
-        setNewSessionOpen(true);
-      },
-      openTerminalTab: async (target) => {
-        const found = newTabTarget(target);
-        if (!found) return;
         const asked = selectionRef.current;
-        const created = await createTab({ workspace_id: found.workspace.workspace_id, cwd: found.cwd, label: null, agent: null }, found.machineId);
-        if (created.tab && created.pane) {
-          snapshotRequests.current.invalidate();
-          createdTabs.current.add(found.machineId, created);
-          setMachines((machines) => createdTabs.current.apply(machines));
-        }
-        void load();
-        // what the user went to while herdr answered is theirs to keep
-        if (selectionStill(asked, selectionRef.current)) selectTargetRef.current(found.machineId, created.pane_id);
+        // a shell in the PC's home: an agent or a project folder is a command away in it
+        void createWorkspace({ cwd: "~", label: null, agent: null }, machineId)
+          .then((created) => {
+            void load();
+            // what the user went to while herdr answered is theirs to keep
+            if (selectionStill(asked, selectionRef.current)) selectTargetRef.current(machineId, created.pane_id);
+          })
+          .catch((reason: unknown) => setLayoutNotice(t("New workspace failed: {reason}", { reason: userErrorMessage(reason).message })))
+          .finally(() => { creatingWorkspace.current = false; });
       },
+      openNewTab: () => {
+        void terminalTab().catch((reason: unknown) => setLayoutNotice(t("New terminal failed: {reason}", { reason: userErrorMessage(reason).message })));
+      },
+      openTerminalTab: terminalTab,
       openPalette,
       openFind: () => {
         if (selectedPaneId === null) return;
@@ -1264,7 +1255,7 @@ export function App() {
         void zoomPane(paneId, mode, machineId).then(() => void load()).catch((err) => layoutRefused("pane zoom failed", err));
       } : null,
     }),
-    [selectPane, selectedPaneId, selectedMachineId, updateSettings, settings.focusMode, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused],
+    [selectPane, selectedPaneId, selectedMachineId, updateSettings, settings.focusMode, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused, t],
   );
 
   useShortcuts(actions, locked === false);
@@ -1284,28 +1275,6 @@ export function App() {
     // no pane: the link's pane id means nothing on another PC, so the pane herdr has in front opens
     selectTargetRef.current("local", null);
   }, [machines, rosterTick, linkTick]);
-
-  // a link to the New workspace dialog opens it once the PCs are in; one for a tab, once the
-  // linked workspace's pane is selected (its folder is the workspace's, as the tab strip's + does)
-  const [createTick, setCreateTick] = useState(0);
-  useEffect(() => {
-    const linked = pendingCreate.current;
-    if (linked === null || !linkLanded || machines.length === 0 || newSessionOpen) return;
-    if (linked.kind === "tab" && !selectedPane) return;
-    pendingCreate.current = null;
-    const fields = { cwd: linked.cwd, name: linked.name, agent: linked.agent };
-    setNewPrefill(fields);
-    setNewFields(fields);
-    if (linked.kind === "tab") actions.openNewTab({ machineId: selectedMachineId, workspaceId: selectedPane!.workspace_id });
-    else { setNewSessionMachineId(selectedMachineId); setNewTab(null); setNewSessionOpen(true); }
-  }, [linkLanded, machines.length, newSessionOpen, selectedPane, selectedMachineId, actions, createTick]);
-  // Forward onto an entry the dialog was open on: the popstate above leaves it pending
-  useEffect(() => {
-    const onPop = (): void => setCreateTick((tick) => tick + 1);
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-  const closeNewSession = useCallback(() => { setNewSessionOpen(false); setNewPrefill(null); setNewFields(null); }, []);
 
   // the tab bar's place in the header: the solo pane's tab strip is drawn there through a portal,
   // so the header and the strip are one bar. A split view keeps a strip per half.
@@ -1397,7 +1366,7 @@ export function App() {
           {/* a sidebar that cannot be drawn leaves the panes working */}
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
-            <MachineSidebar machines={shownMachines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} switcherHost={wideScreen ? switcherHost : null} onSelect={selectTarget} onSwitch={switchMachine} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); }} />
+            <MachineSidebar machines={shownMachines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} switcherHost={wideScreen ? switcherHost : null} onSelect={selectTarget} onSwitch={switchMachine} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => actions.openNewSession(id)} />
           </RenderBoundary>
           <SidebarResizer width={sidebarWidth} onResize={setSidebarWidth} />
         </aside>
@@ -1469,7 +1438,6 @@ export function App() {
                 {!(slotSnapshot && pane && workspace) && slotBar}
                 {slotSnapshot && pane && workspace && soloStrip && portalTo(splitOn ? null : tabBarHost,
                   <TabStrip snapshot={slotSnapshot} workspace={workspace} selectedPane={pane} panelId={slotPanelId} splitDrag={wideScreen} onSelectPane={onSelect} end={slotEnd}
-                    onNewTab={() => actions.openNewTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
                     onNewTerminal={() => actions.openTerminalTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
                     paneActions={active ? (paneId) => {
                       const target = snapshot?.panes.find((item) => item.pane_id === paneId);
@@ -1524,22 +1492,6 @@ export function App() {
         </div>
       </div>
 
-      <MachineContext.Provider value={newSessionMachineId}><NewSessionDialog
-        key={newSessionMachineId}
-        machineName={machines.find((m) => m.id === newSessionMachineId)?.name ?? newSessionMachineId}
-        worktrees={machines.find((m) => m.id === newSessionMachineId)?.snapshot?.workspaces.flatMap((workspace) => workspace.worktree?.is_linked_worktree ? [workspace.worktree.checkout_path] : []) ?? []}
-        open={newSessionOpen}
-        tab={newTab}
-        defaultCwd={newSessionMachineId === selectedMachineId ? selectedPane?.cwd ?? null : null}
-        prefill={newPrefill}
-        onDraft={setNewFields}
-        onClose={closeNewSession}
-        onCreated={(paneId) => {
-          closeNewSession();
-          selectTarget(newSessionMachineId, paneId);
-          void load();
-        }}
-      /></MachineContext.Provider>
       {machineDialog && <MachineDialog updateRemote={updateRemote} machine={machineDialog === "new" ? undefined : machineDialog} onClose={closeMachineDialog} onConnected={(id) => { closeMachineDialog(); selectTarget(id, null); void load(); }} />}
       <Droplet onOpen={(machineId, paneId) => {
         // an ended pane's card outlives the pane: the refetch has dropped it, and selecting it attaches nothing

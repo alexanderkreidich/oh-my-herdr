@@ -296,7 +296,7 @@ export function CommandPalette({ open, initialQuery = "", onClose, machines, onS
   const browseStart = selectedPane && panePath(selectedPane) ? panePath(selectedPane) : null;
 
   const paletteActions = useMemo<PaletteAction[]>(() => [
-    { id: "new", label: t("New workspace"), icon: MessageSquarePlus, shortcut: "new-session", run: actions.openNewSession },
+    { id: "new", label: t("New workspace"), icon: MessageSquarePlus, shortcut: "new-session", run: () => actions.openNewSession() },
     // in the selected pane's workspace: nothing to add a tab to without one
     ...(selectedPaneId !== null ? [{ id: "new-tab", label: t("New tab"), icon: Plus, shortcut: "new-tab", run: () => actions.openNewTab() }] satisfies PaletteAction[] : []),
     // herdr's prefix+v and prefix+-: the new pane is opened here only when asked, as herdr's --focus

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type AnimationEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { Bot, ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, SquareTerminal, Trash2, TriangleAlert, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, SquareTerminal, Trash2, TriangleAlert, X } from "lucide-react";
 
 import "./Sidebar.css";
 
@@ -728,7 +728,7 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
           {snapshot && snapshot.workspaces.length === 0 && (
             <div className="tree-state-empty">
               <p className="tree-state" role="status">{t("No workspaces yet")}</p>
-              <button type="button" className="btn" onClick={actions.openNewSession}><Plus aria-hidden="true" />{t("New workspace")}</button>
+              <button type="button" className="btn" onClick={() => actions.openNewSession()}><Plus aria-hidden="true" />{t("New workspace")}</button>
             </div>
           )}
           {shownGroups.pinned.some(({ workspace }) => roster.some((pane) => pane.workspace_id === workspace.workspace_id)) && <>
@@ -881,9 +881,7 @@ function WorkspaceTabs({ snapshot, workspace, panes, selectedPaneId, online, act
     });
   };
 
-  // the strip's menu: a new tab is a shell from the workspace row's +, so this one picks an agent
   const menuItems = (tab: HerdrTab): RowMenuItem[] => [
-    { id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: () => actions.openNewTab({ machineId, workspaceId: workspace.workspace_id }) },
     { id: "rename-tab", label: t("Rename tab"), icon: Pencil, run: () => beginRename(tab) },
     { id: "close-tab", label: t("Close tab"), icon: X, danger: true, run: () => requestClose(tab) },
   ];

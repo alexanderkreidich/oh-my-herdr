@@ -3,7 +3,7 @@
  * pane before (deep links make each pane its own entry). The entry keeps the address it opened on.
  * What an item of the sheet does with the history takes the sheet's entry over: a navigation it
  * pushes (another pane, Settings, a file) replaces the entry, a sheet it opens reuses it, and an
- * address it changes on the entry (the New tab dialog) keeps it. A sheet closed any other way steps
+ * address it changes on the entry keeps it. A sheet closed any other way steps
  * back off its entry once whatever it ran has written its own history. A sheet closed by Back
  * leaves its entry ahead of the app; Forward onto it goes on to the next. A sheet opened while
  * that step back is on its way (the browser runs a traversal later) is not closed by the step's
@@ -101,7 +101,7 @@ export function leaveSheet(id: string): void {
     const address = addresses.get(id);
     addresses.delete(id);
     if (sheetOf(window.history.state) !== id) return;
-    // an item that changed the address on the sheet's entry (the New tab dialog) keeps the entry as its own
+    // an item that changed the address on the sheet's entry keeps the entry as its own
     if (window.location.href !== address) window.history.replaceState(without(window.history.state), "");
     else {
       // the traversal runs later: a sheet that opens before its popstate keeps its entry

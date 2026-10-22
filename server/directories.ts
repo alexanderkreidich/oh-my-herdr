@@ -50,9 +50,9 @@ export function createDirectory(parent: string, name: string): CreateDirectoryRe
 }
 
 /**
- * The folders inside one directory, for the new-session dialog's folder browser. One
+ * The folders inside one directory, for the palette's folder browsing. One
  * directory at a time, names only, nothing kept between calls: the cost is one readdir.
- * `path` takes an absolute path, `~` or `~/…` (the dialog's own syntax); empty means home.
+ * `path` takes an absolute path, `~` or `~/…` (as the palette takes it); empty means home.
  * Hidden folders (a leading dot) are left out unless asked for. Null when `path` is not
  * a directory this user can read.
  */
