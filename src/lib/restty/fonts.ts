@@ -1,7 +1,7 @@
 /**
  * The terminal's fonts for restty, all served by the bridge with the app (THIRD_PARTY_NOTICES.md),
  * never fetched from another host: JetBrains Mono in its four faces and the Nerd Font icons, then
- * the fallbacks restty's playground draws with for what those lack (symbols, emoji, CJK).
+ * the fallbacks for what those lack (symbols, arrows, emoji, CJK).
  *
  * restty measures the cell from the first face and loads the whole list before its first frame,
  * so the faces are fetched here at once and in parallel, and handed over as bytes: the session's
@@ -21,6 +21,7 @@ import italicUrl from "../../fonts/JetBrainsMono-Italic.ttf?url";
 import boldItalicUrl from "../../fonts/JetBrainsMono-BoldItalic.ttf?url";
 import symbolsUrl from "../../fonts/SymbolsNerdFont-Regular.ttf?url";
 import symbols2Url from "../../fonts/NotoSansSymbols2-Regular.ttf?url";
+import juliaUrl from "../../fonts/JuliaMono-Regular.ttf?url";
 import openMojiUrl from "../../fonts/OpenMoji-black-glyf.ttf?url";
 import cjkUrl from "../../fonts/NotoSansCJK-Regular.ttc?url";
 
@@ -44,8 +45,10 @@ const BUNDLED: readonly Face[] = [
 
 /** The fallbacks, in restty's fallback order, with the text that asks for each. */
 const FALLBACKS = {
-  // arrows, technical and geometric shapes, dingbats: an agent's ⏺ ✻ ⎿
+  // arrows, technical and geometric shapes, dingbats: an agent's ⏺ ✻ ✳
   symbols: { face: { url: symbols2Url, name: "Noto Sans Symbols 2" }, needs: /[\u2190-\u2bff\u{1f000}-\u{1faff}]/u },
+  // the arrows and technical symbols Symbols 2 lacks, monospaced and on the text's baseline: an agent's ⎿ ↳ ↵
+  julia: { face: { url: juliaUrl, name: "JuliaMono" }, needs: /[\u2190-\u2bff]/u },
   emoji: { face: { url: openMojiUrl, name: "OpenMoji" }, needs: /\p{Extended_Pictographic}|[\u{1f1e6}-\u{1f1ff}]/u },
   cjk: {
     face: { url: cjkUrl, name: "Noto Sans CJK" },
