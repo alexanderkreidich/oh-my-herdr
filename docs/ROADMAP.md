@@ -36,6 +36,12 @@ The visible UI shrinks to a workspace list, one top bar of pill tabs and the ter
       workspace's tabs are rows under it (the pill's mark and name, the state in the status
       column; a tab with no agent reads dimmer) and the bar over the pane goes. A hidden sidebar
       hands the tabs back to the bar. A split view's halves keep their own strips.
+- [x] **PC switcher.** The sidebar shows one PC at a time. Its top row is a switcher (the PC's
+      mark and name, a chevron with a point when another PC waits on you) whose menu lists the
+      PCs, Manage for an SSH PC and Add PC, and a `+` for a new workspace at the row's far edge.
+      The PC headers, their folds and the "Host" label over the list go.
+- [ ] PC switcher follow-ups: a key to switch PCs (Ctrl+1–9 is the browser's on Windows and Linux);
+      the Host's name without macOS's `.local`.
 - [ ] Focus mode follow-ups: the bridge says which shells run a command (`pane.process_info`), so
       a shell at work does not read as idle; tab rows reorder by drag.
 - [ ] Follow-ups: the split view's halves still draw their own strip rows under an empty bar;

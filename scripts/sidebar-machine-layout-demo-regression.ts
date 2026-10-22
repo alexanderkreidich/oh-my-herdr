@@ -1,5 +1,6 @@
 /**
- * Purpose: verify sidebar PC control layout at narrow and wide widths and two-step removal in a real browser.
+ * Purpose: verify sidebar PC control layout at narrow and wide widths and two-step removal in a real browser,
+ * the PC picked and its controls opened from the sidebar's PC switcher.
  * Tags: sidebar, machines, responsive, accessibility, browser, regression.
  * Usage: bun scripts/sidebar-machine-layout-demo-regression.ts [--geometry-only]
  */
@@ -54,7 +55,17 @@ const scenarios: Scenario[] = [
   { name: "en-landscape-844x390-dark", language: "en", theme: "dark", density: "comfortable", viewport: { width: 844, height: 390 }, touch: true, desktopSidebar: true },
 ];
 
-const machineGroup = (page: Page, name: string): Locator => page.locator(".machine-group").filter({ has: page.locator(".machine-name", { hasText: name }) });
+const MANAGE_LABEL: Record<string, (name: string) => string> = { en: (name) => `Manage ${name}`, ko: (name) => `${name} 관리`, ja: (name) => `${name} を管理`, zh: (name) => `管理 ${name}` };
+
+// the sidebar shows the PC the switcher picked; its menu is a popover on a desktop and a sheet on a phone
+const machineGroup = (page: Page, name: string): Locator => page.locator(`section.machine-group[aria-label="PC ${name}"]`);
+const menuItem = (page: Page, text: string): Locator => page.locator(".row-menu .menu-item, .row-sheet-item").filter({ hasText: text });
+const press = async (target: Locator, touch: boolean): Promise<void> => { if (touch) await target.tap(); else await target.click(); };
+/** Opens the switcher and picks its item for `text`: a PC, or the Manage item of the PC on screen. */
+async function pick(page: Page, text: string, touch: boolean): Promise<void> {
+  await press(page.locator(".pc-switch"), touch);
+  await press(menuItem(page, text), touch);
+}
 const getHook = (page: Page, expression: string) => page.evaluate((key) => {
   const fixture = (window as unknown as { machineControlsFixture: { calls: Record<string, unknown>; roster: unknown[] } }).machineControlsFixture;
   let value: unknown = fixture;
@@ -159,7 +170,7 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
   const errors: string[] = [];
   try {
     await context.addInitScript((setting) => {
-      localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: setting.language, theme: setting.theme, density: setting.density, defaultView: "chat" }));
+      localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: setting.language, theme: setting.theme, density: setting.density, defaultView: "chat", showRemotePcs: true }));
       if (setting.sidebarWidth !== null) localStorage.setItem("herdr-web-ui:sidebar-width", String(setting.sidebarWidth));
     }, { language: scenario.language, theme: scenario.theme, density: scenario.density, sidebarWidth: scenario.desktopSidebar ? scenario.sidebarWidth ?? 240 : null });
     const page = await context.newPage();
@@ -170,14 +181,13 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
       await page.locator(".drawer-toggle").tap();
       await page.locator(".sidebar.is-open").waitFor({ state: "visible" });
     }
+    const manage = MANAGE_LABEL[scenario.language]!;
     const remoteGroup = machineGroup(page, REMOTE_NAME);
-    await remoteGroup.waitFor({ state: "attached" });
+    await page.locator(".pc-switch-name", { hasText: "workstation" }).waitFor();
 
     if (geometryOnly) {
-      if (!scenario.touch) await remoteGroup.locator(".machine-header").hover();
-      const manage = remoteGroup.locator(".machine-manage");
-      if (scenario.touch) await manage.tap();
-      else await manage.click();
+      await pick(page, REMOTE_NAME, scenario.touch);
+      await pick(page, manage(REMOTE_NAME), scenario.touch);
       const controls = remoteGroup.locator(".machine-controls");
       await controls.waitFor({ state: "visible" });
       await controls.locator("input").fill("x".repeat(100));
@@ -187,30 +197,28 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
       return;
     }
 
-    const host = machineGroup(page, "workstation");
-    await host.waitFor({ state: "attached" });
-    assert.equal(await host.locator(".machine-manage").count(), 0, `${scenario.name} local host has no Manage button`);
-    assert.ok((await host.locator(".machine-kind").textContent() ?? "").trim().length > 0, `${scenario.name} local host has a localized kind label`);
+    // the Host is on screen first, and its menu offers no Manage item
+    await machineGroup(page, "workstation").waitFor({ state: "attached" });
+    await press(page.locator(".pc-switch"), scenario.touch);
+    await menuItem(page, MANAGED_NAME).waitFor();
+    assert.equal(await menuItem(page, manage("workstation")).count(), 0, `${scenario.name} local host has no Manage item`);
+    await press(menuItem(page, MANAGED_NAME), scenario.touch);
 
     const managed = machineGroup(page, MANAGED_NAME);
-    if (!scenario.touch) await managed.locator(".machine-header").hover();
-    const managedManage = managed.locator(".machine-manage");
-    if (scenario.touch) await managedManage.tap();
-    else await managedManage.click();
+    await managed.waitFor({ state: "attached" });
+    await pick(page, manage(MANAGED_NAME), scenario.touch);
     const managedControls = managed.locator(".machine-controls");
     await managedControls.waitFor();
     assert.ok((await managedControls.locator(".field-hint").textContent() ?? "").trim().length > 0, `${scenario.name} herdr-managed restriction is explained in the active locale`);
     assert.equal(await managedControls.locator("form").count(), 0, `${scenario.name} herdr-managed PC has no rename form`);
     assert.equal(await managedControls.getByRole("button", { name: REMOVE_LABEL[scenario.language], exact: true }).count(), 0, `${scenario.name} herdr-managed PC has no removal control`);
     assert.equal(await managedControls.locator(".machine-control-buttons button").count(), 2, `${scenario.name} herdr-managed PC retains its two setup/update actions`);
-    if (scenario.touch) await managedManage.tap();
-    else await managedManage.click();
+    await pick(page, manage(MANAGED_NAME), scenario.touch);
     await managedControls.waitFor({ state: "detached" });
 
-    if (!scenario.touch) await remoteGroup.locator(".machine-header").hover();
-    const remoteManage = remoteGroup.locator(".machine-manage");
-    if (scenario.touch) await remoteManage.tap();
-    else await remoteManage.click();
+    await pick(page, REMOTE_NAME, scenario.touch);
+    await remoteGroup.waitFor({ state: "attached" });
+    await pick(page, manage(REMOTE_NAME), scenario.touch);
     const controls = remoteGroup.locator(".machine-controls");
     await controls.waitFor({ state: "visible" });
     await capture(page, scenario, "initial");
@@ -241,12 +249,9 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
         return hooks.observerRoster(index)?.some((machine) => machine.id === "sidebar-fixture");
       }, observer);
 
-      const remoteManage = remoteGroup.locator(".machine-manage");
-      if (scenario.touch) await remoteManage.tap();
-      else await remoteManage.click();
+      await pick(page, manage(REMOTE_NAME), scenario.touch);
       await controls.waitFor({ state: "detached" });
-      if (scenario.touch) await remoteManage.tap();
-      else await remoteManage.click();
+      await pick(page, manage(REMOTE_NAME), scenario.touch);
       await controls.waitFor({ state: "visible" });
       assert.equal(await remoteGroup.getByRole("button", { name: CONFIRM_LABEL.en, exact: true }).count(), 0, "closing and reopening Manage resets armed removal confirmation");
       assert.equal(await remoteGroup.locator(".field-hint").filter({ hasText: REMOVE_EXPLANATION.en }).count(), 0, "reopening Manage clears the removal explanation");
@@ -263,7 +268,7 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
       await controls.locator("input").fill(renamed);
       await controls.getByRole("button", { name: "Rename", exact: true }).click();
       const renamedGroup = machineGroup(page, renamed);
-      await page.waitForFunction((name) => [...document.querySelectorAll(".machine-name")].some((element) => element.textContent === name), renamed);
+      await page.waitForFunction((name) => document.querySelector(".pc-switch-name")?.textContent === name, renamed);
       await page.waitForFunction(([index, name]) => {
         const hooks = (window as unknown as { machineControlsFixture: { observerRoster(index: number): Array<{ id: string; name: string }> | null } }).machineControlsFixture;
         return hooks.observerRoster(index as number)?.find((machine) => machine.id === "sidebar-fixture")?.name === name;
