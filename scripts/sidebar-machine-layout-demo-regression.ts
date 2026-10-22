@@ -264,7 +264,7 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
         return hooks.observerRoster(index)?.find((machine) => machine.id === "sidebar-fixture")?.enabled === false;
       }, observer);
 
-      const renamed = "Renamed fixture PC";
+      const renamed = "Renamed fixture PC with a name longer than the row";
       await controls.locator("input").fill(renamed);
       await controls.getByRole("button", { name: "Rename", exact: true }).click();
       const renamedGroup = machineGroup(page, renamed);
@@ -273,6 +273,23 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
         const hooks = (window as unknown as { machineControlsFixture: { observerRoster(index: number): Array<{ id: string; name: string }> | null } }).machineControlsFixture;
         return hooks.observerRoster(index as number)?.find((machine) => machine.id === "sidebar-fixture")?.name === name;
       }, [observer, renamed] as const);
+
+      // a name longer than the 240px top row is cut in the switcher: the row keeps the sidebar's
+      // width, its + and focus mode's sidebar toggle with it, and never reaches over the pane
+      const mod = process.platform === "darwin" ? "Meta" : "Control";
+      for (const focus of [false, true]) {
+        if (focus) {
+          await page.keyboard.press(`${mod}+Shift+Period`);
+          await page.locator(".app.is-focus").waitFor();
+        }
+        const row = await page.evaluate(() => {
+          const name = document.querySelector<HTMLElement>(".pc-switch-name")!;
+          return { sidebar: document.querySelector(".sidebar")!.getBoundingClientRect().right, row: document.querySelector(".header-side")!.getBoundingClientRect().right, cut: name.scrollWidth > name.clientWidth };
+        });
+        assert.ok(row.row <= row.sidebar + 1 && row.cut, `the top row keeps the sidebar's width and cuts a long PC name${focus ? " in focus mode" : ""}: ${JSON.stringify(row)}`);
+      }
+      await page.keyboard.press(`${mod}+Shift+Period`);
+      await page.locator(".app.is-focus").waitFor({ state: "detached" });
       await renamedGroup.getByRole("button", { name: "Connect", exact: true }).click();
       await renamedGroup.getByRole("button", { name: "Disconnect", exact: true }).waitFor();
       await page.waitForFunction((index) => {
