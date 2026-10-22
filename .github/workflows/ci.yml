@@ -64,8 +64,8 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Docs-only: under docs/, any *.md or *.txt, the root LICENSE, or an issue template.
-          if echo "$CHANGED" | grep -qvE '^docs/|\.(md|txt)$|^LICENSE$|^\.github/ISSUE_TEMPLATE/'; then
+          # Docs-only: under docs/, any *.md or *.txt, or the root LICENSE.
+          if echo "$CHANGED" | grep -qvE '^docs/|\.(md|txt)$|^LICENSE$'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"

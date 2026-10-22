@@ -518,46 +518,7 @@ inputs changed since the published `remote-vN` without a raised `REMOTE_BUNDLE_V
 one is not published yet (Release only), or when the step 1 metadata is incomplete. In CI only the change that bumps the version is checked;
 PRs merged before the Release run pass, and the Release run checks the whole tree again.
 
-## Growth snapshot
-
-GitHub shows a repository's traffic (views, clones, referring sites, popular pages) for the last 14
-days only. `.github/workflows/growth-snapshot.yml` saves it every Monday, with the stars and the day
-each was given (never who gave it), through `scripts/growth-snapshot.ts`. Anyone signed in to
-GitHub can download the artifacts of a public repository, so the workflow encrypts the snapshot
-before it uploads it, and its log shows totals only.
-
-It needs two repository secrets (Settings → Secrets and variables → Actions); without them the run
-says so and ends green:
-
-- `GROWTH_METRICS_TOKEN`: a fine-grained personal access token for devswha/herdr-web-ui only, with
-  the repository permissions **Administration: Read-only** (the traffic endpoints need it) and
-  **Metadata: Read-only**. Such a token expires within a year: put the expiry date in the token's
-  name. An expired or wrong token turns the run red (exit 1 for no access to the repository, exit
-  2 when every traffic endpoint is refused, exit 3 when a stargazer page fails), and GitHub emails
-  the failure.
-- `GROWTH_SNAPSHOT_KEY`: the encryption password, for example from `openssl rand -base64 32`.
-  Keep a copy outside GitHub: without it the artifacts cannot be read.
-
-Artifacts are kept 90 days. To read one:
-
-```sh
-gh run download <run-id> -R devswha/herdr-web-ui -n growth-snapshot-<run-id>
-GROWTH_SNAPSHOT_KEY=… openssl enc -d -aes-256-cbc -pbkdf2 -pass env:GROWTH_SNAPSHOT_KEY -in growth.tar.gz.enc | tar xzf -
-```
-
-which gives `growth/snapshot-<day>.json` and `growth/stars-by-day.csv`. The same script runs
-locally from the repository root with your own `gh` sign-in:
-`bun scripts/growth-snapshot.ts --out <dir>`. Exit 0 allows individual traffic errors in the JSON;
-exit 2 still writes both files when every traffic endpoint fails. Exit 3 writes neither file,
-including no traffic-only snapshot, and preserves any previous output unchanged. This takes
-precedence over exit 2 if both stars and traffic fail. Exit 1 covers usage, repository access and
-output errors. Both files are staged before publication; a CSV write or replacement failure
-does not publish new JSON. No failed run reaches encryption or upload in the workflow. This fork has no installation or
-daily activity collector or database.
-
 ## Pull requests and CI
-
-Contributors: [CONTRIBUTING.md](../CONTRIBUTING.md) is the short version of this section.
 
 Contributors use short-lived `feat/*`, `fix/*`, `chore/*` or `docs/*` branches from `main`.
 Independent changes normally get independent PRs. A stack is a narrow exception only when a
@@ -690,8 +651,7 @@ that is not a non-empty array of strings containing `"self-hosted"` fails the jo
 falling back. `pages.yml` and `release.yml` read the variable directly.
 
 Only a `pull_request` may skip the heavy jobs as docs-only, and only when every changed file is
-under `docs/`, ends in `.md` or `.txt`, is the root `LICENSE` or sits under
-`.github/ISSUE_TEMPLATE/`. Pushes, dispatches and runs called from `release.yml` or manual
+under `docs/`, ends in `.md` or `.txt`, or is the root `LICENSE`. Pushes, dispatches and runs called from `release.yml` or manual
 `pages.yml` dispatches always validate in full. Automatic Website runs reuse CI's successful
 main push validation instead of calling CI again.
 
@@ -735,19 +695,9 @@ Repository protection should require PRs and all three checks on `main`—**Fast
 administrators. Branch protection does not require branches to be up to date before merging and
 does not enforce resolved review threads; resolve every review thread before merging anyway, as a
 practice. Force pushes and branch deletion are disabled. Human approvals are optional for this maintainer-led
-project; external contributions still need maintainer review. CodeRabbit is advisory, not a required
-check. It reviews a pull request once when it opens and not on later pushes;
-comment `@coderabbitai review` on the final head before merging and wait for it.
+project; external contributions still need maintainer review.
 Release tags must not be moved or deleted. These GitHub settings are separate from files
 in the checkout.
-
-The [CodeRabbit configuration](../.coderabbit.yaml) reviews non-draft PRs, reads the committed
-[review guidelines](../.github/REVIEW.md) and the AGENTS.md files,
-and focuses on protocol, permissions and terminal lifecycle regressions. Generated output
-and media are excluded. Enable the [CodeRabbit GitHub App](https://github.com/apps/coderabbitai)
-for this repository to activate it; the YAML alone does not install the app. Reassess
-useful findings versus false positives after two weeks. Keep final merge decisions with
-the maintainer.
 
 See [Terminal input](terminal-input.md) for input readiness, draft ownership and the mobile
 input regression matrix.
