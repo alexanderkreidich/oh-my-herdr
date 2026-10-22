@@ -1921,10 +1921,12 @@ button {
   }
 
   /* stretched over the header's top inset and its bottom rule, so the sidebar's surface is
-     one piece from the window's top down */
+     one piece from the window's top down. Exactly the sidebar's width: a long PC name in the
+     switcher is cut, never widening the row over the pane (min-width: auto would size it to the name) */
   .app:not(.sidebar-collapsed) .header-side {
     display: flex;
     flex: 0 0 var(--sidebar-shown-w);
+    min-width: 0;
     align-items: center;
     align-self: stretch;
     justify-content: space-between;
