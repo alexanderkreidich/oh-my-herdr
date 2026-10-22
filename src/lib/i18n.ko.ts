@@ -879,7 +879,6 @@ export const KO: Record<string, string> = {
   "Close group": "그룹 닫기",
   "Collapse": "접기",
   "Expand": "펼치기",
-  "Shell": "셸",
   "Settings (⌘⇧,)": "설정 (⌘⇧,)",
   "Name each workspace on one line, or show what its agent is doing with the workspace under it": "워크스페이스 이름만 한 줄로 보여주거나, 에이전트가 하는 작업을 위에 두고 워크스페이스를 아래에 보여줍니다",
   "The computer this app runs on": "이 앱이 실행되는 컴퓨터",
