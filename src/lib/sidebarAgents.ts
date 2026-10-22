@@ -60,15 +60,6 @@ export function sidebarAgents(snapshot: SessionSnapshot | null): SidebarAgent[] 
   ).map(({ row }) => row);
 }
 
-/**
- * The mark a row draws for the pane it opens: that pane's agent, never another pane's.
- * A shell (no entry) has none; an agent herdr names without a kind falls back to its label.
- */
-export function paneMark(entry: SidebarAgent | undefined): string | null {
-  if (!entry) return null;
-  return entry.canonicalAgent ?? entry.agentLabel ?? "";
-}
-
 /** Every agent a workspace runs, each name once, in the roster's order. */
 export function workspaceAgentLabels(agents: readonly SidebarAgent[]): Map<string, string[]> {
   const byWorkspace = new Map<string, string[]>();

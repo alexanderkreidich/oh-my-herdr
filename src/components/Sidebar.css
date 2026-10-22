@@ -20,7 +20,7 @@
   padding: 0 var(--side-gutter);
 }
 
-/* the leading cell: a coding agent's brand mark, else the place's own glyph */
+/* the leading cell: empty on a workspace row, or the fold of its worktrees */
 .sidebar-mark {
   display: inline-flex;
   align-items: center;
@@ -34,12 +34,6 @@
   display: block;
   width: var(--icon-size);
   height: var(--icon-size);
-}
-
-/* the marks that ride currentColor (codex, cursor, pi) read as the title does */
-.sidebar-mark .agent-mark {
-  display: inline-flex;
-  color: var(--text);
 }
 
 /* also the connecting shell's one line, which sits outside the grid */
@@ -191,9 +185,8 @@
   height: var(--hairline);
 }
 
-/* The face that leads a workspace row is also the fold when linked worktrees sit under it: under a
-   pointer or keyboard focus it turns to the folder that says so, open while the worktrees show and
-   closed while they are folded; on touch, where nothing hovers, the folder always shows. */
+/* A workspace row with linked worktrees under it leads with their fold: a chevron, down while the
+   worktrees show and right while they are folded. */
 .sidebar-row-action.workspace-toggle {
   position: relative;
   flex: 0 0 var(--side-box);
@@ -206,33 +199,12 @@
 
 .workspace-toggle .sidebar-mark { flex-basis: auto; width: auto; }
 
-.workspace-toggle-fold {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
 .sidebar-row-action.workspace-toggle svg {
   width: var(--icon-size);
   height: var(--icon-size);
 }
 
-@media (hover: hover) {
-  .workspace-header:hover .workspace-toggle .sidebar-mark { visibility: hidden; }
-  .workspace-header:hover .workspace-toggle-fold { display: flex; }
-}
-
-.workspace-toggle:focus-visible .sidebar-mark { visibility: hidden; }
-.workspace-toggle:focus-visible .workspace-toggle-fold { display: flex; }
-
-@media (hover: none) {
-  .workspace-toggle .sidebar-mark { visibility: hidden; }
-  .workspace-toggle-fold { display: flex; }
-}
-
-/* how many worktrees a folded group holds: the face alone looks like any workspace's */
+/* how many worktrees a folded group holds */
 .workspace-fold-count {
   flex: none;
   color: var(--text-dim);

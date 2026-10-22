@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentInfo, HerdrPane, SessionSnapshot, TabInfo, WorkspaceInfo } from "../../shared/protocol.ts";
-import { agentTabName, paneMark, sidebarAgents, workspaceAgentLabels } from "./sidebarAgents.ts";
+import { agentTabName, sidebarAgents, workspaceAgentLabels } from "./sidebarAgents.ts";
 
 function workspace(id: string): WorkspaceInfo {
   return { workspace_id: id, active_tab_id: `${id}:t1`, label: id, number: 1, tab_count: 1, pane_count: 1, focused: false, agent_status: "idle" };
@@ -79,22 +79,6 @@ describe("sidebarAgents", () => {
     expect(sidebarAgents(snapshot([current], [agent(current, { display_agent: "Review bot", name: "reviewer" })]))[0]!.agentLabel).toBe("Review bot");
     expect(sidebarAgents(snapshot([current], [agent(current, { display_agent: " ", name: "reviewer" })]))[0]!.agentLabel).toBe("reviewer");
     expect(sidebarAgents(snapshot([current], [agent(current)]))[0]!.agentLabel).toBe("codex");
-  });
-});
-
-describe("paneMark", () => {
-  it("draws the agent of the pane a row opens, never another pane's", () => {
-    const shell = pane("shell");
-    const codex = pane("codex", { agent: "codex" });
-    const byPane = new Map(sidebarAgents(snapshot([shell, codex], [agent(codex)])).map((entry) => [entry.pane.pane_id, entry]));
-    expect(paneMark(byPane.get("codex"))).toBe("codex");
-    expect(paneMark(byPane.get("shell"))).toBeNull();
-  });
-
-  it("falls back to the name of an agent herdr lists without a kind", () => {
-    const named = pane("named");
-    const [entry] = sidebarAgents(snapshot([named], [agent(named, { name: "reviewer" })]));
-    expect(paneMark(entry)).toBe("reviewer");
   });
 });
 

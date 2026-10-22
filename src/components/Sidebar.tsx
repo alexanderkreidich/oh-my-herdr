@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type AnimationEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { Bot, ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, SquareTerminal, Terminal, Trash2, TriangleAlert, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Ellipsis, FolderOpen, GitBranch, Pencil, Pin, PinOff, Plus, SquareTerminal, Trash2, TriangleAlert, X } from "lucide-react";
 
 import "./Sidebar.css";
 
@@ -30,7 +30,7 @@ import { worktreeLabel } from "../lib/worktreeName.ts";
 import { lastViewedPane, rememberViewedPane } from "../lib/lastViewedPane.ts";
 import { customTabLabel, tabLabel } from "../lib/tabName.ts";
 import { tabCloseAsks, tabPane } from "../lib/tabs.ts";
-import { paneMark, sidebarAgents, workspaceAgentLabels } from "../lib/sidebarAgents.ts";
+import { sidebarAgents, workspaceAgentLabels } from "../lib/sidebarAgents.ts";
 import { PANE_DRAG_TYPE, paneDragData } from "../lib/split.ts";
 import { currentSidebarPins, pinnedGroupIds, pinnedWorkspaceIds, pruneWorkspacePins, reorderWorkspacePins, setSidebarPins, splitPinnedGroups, subscribeSidebarPins, toggleSidebarPin, workspacePinKey, type WorkspaceGroup } from "../lib/sidebarPins.ts";
 
@@ -255,7 +255,6 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
   }, [snapshot, workspaceOrder]);
   const roster = useMemo(() => rosterPanes(snapshot?.panes ?? [], selectedPaneId), [snapshot?.panes, selectedPaneId]);
   const agentRows = useMemo(() => sidebarAgents(snapshot), [snapshot]);
-  const agentByPane = useMemo(() => new Map(agentRows.map((entry) => [entry.pane.pane_id, entry])), [agentRows]);
   const agentNames = useMemo(() => workspaceAgentLabels(agentRows), [agentRows]);
   // a repository's worktree workspaces hang under one on its main checkout (lib/workspaceOrder.ts)
   const worktreeGroups = useMemo(() => groupWorktrees(orderedWorkspaces), [orderedWorkspaces]);
@@ -310,23 +309,6 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
       ?? panes[0]!;
   };
 
-  /**
-   * What leads a row: the coding agent in the pane the row opens, so the mark never promises an
-   * agent a click would not reach. A shell is a terminal, a linked worktree without an agent its branch.
-   */
-  const rowMark = (pane: PaneInfo, linked: boolean) => {
-    const mark = paneMark(agentByPane.get(pane.pane_id));
-    return (
-      <span className="sidebar-mark" aria-hidden="true">
-        {mark !== null ? <AgentMark agent={mark} size={18} /> : linked ? <GitBranch /> : <Terminal />}
-      </span>
-    );
-  };
-  /** the mark in words, for a reader who cannot see it */
-  const markName = (pane: PaneInfo): string => {
-    const entry = agentByPane.get(pane.pane_id);
-    return entry?.agentLabel ?? entry?.canonicalAgent ?? t("Shell");
-  };
   const agentsTitle = (workspace: WorkspaceInfo): string | null => {
     const names = agentNames.get(workspace.workspace_id);
     return names ? t("Agents: {names}", { names: names.join(", ") }) : null;
@@ -615,7 +597,7 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
     const fixed = fixedIds.has(workspace.workspace_id);
     const menuOpen = menu?.workspace.workspace_id === workspace.workspace_id;
     const contentsId = `${rosterId}-worktrees-${encodeURIComponent(workspace.workspace_id)}`;
-    // a row with linked worktrees under it folds them from its mark: the mark turns to a chevron
+    // a row with linked worktrees under it folds them from the chevron that leads it
     const folds = !nested && children.length > 0 && repoKey !== undefined;
     const toggleMenu = (anchor: HTMLElement, point?: { x: number; y: number }, previousFocus?: HTMLElement | null): void => setMenu(menuOpen ? null : { anchor, point, previousFocus, workspace, title: rowTitle, place: [branchNote, ...paths].filter(Boolean).join(" · ") || workspace.label });
     return <li
@@ -630,8 +612,8 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
       <div className="workspace-header"
         onMouseDownCapture={(event) => { if ((event.button === 2 || (event.button === 0 && event.ctrlKey)) && !(event.target as HTMLElement).closest("input")) event.preventDefault(); }}
         onContextMenu={(event) => onRowContextMenu(event, toggleMenu)}>
-        {/* a workspace leads with its pane's mark; when linked worktrees sit under it, that mark is
-            also the fold, and turns to a chevron under a pointer */}
+        {/* a workspace row leads with an empty column; when linked worktrees sit under it, the
+            column holds their fold */}
         {folds && <button
           type="button"
           className="sidebar-row-action workspace-toggle"
@@ -640,7 +622,7 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
           aria-expanded={!collapsed}
           aria-controls={contentsId}
           onClick={() => setWorktreeCollapsed(repoKey, !collapsed)}
-        >{rowMark(pane, linked)}<span className="workspace-toggle-fold" aria-hidden="true">{collapsed ? <ChevronRight /> : <ChevronDown />}</span></button>}
+        ><span className="sidebar-mark" aria-hidden="true">{collapsed ? <ChevronRight /> : <ChevronDown />}</span></button>}
         <div
           className="pane-select workspace-select"
           role="button"
@@ -662,7 +644,7 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
             actions.selectPane(pane.pane_id);
           }}
         >
-          {!folds && rowMark(pane, linked)}
+          {!folds && <span className="sidebar-mark" aria-hidden="true" />}
           {editingWorkspace ? <input
             className="input workspace-rename-input"
             aria-label={t("Workspace name")}
@@ -696,7 +678,6 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
             {foldedCount > 0 && <span className="workspace-fold-count" aria-hidden="true">+{foldedCount}</span>}
           </span>}
           <span className="sidebar-pane-meta">
-            <span className="visually-hidden">{markName(pane)}</span>
             {online && pane.restore_error ? <RestoreErrorBadge reason={pane.restore_error} /> : <StatusBadge compact status={online ? rollupStatus(statusPanes.map((candidate) => activity.status(machineId, candidate))) : undefined} />}
           </span>
         </div>
