@@ -15,7 +15,7 @@
         "qrcode-generator": "^2.0.4",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
-        "restty": "github:alexanderkreidich/restty#a39be73",
+        "restty": "github:alexanderkreidich/restty#73cc447a7daac3819e33eccb96aa4c3b760ed9f5",
         "web-push": "^3.6.7",
       },
       "devDependencies": {
@@ -509,7 +509,7 @@
 
     "regex-utilities": ["regex-utilities@2.3.0", "", {}, "sha512-8VhliFJAWRaUiVvREIiW2NXXTmHs4vMNnSzuJVhscgmGav3g9VDxLrQndI3dZZVVdp0ZO/5v0xmX516/7M9cng=="],
 
-    "restty": ["restty@github:alexanderkreidich/restty#a39be73", { "dependencies": { "text-shaper": "0.1.28" } }, "alexanderkreidich-restty-a39be73", "sha512-0jE93U+eOjW5opSoIc5s3C58n2aJs38OeOqMM4b9AiDgpnuaSjBPh13sGX4r5JLvhh/ebFkOAYiqcE2YUiEEYg=="],
+    "restty": ["restty@github:alexanderkreidich/restty#73cc447", { "dependencies": { "text-shaper": "0.1.28" } }, "alexanderkreidich-restty-73cc447", "sha512-qE0Mb7Ng9/ybdirN1nJOEz2sWTxCF8NGTcwJpZcInfN9CKQ94vKhZOO5Z9cW/MKQ7wB+JYLHQBcV35a3zA4Hkg=="],
 
     "robust-predicates": ["robust-predicates@3.0.3", "", {}, "sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA=="],
 
