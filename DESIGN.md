@@ -2218,7 +2218,7 @@ The values are the ones in `src/styles.css`.
   the command palette, including its plugin actions, in the phone touch UI.
   The key bar sends terminal input only; it is not an app-action toolbar. Hardware keyboards use
   the same global bindings on phones and desktops.
-- `document.title` is `<pane title> · herdr` while selected, otherwise `herdr web ui`.
+- `document.title` is `<pane title> · oh-my-herdr` while selected, otherwise `oh-my-herdr`.
 
 ### Accepted debt
 

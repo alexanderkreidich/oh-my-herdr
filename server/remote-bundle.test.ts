@@ -40,7 +40,7 @@ describe("remote bundle sources", () => {
 
   it("uses the release only when the requested platform has no local manifest", async () => {
     const { directory } = fixture("linux-x64");
-    expect(await bundleManifestSource("darwin-arm64", { directory, manifest: "" })).toBe(`https://github.com/alexanderkreidich/restty-herdr/releases/download/remote-v${REMOTE_BUNDLE_VERSION}/manifest.json`);
+    expect(await bundleManifestSource("darwin-arm64", { directory, manifest: "" })).toBe(`https://github.com/alexanderkreidich/oh-my-herdr/releases/download/remote-v${REMOTE_BUNDLE_VERSION}/manifest.json`);
     await expect(bundleManifestSource("../linux-x64", { directory })).rejects.toThrow("Unsupported bundle platform");
   });
 
