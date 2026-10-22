@@ -612,8 +612,8 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
       <div className="workspace-header"
         onMouseDownCapture={(event) => { if ((event.button === 2 || (event.button === 0 && event.ctrlKey)) && !(event.target as HTMLElement).closest("input")) event.preventDefault(); }}
         onContextMenu={(event) => onRowContextMenu(event, toggleMenu)}>
-        {/* a workspace row leads with an empty column; when linked worktrees sit under it, the
-            column holds their fold */}
+        {/* a workspace row leads with its name, over the guide its tabs and worktrees hang from;
+            when linked worktrees sit under it, their fold comes first and the name follows it */}
         {folds && <button
           type="button"
           className="sidebar-row-action workspace-toggle"
@@ -644,7 +644,6 @@ export function Sidebar({ snapshot, online, selectedPaneId, actions }: SidebarPr
             actions.selectPane(pane.pane_id);
           }}
         >
-          {!folds && <span className="sidebar-mark" aria-hidden="true" />}
           {editingWorkspace ? <input
             className="input workspace-rename-input"
             aria-label={t("Workspace name")}

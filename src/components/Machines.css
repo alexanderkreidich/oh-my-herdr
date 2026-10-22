@@ -1,7 +1,7 @@
 /* The sidebar's top row (MachineSidebar): the PC switcher, the + at the row's far edge over the
    rows' status cells. From 769px it is drawn in the header's own top row of the sidebar (App,
    .header-switcher), outside .sidebar-shell, so it sizes from the global tokens; a phone's drawer
-   heads its list with it. The PC's mark sits in the rows' leading cell and its name where theirs start. */
+   heads its list with it. The PC's name starts where the workspaces' names do, half a cell in. */
 .sidebar-top {
   display: flex;
   align-items: center;
@@ -17,7 +17,7 @@
   flex: 0 1 auto;
   min-width: 0;
   height: var(--control-h);
-  padding: 0 var(--space-2) 0 0;
+  padding: 0 var(--space-2) 0 calc(var(--control-h) / 2 - var(--space-1));
   background: transparent;
   border: 0;
   border-radius: var(--radius-md);
@@ -40,8 +40,6 @@
   outline: var(--ring);
   outline-offset: calc(var(--ring-offset) * -1);
 }
-
-.pc-switch > .pc-mark { margin-inline: calc((var(--control-h) - var(--icon-size)) / 2); }
 
 .pc-switch-name {
   min-width: 0;
@@ -97,8 +95,8 @@
   .pc-switch:active { transform: none; }
 }
 
-/* A PC's initial on its own colour (MachineSidebar PcMark): the Host the accent, every other PC
-   one of five theme colours its id picks */
+/* A PC's initial on its own colour in the switcher's menu (MachineSidebar PcMark): the Host the
+   accent, every other PC one of five theme colours its id picks */
 .pc-mark {
   --pc-hue: var(--accent);
   display: inline-flex;

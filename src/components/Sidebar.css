@@ -20,7 +20,7 @@
   padding: 0 var(--side-gutter);
 }
 
-/* the leading cell: empty on a workspace row, or the fold of its worktrees */
+/* the leading cell: the fold of a workspace's worktrees */
 .sidebar-mark {
   display: inline-flex;
   align-items: center;
@@ -155,6 +155,10 @@
   cursor: pointer;
 }
 
+/* A workspace's name leads its row: its first letter stands over the guide (half the leading
+   cell in) that its tabs and worktrees hang from. Behind a fold, the name follows the chevron. */
+.workspace-header > .workspace-select:first-child { padding-left: calc(var(--side-box) / 2 - var(--space-1)); }
+
 /* One indent level. A linked worktree keeps herdr's repository workspace as its parent and sits
    under that row's mark, clear of the folder column. The fill stays as wide as the list and the
    row's content moves. */
@@ -181,7 +185,7 @@
 
 .worktree-children .workspace-group > .workspace-header::after {
   top: 50%;
-  width: calc(var(--side-box) / 2 - var(--space-1));
+  width: calc(var(--side-box) - var(--space-2));
   height: var(--hairline);
 }
 
@@ -622,9 +626,9 @@
 
 /* ---------- focus mode: a workspace's tabs as rows under it (WorkspaceTabs) ---------- */
 
-/* The tabs hang from the workspace's mark on a dim guide, as a worktree hangs from its repository:
-   a line down the rows and a rounded elbow into the last. A row's mark starts where the
-   workspace's name does; its state sits in the status column every row shares. */
+/* The tabs hang from under the workspace's name on a dim guide, as a worktree hangs from its
+   repository: a line down the rows and a rounded elbow into the last, then the tab's mark; its
+   state sits in the status column every row shares. */
 .workspace-tabs {
   margin: 0 0 var(--space-1);
   padding: 0;

@@ -72,7 +72,7 @@ export function MachineSidebar(props: Props) {
   </div></SidebarActivityProvider>;
 }
 
-/** A PC's initial on its own colour, so the PC on screen reads at a glance; the Host takes the accent. */
+/** A PC's initial on its own colour, telling the PCs of the switcher's menu apart; the Host takes the accent. */
 function PcMark({ machine }: { machine: Machine }) {
   let hue = 0;
   if (machine.kind !== "local") {
@@ -111,7 +111,6 @@ function PcSwitcher({ machines, current, managing, onManage, onSwitch, onAddPc }
   ];
   return <>
     <button type="button" className="pc-switch" aria-haspopup="menu" aria-expanded={anchor !== null} title={t("Switch PC")} onClick={(event) => setAnchor(anchor ? null : event.currentTarget)}>
-      <PcMark machine={current} />
       <span className="pc-switch-name">{current.name}</span>
       {dot && <span className={`machine-dot is-${dot}`} title={dot === "setup" ? t("Setup needed") : t(STATE_WORD[dot])} aria-hidden="true" />}
       <span className="pc-switch-chevron"><ChevronsUpDown aria-hidden="true" />{elsewhere && <span className="pc-switch-attention" title={t("Another PC needs you")}><span className="visually-hidden">{t("Another PC needs you")}</span></span>}</span>
