@@ -21,6 +21,9 @@ describe("terminal font families", () => {
     // the chat's and the chrome's code face takes it, after the icon font
     const mono = /--font-mono:\s*([^;]+);/.exec(readFileSync(new URL("../styles.css", import.meta.url), "utf8"))![1]!;
     expect(mono.startsWith('"Symbols Nerd Font Mono", "JetBrains Mono Web", ')).toBe(true);
+    // and the interface is JetBrains Mono too, Pretendard behind it for Hangul and kana
+    const ui = /--font-ui:\s*([^;]+);/.exec(readFileSync(new URL("../styles.css", import.meta.url), "utf8"))![1]!;
+    expect(ui.startsWith('"JetBrains Mono Web", "Pretendard Variable", ')).toBe(true);
   });
 });
 

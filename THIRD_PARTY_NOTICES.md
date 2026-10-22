@@ -1333,9 +1333,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ## JetBrains Mono
 
-`src/fonts/JetBrainsMono-Regular.woff2` is `fonts/webfonts/JetBrainsMono-Regular.woff2` from the
-[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) v2.304 release, unchanged. It draws code in
-the chat and the interface (the stylesheet loads it under the family name "JetBrains Mono Web").
+`src/fonts/JetBrainsMono-Variable.woff2` and `-Italic-Variable.woff2` are `fonts/variable/JetBrainsMono[wght].ttf`
+and `JetBrainsMono-Italic[wght].ttf` from the [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono)
+v2.304 release, compressed to WOFF2 with fontTools and otherwise unchanged. They draw the interface
+(the stylesheet loads them under the family name "JetBrains Mono Web").
 `src/fonts/JetBrainsMono-Regular.ttf`, `-Bold.ttf`, `-Italic.ttf` and `-BoldItalic.ttf` are the
 `fonts/ttf/` files of the same release, unchanged: the terminal draws with them. All are under the
 SIL Open Font License 1.1 below (the release's `OFL.txt`).
