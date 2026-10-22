@@ -910,14 +910,13 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   Clicking its name opens the
   selected pane in that workspace, else the last viewed pane, else the pane herdr has focused,
   else its first pane. Tabs are selected from the tab strip; panes are selected on the canvas or from the command palette.
-- A top-level workspace row starts with its project's icon in the grid's leading cell, under the
-  PC's monitor, or a folder glyph when its folder keeps none; the row's mark and name follow it.
-  For a repository workspace with linked worktree workspaces that cell is the group's fold, a
-  button (`.workspace-toggle`) in `--text`: the folder (no icon) is open while the worktrees show
-  and closed while they are folded, when a dim `+N` after the name counts the checkouts put away;
-  a project icon stays until a pointer hovers the row or the button takes keyboard focus, when
-  that same open or closed folder takes its place. Where nothing hovers (touch) the folder always
-  shows. For any other workspace it is a dim glyph or the icon, and no control. Worktree rows have no folder: they sit one cell in, their marks under the parent's.
+- A top-level workspace row starts with its name, half the leading cell in, so its first letter
+  stands over the guide its tabs (focus mode) and worktrees hang from; the PC switcher's name above
+  starts on the same line. For a repository workspace with linked worktree workspaces the leading
+  cell is the group's fold, a chevron button (`.workspace-toggle`) in `--text`, down while the
+  worktrees show and right while they are folded, when a dim `+N` after the name counts the
+  checkouts put away; the name follows the chevron. Worktree rows sit one cell in, their name half
+  a cell further, and the elbow from the parent's guide reaches it.
   Worktree folds are remembered at
   `herdr-web-ui:worktree-group-collapsed:<machineId>:<repo_key>`; a folded group keeps the selected
   child visible, and status snapshots preserve a deliberate fold.
@@ -1105,14 +1104,14 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   the rows' status cells, that starts a workspace on the PC on screen (disabled while it is offline).
   From 769px the row is the header's zone over the sidebar (App's `.header-switcher`, drawn through a
   portal; in focus mode the connection state and the sidebar toggle follow it); a phone's drawer heads
-  its list with it. The switcher is the PC's mark (its initial on its own colour, `.pc-mark`: the Host
-  takes `--accent`, every other PC one of five theme colours its id picks) in the rows' leading cell,
-  the name in `--text-strong` semibold where the rows' titles start, a state dot only while the PC is
+  its list with it. The switcher is the PC's name in `--text-strong` semibold, where the workspaces'
+  names start, a state dot only while the PC is
   not connected (working pulse = connecting/reconnecting, blocked = error, idle = disconnected or
   setup), and the up-down chevron; a `--status-blocked` point on the chevron says another PC waits on
   the user (an action it needs, an update running, or a pane that needs input). Its menu is the row
   menu primitive (a popover from the trigger's left edge, a sheet on a phone): every PC shown, with
-  the mark, the name and a hint (what it waits on, its state, **Needs input**, or **Host**), the PC on
+  its mark (its initial on its own colour, `.pc-mark`: the Host takes `--accent`, every other PC one
+  of five theme colours its id picks), the name and a hint (what it waits on, its state, **Needs input**, or **Host**), the PC on
   screen as the current item; then **Manage {name}** for an SSH PC on screen, which opens its controls
   over the list, and **Add PC**. Picking a PC opens the pane it last showed in this window, else the
   usual fallback, and keeps a phone's drawer open on its workspaces. Every state but connected is

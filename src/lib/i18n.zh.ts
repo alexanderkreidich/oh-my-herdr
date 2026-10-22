@@ -883,7 +883,6 @@ export const ZH: Record<string, string> = {
   "Close group": "关闭分组",
   "Collapse": "折叠",
   "Expand": "展开",
-  "Shell": "Shell",
   "Settings (⌘⇧,)": "设置 (⌘⇧,)",
   "Name each workspace on one line, or show what its agent is doing with the workspace under it": "每个工作区只显示一行名称，或在上方显示智能体正在做的事、下方显示工作区",
   "The computer this app runs on": "运行此应用的计算机",

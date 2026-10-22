@@ -881,7 +881,6 @@ export const JA: Record<string, string> = {
   "Close group": "グループを閉じる",
   "Collapse": "折りたたむ",
   "Expand": "展開",
-  "Shell": "シェル",
   "Settings (⌘⇧,)": "設定 (⌘⇧,)",
   "Name each workspace on one line, or show what its agent is doing with the workspace under it": "ワークスペース名だけを 1 行で表示するか、エージェントの作業を上に、ワークスペースを下に表示します",
   "The computer this app runs on": "このアプリが動作しているコンピューター",
