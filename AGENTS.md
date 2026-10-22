@@ -113,6 +113,9 @@ UI piece behind a switcher before committing to one).
   it, so never assume a pty exists. The SSP state is derived from the attach stream on the bridge.
 - Nothing the user typed is sent automatically after a disconnect: it waits in a draft until the
   user sends or discards it. Local echo predictions are display only and never resend input.
+  Typing on a live connection while a pane just picked opens its input is typeahead: it reaches
+  the pane once herdr says the input is ready, and goes to the draft on a drop, a refusal, the
+  pane put away, or no answer in `TYPEAHEAD_MS` (PaneTerminal). Masked input is never kept.
 - Prompt answers go through `POST /api/pane/prompt/answer`, never guessed digit keys.
 - Selecting a pane or tab in the browser never moves herdr's own focus; only an explicit action
   that needs it calls `pane.focus`.

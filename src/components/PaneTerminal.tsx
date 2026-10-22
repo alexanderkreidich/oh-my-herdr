@@ -50,6 +50,8 @@ import { decodeRow } from "../../shared/ssp.ts";
 const RESIZE_SETTLE_MS = 120;
 /** How long a tab is out of use before it lets go of its pane: a glance at another window keeps it. */
 const RELEASE_AFTER_MS = 1000;
+/** How long typing into a pane that is opening its input waits for it, before it is held for review. */
+const TYPEAHEAD_MS = 2000;
 
 // Only a tab the user is in drives the shared grid. A window left open behind another app
 // still turns visible when the screen wakes, and reconnects, reloads or moves on to the next pane
@@ -93,6 +95,8 @@ export interface PaneTerminalProps {
   active?: boolean;
   /** App selected this pane itself (the selected one closed): switching to it must not take the keyboard */
   autoSelected?: boolean;
+  /** App's count of the user's pane picks: the selected pane picked again takes the keyboard too */
+  focusRequest?: number;
   /** the terminal's font size (settings) */
   terminalFontSize: number;
   /** one of several panes drawn side by side: under 80 columns its font shrinks to reach them */
@@ -130,6 +134,7 @@ export function PaneTerminal({
   controls,
   active = true,
   autoSelected = false,
+  focusRequest = 0,
   terminalFontSize,
   split = false,
   terminalWheelSpeed,
@@ -1089,6 +1094,32 @@ export function PaneTerminal({
     /** the pane (and terminal) whose first screen was drawn */
     let shownTarget: string | null = null;
     let deferredAttach = false;
+    // What is typed while the input cannot take it is held for the user to send or discard.
+    const holdForReview = (current: string, input: string): void => {
+      if (draftPaneRef.current !== current) {
+        draftPaneRef.current = current;
+        setDraft(EMPTY_DRAFT);
+      }
+      setDraft((prev) => applyToDraft(prev, input));
+      if (!draftIsEmpty(applyToDraft(EMPTY_DRAFT, input))) draftHeldForRef.current = current;
+    };
+    // A pane just picked shows its screen a moment before herdr says its input is ready: what is
+    // typed in that moment reaches the pane once it is, as a terminal's typeahead does. A drop, a
+    // refusal or no answer in TYPEAHEAD_MS holds it for review instead, and never sends it later.
+    // Kept key by key: held, each one edits the draft as it would have when typed.
+    let typeahead: { pane: string; inputs: string[]; timer: number } | null = null;
+    const settleTypeahead = (): void => {
+      const pending = typeahead;
+      if (pending === null) return;
+      typeahead = null;
+      window.clearTimeout(pending.timer);
+      // this terminal has moved on to another pane: neither pane's pty nor draft takes it
+      if (pending.pane !== paneRef.current) return;
+      const text = pending.inputs.join("");
+      if (presentedRef.current && shownRef.current && !followRef.current && !observeRef.current && !heldRef.current
+        && socket.sendInput(pending.pane, text)) view.typed(text, socket.lastInputSeq(pending.pane));
+      else for (const input of pending.inputs) holdForReview(pending.pane, input);
+    };
     const off = session.on((message) => {
       onServerMessageRef.current?.(message);
       // Every pane-addressed frame, errors included, belongs only to that pane's renderer.
@@ -1105,6 +1136,8 @@ export function PaneTerminal({
       // An ordinary opt-in release still keeps its existing paused fallback.
       if (message.type === "snapshot" && deferredAttach && !socket.canWatch()) resume();
       if (paneRef.current) setInputReady(socket.canInput(paneRef.current));
+      if (typeahead !== null && (socket.canInput(typeahead.pane) || message.type === "error" || message.type === "pty-exit"
+        || (message.type === "input-ready" && message.ready === false))) settleTypeahead();
       if (message.type === "input-ready") {
         if (message.ready === false) {
           outputRecovering = true;
@@ -1269,6 +1302,7 @@ export function PaneTerminal({
       setConnected(socket.connected);
     });
     const offDisconnect = session.onDisconnect(() => {
+      settleTypeahead();
       clearModifiers();
       outputRecovering = false;
       setOutputReady(false);
@@ -1318,6 +1352,9 @@ export function PaneTerminal({
       // Hiding a cached pane blurs the terminal, which may commit its pending IME text.
       // That abandoned input must reach neither the old PTY nor its held draft.
       if (!current || !presentedRef.current || !shownRef.current || observeRef.current || heldRef.current) return;
+      // typeahead goes before anything typed after it, once the pane can take it (an older bridge
+      // says so with its output, not with a frame)
+      if (typeahead !== null && (typeahead.pane !== current || socket.canInput(typeahead.pane))) settleTypeahead();
       // while a masked prompt is on screen, what is typed goes to the program or nowhere: never
       // into a draft, which is kept in the clear and offered back for review
       const secret = secretRef.current !== null;
@@ -1381,14 +1418,14 @@ export function PaneTerminal({
         setInputError(t("Not sent: the terminal is not ready, and a password is never held for later."));
         return;
       }
-      // A closed socket, an attachment still opening, or a failed synchronous send:
-      // keep printable input for explicit review, never replay it automatically.
-      if (draftPaneRef.current !== current) {
-        draftPaneRef.current = current;
-        setDraft(EMPTY_DRAFT);
+      if (socket.inputOpening(current)) {
+        typeahead ??= { pane: current, inputs: [], timer: window.setTimeout(settleTypeahead, TYPEAHEAD_MS) };
+        typeahead.inputs.push(input);
+        return;
       }
-      setDraft((prev) => applyToDraft(prev, input));
-      if (!draftIsEmpty(applyToDraft(EMPTY_DRAFT, input))) draftHeldForRef.current = current;
+      // A closed socket, an attachment refused, or a failed synchronous send:
+      // keep printable input for explicit review, never replay it automatically.
+      holdForReview(current, input);
     };
 
     // Browsers expose dropped files as bytes, not local paths. Save them beside
@@ -1840,6 +1877,8 @@ export function PaneTerminal({
       else refit();
     };
     presentationRef.current = () => {
+      // put away before its input opened: what was typed into it waits for review, not for its return
+      if (!presentedRef.current) settleTypeahead();
       if (cachedRef.current) release();
       else if (presentedRef.current && releasedRef.current) {
         if (inUse() || mirroredRef.current) back();
@@ -1943,6 +1982,8 @@ export function PaneTerminal({
       host.removeEventListener("dragover", onDragOver);
       host.removeEventListener("drop", onDrop);
       offDisconnect();
+      if (typeahead !== null) window.clearTimeout(typeahead.timer);
+      typeahead = null;
       offViewResize();
       outputListeners.clear();
       view.dispose();
@@ -2150,9 +2191,10 @@ export function PaneTerminal({
 
   // A sibling already mounted in the split canvas becomes the keyboard target only on an
   // explicit navigation. Clicking inside it leaves focus on the actual clicked control.
+  // The open pane picked again (its sidebar row, its tab) takes back the keyboard they took.
   useEffect(() => {
     if (active && !autoSelected && !coarseRef.current && !modalOpen() && !findOpenRef.current) termRef.current?.focus();
-  }, [active, autoSelected]);
+  }, [active, autoSelected, focusRequest]);
 
   // the user picked the pane App had switched to on its own (the same row again, which
   // changes nothing): the grid takes the keyboard now

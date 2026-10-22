@@ -427,9 +427,9 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
                   onMouseDown={(event) => { if (event.button === 2 || (event.button === 0 && event.ctrlKey)) event.preventDefault(); }}
                   onClick={(event) => {
                     if (reorder.consumeClick(event.detail) || event.ctrlKey) return;
-                    event.currentTarget.focus({ preventScroll: true });
-                    const pane = paneFor(tab);
-                    if (pane && pane.pane_id !== selectedPane.pane_id) onSelectPane(pane.pane_id);
+                    // the open tab too: picking it hands the keyboard back to its terminal
+                    const pane = active ? selectedPane : paneFor(tab);
+                    if (pane) onSelectPane(pane.pane_id);
                   }}
                   onDoubleClick={() => beginRename(tab)}
                   onContextMenu={(event) => { event.preventDefault(); openPicker(event, tab); }}

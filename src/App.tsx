@@ -283,6 +283,8 @@ export function App() {
   // App picked the selected pane itself because the one selected closed: it must not raise a
   // phone's keyboard (over the drawer the close was tapped in) until the user picks a pane
   const [autoSelected, setAutoSelected] = useState(false);
+  // counts the user's picks of a pane, the open one again too (its row, its tab): each hands its terminal the keyboard
+  const [focusRequest, setFocusRequest] = useState(0);
   // a phone opened by a link that says so starts with its drawer out (lib/deepLink.ts)
   const [drawerOpen, setDrawerOpen] = useState(() => initialLink?.sidebar === "shown" && window.matchMedia?.("(min-width: 769px)").matches !== true);
   const drawerOpenRef = useRef(drawerOpen); drawerOpenRef.current = drawerOpen;
@@ -704,6 +706,7 @@ export function App() {
     if (machineId !== selectedMachineRef.current) { setConnected(false); setConnectedBefore(false); }
     // the active half alone takes the pick, whatever the other half shows (lib/split.ts)
     setSelectedMachineId(machineId); setSelectedPaneId(paneId); setAutoSelected(false); setDrawerOpen(false);
+    setFocusRequest((serial) => serial + 1);
     setOutputStopped(false);
     // this browser's choice only: herdr's focus, its TUI and every other device stay where they are
     storeSelection(machineId, paneId);
@@ -785,6 +788,7 @@ export function App() {
     selectionHint.current = null;
     setSelectedPaneId(paneId);
     setAutoSelected(!focusInput);
+    if (focusInput) setFocusRequest((serial) => serial + 1);
     setDrawerOpen(false);
   }, []);
 
@@ -1466,6 +1470,7 @@ export function App() {
                         controls={active && itemActive ? paneControls : undefined}
                         findRequest={active && findRequest.paneId === item?.pane_id ? findRequest.serial : 0}
                         autoSelected={active ? autoSelected : true}
+                        focusRequest={focusRequest}
                         terminalFontSize={settings.terminalFontSize}
                         split={herdrSplit || splitOn}
                         terminalWheelSpeed={settings.terminalWheelSpeed}

@@ -14,6 +14,7 @@ for script in \
   sticky-modifiers-regression \
   pane-find-regression \
   minimal-ui-regression \
+  terminal-keyboard-regression \
   ssp-latency
 do
   printf '\n=== %s ===\n' "$script"

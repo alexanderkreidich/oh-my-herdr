@@ -166,12 +166,16 @@ it("requires attachment readiness and never replays held input after a detach", 
   const socket = FakeSocket.last;
   socket.open();
   socket.receive(snapshot(["submit", "input-ready"]));
+  expect(client.inputOpening("w1:p1")).toBe(false);
   client.attach("w1:p1", 80, 24);
+  // attached and not ready yet: typing now is typeahead for the pane (PaneTerminal)
+  expect(client.inputOpening("w1:p1")).toBe(true);
   expect(client.sendInput("w1:p1", "lost?")).toBe(false);
   expect(client.sendKeys("w1:p1", ["ctrl+alt+shift+left"])).toBe(false);
   socket.receive({ type: "pty-data", pane_id: "w1:p1", data: "screen" });
   expect(client.canInput("w1:p1")).toBe(false);
   socket.receive({ type: "input-ready", pane_id: "w1:p1" });
+  expect(client.inputOpening("w1:p1")).toBe(false);
   expect(client.sendInput("w1:p1", "한글")).toBe(true);
   expect(client.sendKeys("w1:p1", ["ctrl+alt+shift+left"])).toBe(true);
   // a key or text of an attach that has gone is refused with `input_failed`: this attach stays ready
@@ -182,6 +186,7 @@ it("requires attachment readiness and never replays held input after a detach", 
   socket.receive({ type: "input-ready", pane_id: "w1:p1" });
   expect(client.canInput("w1:p1")).toBe(true);
   client.detach("w1:p1");
+  expect(client.inputOpening("w1:p1")).toBe(false);
   socket.receive({ type: "input-ready", pane_id: "w1:p1" });
   expect(client.sendInput("w1:p1", "wrong pane")).toBe(false);
   expect(client.sendKeys("w1:p1", ["ctrl+alt+shift+left"])).toBe(false);
