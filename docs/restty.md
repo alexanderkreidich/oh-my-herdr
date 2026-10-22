@@ -1,6 +1,6 @@
 # Restty terminal integration
 
-The browser uses the native runtime from `alexanderkreidich/restty`, pinned to `a39be73`.
+The browser uses the native runtime from `alexanderkreidich/restty`, pinned to `73cc447a7daac3819e33eccb96aa4c3b760ed9f5`.
 `bun install` builds that git dependency through `scripts/build-restty.ts`; no xterm.js
 packages, source patches or build step remain. This does not change ownership of the PTY:
 herdr remains authoritative, including history, selection ranges and keyboard protocol.
@@ -23,6 +23,15 @@ herdr remains authoritative, including history, selection ranges and keyboard pr
 
 Sandbox screenshots: [desktop dark](screenshots/restty/desktop-dark.png),
 [phone dark](screenshots/restty/phone-dark.png), [desktop light](screenshots/restty/desktop-light.png).
+
+## Text sharpness
+
+The pinned renderer preserves glyph bitmap dimensions when the shaped advance differs from
+the cell width only because of pixel rounding (for example, 8.4 px rounded to an 8 px cell).
+Both WebGPU and WebGL2 compare the rounded advance before fitting a glyph, avoiding a second
+bitmap resampling pass that blurred small text at DPR 1. Genuinely oversized glyphs still fit.
+The dependency carries ten backend regression cases; browser checks cover Latin/Cyrillic
+regular, bold and italic text at DPR 1 and 2.
 
 ## New-tab critical path
 
