@@ -4,13 +4,14 @@
  * only, under its top row's PC switcher and +; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
  * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU). Focus mode
  * (Mod+Shift+.) moves the tabs under their workspace, and a hidden sidebar hands them back to the bar.
+ * The top row's + makes a workspace at once, a shell in the PC's home, with no dialog.
  *
  *   bun run build && bun run check run bun scripts/minimal-ui-regression.ts
  */
 import "./test-herdr.ts"; // a herdr session of its own: nothing shows in the user's
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { createServer } from "../server/index.ts";
@@ -26,6 +27,7 @@ const workspaceId = created.workspace.workspace_id;
 await tabCreate({ workspaceId, cwd });
 const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), usage: new UsageService(undefined, []) });
 const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox", "--accept-lang=en-US"] });
+let madeId: string | null = null;
 
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -69,11 +71,6 @@ try {
   await pcs.getByRole("menuitem", { name: "Add PC", exact: true }).waitFor();
   await page.keyboard.press("Escape");
   await pcs.waitFor({ state: "detached" });
-  await plus.click();
-  const newWorkspace = page.locator(".new-session-modal");
-  await newWorkspace.waitFor();
-  await page.keyboard.press("Escape");
-  await newWorkspace.waitFor({ state: "detached" });
 
   // never a chat, even for a pane that remembered one
   assert.equal(await page.locator(".chat-view, .composer").count(), 0, "the pane shows its terminal");
@@ -118,10 +115,27 @@ try {
   await tabs.nth(1).waitFor({ timeout: 5_000 });
   assert.equal(await page.locator(".workspace-tab").count(), 0, "no tab rows outside focus mode");
 
+  // the top row's + makes a workspace at once and opens it: a shell in home, no dialog asking for an agent or a folder
+  const known = await page.locator(".workspace-group[data-workspace]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workspace")));
+  await plus.click();
+  const made = page.locator(".workspace-group.is-selected[data-workspace]");
+  await page.waitForFunction((ids) => {
+    const id = document.querySelector(".workspace-group.is-selected[data-workspace]")?.getAttribute("data-workspace");
+    return id != null && !ids.includes(id);
+  }, known, { timeout: 20_000 });
+  madeId = await made.getAttribute("data-workspace");
+  assert.equal(await page.locator("[role=dialog]").count(), 0, "no dialog opens");
+  const snapshot = await page.evaluate(async () => (await (await fetch("/api/session")).json()).snapshot) as { panes: { workspace_id: string; cwd?: string | null; agent?: string | null }[] };
+  const madePanes = snapshot.panes.filter((pane) => pane.workspace_id === madeId);
+  assert.equal(madePanes.length, 1, "one pane in the new workspace");
+  assert.equal(madePanes[0]!.cwd, homedir(), "its shell starts in home");
+  assert.equal(madePanes[0]!.agent ?? null, null, "no agent starts in it");
+
   console.log("minimal-ui-regression: ok");
 } finally {
   await browser.close();
   server.stop();
   await workspaceClose(workspaceId).catch(() => {});
+  if (madeId !== null) await workspaceClose(madeId).catch(() => {});
   rmSync(root, { recursive: true, force: true });
 }

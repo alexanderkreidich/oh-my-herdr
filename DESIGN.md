@@ -841,10 +841,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Close follows herdr's `ui.confirm_close`: a workspace close, or a pane close that takes its
   workspace with it, asks in a confirm first. A busy pane also asks before it stops. After a
   confirmed close, focus lands on the header's workspace-list toggle.
-- Tab and pane menus follow herdr's target scopes. A tab's menu contains New tab with agent…, Rename
-  tab and Close tab, plus Move tab left/right when a neighbouring position exists and no move is pending.
-  The `⋯` beside the selected tab holds the same tab actions (the strip's `+` opens a shell tab, so
-  New tab with agent… stays here) and also carries the open pane's actions, less Split and Zoom where a phone shows one pane at a time.
+- Tab and pane menus follow herdr's target scopes. A tab's menu contains Rename tab and Close tab,
+  plus Move tab left/right when a neighbouring position exists and no move is pending.
+  The `⋯` beside the selected tab holds the same tab actions and also carries the open pane's actions, less Split and Zoom where a phone shows one pane at a time.
   Touch and narrow layouts keep that `⋯` in view; a desktop with a mouse (`hover: hover`,
   `pointer: fine`, wider than 768px) draws it on the selected tab only, in its place at rest but
   hidden (`opacity` 0, `visibility` hidden, so the strip never reflows), and fades it in
@@ -1151,37 +1150,17 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   the email or login right-aligned and ellipsized, then one row per limit (label, reset time, right-aligned percent) over a 4px bar. A problem
   note is dim, red for an expired sign-in or a failed request.
 
-### New workspace dialog
-- Agent select comes from `GET /api/agents`; shell-only is always available. Directory defaults to
-  the selected pane cwd and name is an optional workspace label. **Browse** updates Directory as
-  each folder opens (`onFolder`), so **Start** uses the path shown in the browser even when
-  **Use this folder** was not pressed; Directory keeps the `~/…` form for a folder under home, as
-  that button does, which also closes Browse. A folder-plus icon button at the end of Browse's bar
-  (New workspace only, not Files) opens one name field under the bar: Enter makes the folder inside
-  the one shown and opens it, so Directory follows; Escape or leaving it empty closes the field
-  without closing the dialog, and a refusal (taken name, invalid name, no permission) shows as an
-  inline alert under the field.
-- Recent folders appear as neutral `.btn` chips with `--radius-pill` and `--space-2` gaps: the
-  three most recent, on one row that never wraps. Each shows the folder basename with ellipsis
-  and the full path in its tooltip and accessible name. Clicking puts the folder in Directory and
-  starts nothing. History is per PC in this browser and retained after panes close. Only a
-  successful workspace start puts its folder first; a folder merely seen in a connected PC's panes
-  goes behind what is kept, since a pane's folder follows every `cd` of its shell. Pending and partial
-  failures disable the chips. New tab keeps its workspace folder and shows no recent chips.
-- Submit calls `POST /api/workspace/create`; the server performs `workspace.create` and, when an
-  agent was chosen, `agent.start` in its root pane. Pending and partial agent-start failure are
-  explicit before the created pane opens.
-- As **New tab** (from a row's `⋯` menu, the tab menu's New tab with agent… or the palette),
-  the same dialog is titled `New tab · <workspace>`, shows the workspace's folder as a fact in a
-  dashed box (`.new-session-folder`: a worktree's checkout, else the folder of the pane in front)
-  instead of asking for one, and its name is the tab's (optional; the placeholder is the number
-  herdr gives it). Submit calls `POST /api/tab/create` with the same agent launch.
+### New workspace
+- No dialog. The sidebar's `+`, `Mod+Shift+O` and the palette's New workspace call
+  `POST /api/workspace/create` with `cwd: "~"` and no agent at once: a shell in the PC's home,
+  which herdr names after the folder. The new pane opens unless another one was opened while herdr
+  answered; a refusal is a line over the pane. An agent or a project folder is a command away in
+  that shell. New tab (its key and the palette) is the strip's `+`: a shell tab in the workspace's folder.
 
 ### Tab strip and pane canvas
 - The tab strip is shown even for one pane, as herdr's TUI shows its single tab and `+`. The `+`
   is herdr's own new tab: it calls `POST /api/tab/create` with no agent at once, in the workspace's
   folder, and opens the new shell pane unless another pane was opened meanwhile; a refusal shows
-  in the strip. An agent tab comes from the tab menu's New tab with agent…, which opens the dialog.
   Tabs retain their names, status dots, active underline, keyboard navigation, rename field and
   close confirmation. A right-click opens tab actions at the pointer, including Move tab left/right
   when a neighbouring position exists. Tabs have no close buttons or chevrons. Touch and narrow layouts show a `⋯` beside
@@ -1255,7 +1234,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - The branch arrives filled in as herdr's own form fills it (`worktree/brave-valley-07f8`:
   adjective, noun, four hex digits) and selected, so typing replaces it. The name is the branch
   with its slashes as dashes and follows the branch until it is typed over.
-- **Agent** is the New workspace dialog's picker, under the name: the agent last started, Shell
+- **Agent** is a picker under the name: the agent last started, Shell
   for none. It starts in the checkout's pane once the checkout is made. One that fails to start
   leaves the worktree there: the dialog says why, locks its fields, and its button reads **Open**.
 - The browser demo answers the same list/create/open/remove worktree APIs with fictional

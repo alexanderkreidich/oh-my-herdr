@@ -252,7 +252,7 @@ export function useShortcuts(actions: AppActions, enabled: boolean): void {
       if (keepsKeyForText(event)) return;
       event.preventDefault();
       // a held chord repeats: a tab or a split is made once per press, not once per key repeat
-      if (event.repeat && (shortcut === "new-tab" || shortcut === "split-right" || shortcut === "split-down")) return;
+      if (event.repeat && (shortcut === "new-session" || shortcut === "new-tab" || shortcut === "split-right" || shortcut === "split-down")) return;
       markKeyAction();
       switch (shortcut) {
         case "palette":

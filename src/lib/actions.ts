@@ -20,12 +20,13 @@ export interface AppActions {
   /** Focus the selected pane's mounted input without sending any text or keys. */
   focusInput: () => void;
   scrollPage: (direction: -1 | 1) => void;
-  openNewSession: () => void;
   /**
-   * The New tab dialog for a workspace: the named one (a sidebar row's menu, on its own PC),
-   * else the selected pane's. Nothing happens without a workspace to add the tab to.
+   * A workspace on that PC (the selected one by default) with a shell in its home, at once and
+   * with no dialog; it opens unless another pane was opened meanwhile. A refusal is said over the pane.
    */
-  openNewTab: (target?: { machineId: string; workspaceId: string }) => void;
+  openNewSession: (machineId?: string) => void;
+  /** openTerminalTab for the selected pane's workspace, from a key or the palette: a refusal is said over the pane */
+  openNewTab: () => void;
   /**
    * A shell tab in the same workspace, at once and with no dialog, as herdr's own new tab: the
    * new pane opens unless another one was opened meanwhile. Rejects with herdr's refusal.

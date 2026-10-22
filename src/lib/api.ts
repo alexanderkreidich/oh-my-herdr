@@ -7,7 +7,6 @@ import type {
   CreateWorktreeRequest,
   CreateTabRequest,
   CreateWorkspaceRequest,
-  DirectoryCreated,
   DirectoryListing,
   FocusPaneRequest,
   HealthAuth,
@@ -422,7 +421,7 @@ export async function clearPane(paneId: string, machineId = "local"): Promise<vo
   await sendJson(machinePath(machineId, "pane/clear"), "POST", { pane_id: paneId });
 }
 
-/** GET /api/agents: of the agent kinds herdr can start, the ones this app supports and that PC has installed, for the new-session dialog. */
+/** GET /api/agents: of the agent kinds herdr can start, the ones this app supports and that PC has installed, for the worktree dialog. */
 export async function fetchAgentKinds(machineId = "local"): Promise<AgentKind[]> {
   // filtered here, not on the server: a remote PC's older bridge still answers every manifest,
   // and says nothing of what is installed, so its supported kinds are all offered
@@ -434,16 +433,10 @@ export async function fetchIntegrations(machineId = "local"): Promise<Integratio
   return (await getJson<IntegrationsResponse>(machinePath(machineId, "integrations"))).integrations;
 }
 
-/** GET /api/workspace/directories: the folders in `path` (empty: home), for the folder browser. */
+/** GET /api/workspace/directories: the folders in `path` (empty: home), for the palette's folder browsing. */
 export async function fetchDirectories(path: string, hidden: boolean, machineId = "local"): Promise<DirectoryListing> {
   const query = new URLSearchParams({ path, ...(hidden ? { hidden: "1" } : {}) });
   return getJson<DirectoryListing>(machinePath(machineId, `workspace/directories?${query.toString()}`));
-}
-
-/** POST /api/workspace/directories: makes the folder `name` inside `path`, for the folder browser's New folder. */
-export async function createDirectory(path: string, name: string, machineId = "local"): Promise<DirectoryCreated> {
-  const response = await sendJson(machinePath(machineId, "workspace/directories"), "POST", { path, name });
-  return (await response.json()) as DirectoryCreated;
 }
 
 export type { CreateTabRequest, CreateWorkspaceRequest } from "../../shared/protocol.ts";

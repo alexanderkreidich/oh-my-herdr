@@ -556,12 +556,12 @@ function codexModeName(mode: CodexLaunchMode, t: ReturnType<typeof useT>): strin
   return mode === "readOnly" ? t("Read only") : mode === "auto" ? t("Auto") : mode === "fullAccess" ? t("Full access") : t("Agent default");
 }
 
-/** The mode the new workspace, tab and worktree dialogs start Claude Code and Codex in (lib/agentLaunchMode.ts). */
+/** The mode the New worktree dialog starts Claude Code and Codex in (lib/agentLaunchMode.ts). */
 function LaunchModesGroup() {
   const { settings, update } = useSettings();
   const t = useT();
   return (
-    <SettingsGroup title={t("New agents")} section="launch-modes" note={t("Applies to agents started from New workspace, New tab and New worktree. Agent default adds no flag, so the agent's own configuration decides.")}>
+    <SettingsGroup title={t("New agents")} section="launch-modes" note={t("Applies to agents started from New worktree. Agent default adds no flag, so the agent's own configuration decides.")}>
       <SettingsRow label="Claude Code" description={t("Permission mode")} htmlFor="settings-claude-launch-mode">
         <select id="settings-claude-launch-mode" className="select settings-select" value={settings.claudeLaunchMode} onChange={(event) => update({ claudeLaunchMode: event.target.value as ClaudeLaunchMode })}>
           {CLAUDE_LAUNCH_MODES.map((mode) => <option key={mode} value={mode}>{claudeModeName(mode, t)}</option>)}

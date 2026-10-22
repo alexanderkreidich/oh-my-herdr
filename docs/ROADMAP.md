@@ -40,6 +40,12 @@ The visible UI shrinks to a workspace list, one top bar of pill tabs and the ter
       mark and name, a chevron with a point when another PC waits on you) whose menu lists the
       PCs, Manage for an SSH PC and Add PC, and a `+` for a new workspace at the row's far edge.
       The PC headers, their folds and the "Host" label over the list go.
+- [x] **New workspace at once.** The sidebar's `+`, `Mod+Shift+O` and the palette make a workspace
+      with a shell in the PC's home, no dialog; New tab (its key, the palette) is the strip's shell
+      tab. The New workspace / New tab dialog, its folder browser and recent folder chips, the tab
+      menus' New tab with agent… and `?new=` links go. New worktree keeps its agent picker.
+- [ ] New workspace follow-up: the bridge's `POST /api/workspace/directories` (New folder) and the
+      `agent` field of `/api/workspace/create` and `/api/tab/create` have no caller in this client.
 - [ ] PC switcher follow-ups: a key to switch PCs (Ctrl+1–9 is the browser's on Windows and Linux);
       the Host's name without macOS's `.local`.
 - [ ] Focus mode follow-ups: the bridge says which shells run a command (`pane.process_info`), so
