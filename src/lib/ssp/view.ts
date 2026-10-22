@@ -141,16 +141,24 @@ export class SspView {
     this.frames.set(frame.num, frame);
     for (const num of this.frames.keys()) if (num < diff.throwaway && num !== frame.num) this.frames.delete(num);
     if (this.frames.size > MAX_FRAMES) for (const num of [...this.frames.keys()].sort((a, b) => a - b).slice(0, this.frames.size - MAX_FRAMES)) this.frames.delete(num);
+    // the echo and the round trip hold for the newest screen too: an input applied long enough
+    // before an older screen was before the newer one. The sender says a new echo with the same
+    // screen again when only the echo changed: a guess is confirmed then, not at the next change
+    const echoed = diff.echo > this.echo;
+    this.echo = Math.max(this.echo, diff.echo);
+    if (typeof diff.rtt === "number") this.predictions.setRtt(diff.rtt);
     if (this.newest && frame.num <= this.newest.num) {
-      // an older screen arrived late: kept as a base, never drawn over a newer one
+      // the same screen again, or an older one arrived late: kept as a base, never drawn over a newer one
       this.options.ack(diff.stream, this.newest.num);
+      if (echoed) {
+        this.predictions.confirm(this.newest, this.echo);
+        this.draw();
+      }
       return;
     }
     const first = this.newest === null;
     this.newest = frame;
     this.assets.scene(frame.graphics);
-    this.echo = Math.max(this.echo, diff.echo);
-    if (typeof diff.rtt === "number") this.predictions.setRtt(diff.rtt);
     this.options.ack(diff.stream, frame.num);
     // a clipboard write is an event: the one a joining client finds on the screen is old news
     if (first) this.clipSeq = frame.clip?.seq ?? null;

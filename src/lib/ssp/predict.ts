@@ -1,17 +1,20 @@
 /**
  * Predictive local echo, after Mosh's model (Winstein and Balakrishnan, USENIX ATC 2012): what the
  * user types is drawn at once as a guess of what the program will echo, and each guess is checked
- * against the bridge's screen once the bridge says the program has had time to echo that input
- * (`FrameDiff.echo`, shared/ssp.ts).
+ * against the bridge's screen: it comes true once a screen shows it, and is wrong when it is still
+ * missing after the bridge says the program has had time to echo that input (`FrameDiff.echo`,
+ * shared/ssp.ts).
  *
  * - Guesses come in epochs. A new epoch starts tentative: its guesses are kept but not shown until
  *   one of them comes true. Anything this cannot guess (Enter, a control key, a paste, a wide
  *   character, the last column) starts a new epoch, so after it nothing shows until the program has
  *   echoed something again. A password prompt never echoes: its first guess fails and nothing shows.
  * - One wrong guess that was shown takes every guess back.
- * - Guesses show only on a slow link (round trip over 30 ms, until it drops to 20 ms), or while one
- *   has waited past GLITCH_MS for its echo; they are underlined until confirmed when the round trip
- *   is over 80 ms (until 50 ms), or a guess has waited past GLITCH_FLAG_MS.
+ * - Guesses show only while an echo is slow to come: the round trip, or the time a guessed
+ *   character takes to show on the bridge's screen (herdr draws the pane at its own pace, so that is
+ *   longer on a fast link too), over 30 ms, until both drop to 20 ms; or while one has waited past
+ *   GLITCH_MS for its echo. They are underlined until confirmed when the round trip is over 80 ms
+ *   (until 50 ms), or a guess has waited past GLITCH_FLAG_MS.
  *
  * Mosh's code is GPL; this is a new implementation of the published model.
  */
@@ -79,6 +82,10 @@ export class PredictionEngine {
   private confirmedEpoch = 0;
   private enabled = true;
   private srttTrigger = false;
+  /** the bridge's smoothed round trip */
+  private linkRtt = 0;
+  /** the time from a guess to a screen that shows it, smoothed as the round trip is; null until measured */
+  private echoRtt: number | null = null;
   private flagging = false;
   private glitch = 0;
   private lastQuickConfirmation = 0;
@@ -90,10 +97,21 @@ export class PredictionEngine {
   }
 
   setRtt(srtt: number): void {
-    if (srtt > SRTT_SHOW_MS) this.srttTrigger = true;
-    else if (srtt <= SRTT_HIDE_MS) this.srttTrigger = false;
+    this.linkRtt = srtt;
+    this.trigger();
     if (srtt > FLAG_ON_MS) this.flagging = true;
     else if (srtt <= FLAG_OFF_MS) this.flagging = false;
+  }
+
+  private measureEcho(ms: number): void {
+    this.echoRtt = this.echoRtt === null ? ms : 0.875 * this.echoRtt + 0.125 * ms;
+    this.trigger();
+  }
+
+  private trigger(): void {
+    const latency = Math.max(this.linkRtt, this.echoRtt ?? 0);
+    if (latency > SRTT_SHOW_MS) this.srttTrigger = true;
+    else if (latency <= SRTT_HIDE_MS) this.srttTrigger = false;
   }
 
   setEnabled(enabled: boolean): void {
@@ -275,7 +293,10 @@ export class PredictionEngine {
         if (verdict === "pending") continue;
         if (verdict === "wrong") return this.wrong(guess);
         line.delete(col);
-        if (verdict === "correct") this.correct(guess, now);
+        if (verdict === "correct") {
+          this.measureEcho(now - guess.at);
+          this.correct(guess, now);
+        }
       }
       if (line.size === 0) this.cells.delete(row);
     }
@@ -313,9 +334,13 @@ export class PredictionEngine {
 
   private judgeCell(screen: Frame, row: number, col: number, guess: CellGuess, now: number): Verdict {
     if (row >= screen.rows || col >= screen.cols) return "wrong";
+    const text = decodeRow(screen.lines[row]!.wire, screen.cols)[col]!.text;
+    // the echo is on screen before the bridge says it is due (ECHO_DELAY_MS after the input): a
+    // guess that came true counts at once, so the keys typed after a line's first show without that
+    // wait. Only the echo's absence needs it, to be read as a wrong guess
+    if (text === guess.text && !guess.originals.has(text)) return "correct";
     const waiting = this.waiting(guess, now);
     if (waiting) return waiting;
-    const text = decodeRow(screen.lines[row]!.wire, screen.cols)[col]!.text;
     if (text !== guess.text) return this.late(guess, now) ? "pending" : "wrong";
     return guess.originals.has(text) ? "unearned" : "correct";
   }

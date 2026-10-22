@@ -3,7 +3,13 @@ import type { HealthAuth, ServerMessage, SessionSnapshot } from "./protocol.ts";
 
 export const LOCAL_MACHINE = "local";
 export const BRIDGE_PROTOCOL = 1;
-export const REMOTE_BUNDLE_VERSION = "31";
+/**
+ * The remote bridge's runtime version. This fork's bundles count from 1000, so that no upstream
+ * bundle (remote-v1, remote-v2, … from devswha/herdr-web-ui) is ever taken for one of them: a PC
+ * still running upstream's bridge has none of this fork's server (the screen sync, local echo)
+ * and is offered Update bridge instead.
+ */
+export const REMOTE_BUNDLE_VERSION = "1000";
 export interface PaneTarget { machine_id: string; pane_id: string }
 export type MachineState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 export interface SshTarget {

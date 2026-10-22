@@ -50,6 +50,28 @@ describe("PredictionEngine", () => {
     expect(predictions.overlay(done, () => UNDERLINED)).toBe(done);
   });
 
+  it("takes a guess the screen already shows as confirmed before the bridge says the echo is due", () => {
+    const { predictions, tick } = engine();
+    const prompt = screen("$ ");
+    predictions.typed("l", 1, prompt);
+    tick(90);
+    // the program's echo is on screen; the bridge says input 1 is due only 50 ms after it went in
+    const echoed = screen("$ l", 3, 2);
+    predictions.confirm(echoed, 0);
+    predictions.typed("s", 2, echoed);
+    expect(shown(predictions, echoed).text).toBe("$ ls");
+  });
+
+  it("does not confirm early on a cell that already showed the guess", () => {
+    const { predictions, tick } = engine();
+    const before = screen("$ x", 2);
+    predictions.typed("x", 1, before);
+    tick(90);
+    predictions.confirm(before, 0);
+    predictions.typed("y", 2, before);
+    expect(shown(predictions, before).text).toBe("$ x");
+  });
+
   it("waits a moment for an echo herdr has not drawn yet before calling a guess wrong", () => {
     const { predictions, tick } = engine();
     let frame = screen("$ ");
@@ -216,6 +238,28 @@ describe("PredictionEngine", () => {
     expect(shown(predictions, frame).underlined).toBe(true);
     predictions.setRtt(45);
     expect(shown(predictions, frame).underlined).toBe(false);
+  });
+
+  it("shows guesses on a fast link when the echo itself takes long to show (herdr draws at its own pace)", () => {
+    const { predictions, tick } = engine(2);
+    let frame = screen("$ ");
+    predictions.typed("a", 1, frame);
+    tick(45);
+    frame = screen("$ a", 3, 2);
+    predictions.confirm(frame, 0);
+    predictions.typed("b", 2, frame);
+    expect(shown(predictions, frame)).toMatchObject({ text: "$ ab", underlined: false });
+  });
+
+  it("shows nothing on a fast link whose echo shows quickly", () => {
+    const { predictions, tick } = engine(2);
+    let frame = screen("$ ");
+    predictions.typed("a", 1, frame);
+    tick(10);
+    frame = screen("$ a", 3, 2);
+    predictions.confirm(frame, 0);
+    predictions.typed("b", 2, frame);
+    expect(shown(predictions, frame).text).toBe("$ a");
   });
 
   it("shows guesses on a fast link while an echo is late, and confirm() on a timer applies that", () => {

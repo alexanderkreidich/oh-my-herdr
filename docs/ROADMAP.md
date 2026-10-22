@@ -75,8 +75,11 @@ lists the bundle size and line count before and after.
 
 ## Phase 3 — Fork identity and cleanup
 
-- [ ] Own identity: plugin id, `package.json` repository, push subject, remote-bundle URL,
-      updater source.
+- [ ] Own identity: plugin id, `package.json` repository, push subject, updater source.
+- [x] Remote PCs run this fork's bridge: the bundle URL names this repository and its versions
+      start at 1000, so a PC on upstream's bridge (no SSP, no local echo) is offered Update bridge.
+- [ ] Publish `remote-v1000` from this repository; until then a remote PC needs a bundle built
+      beside the server (`bun run build:remote <platform>`, docs/remote-pcs.md).
 - [x] Remove upstream usage telemetry: sender, daily visits, settings snapshots, API, UI, receiver
       and reporting/deployment tooling.
 - [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left; `docs/guide.md`
