@@ -155,9 +155,12 @@ no second browser socket, raw-output bypass, automatic input replay or change to
    remove images; late chunks and receipts cannot resurrect a deleted scene. Cell/input traffic
    does not wait for pixel ACKs.
 
-Stock herdr 0.9.3 omits images from attach output, so updating only this web app cannot add them.
-The companion implementation is in herdr branch `feat/kitty-graphics-attach`, based on upstream
-`ccc7521a`. Use a release binary built from that branch (`cargo build --release`); a default debug build
+Stock herdr 0.9.3 omits images from attach output, so updating only this web app cannot add them:
+its attach renderer sends cells and links only, and only its own TUI receives the images. The
+companion implementation is
+[alexanderkreidich/herdr#1](https://github.com/alexanderkreidich/herdr/pull/1) (branch
+`feat/kitty-graphics-attach` on upstream `5bd900d8`). Use a release binary built from it
+(`cargo build --release`); a default debug build
 uses `herdr-dev` paths, whereas this app's isolated runner expects the stable `herdr` layout.
 The user's installed herdr and live sessions were not replaced. A stock binary still supplies cells and ordinary terminal input.
 
@@ -171,22 +174,27 @@ RENDERER=webgl2 bun run test:kitty
 The isolated test sends actual PTY output and checks canvas pixels, not an injected browser
 stream: a >1 MiB RGBA image; live text while pixel ACKs stall; reconnect and late join; resize;
 same-ID PNG replacement; file-medium input; scroll clipping; deletion while pixel receipts are
-in flight; and reload without resurrection. It saves screenshots to the printed evidence path.
+in flight; reload without resurrection; and pi's alt-screen redraw: a PNG with a 32-bit image ID,
+then `d=a` and a cropped, placement-only `a=p` that must not send the pixels again. It saves
+screenshots to the printed evidence path.
 It requires the companion herdr binary and the native Node PTY sidecar, unlike `test:restty`,
 which also runs against stock herdr. Mirrored `pane.read` fallback remains cell-only.
 Animated Kitty frames and physical-device GPU certification are not covered by this test.
 
 Real-pane evidence: [WebGPU](screenshots/restty/kitty-pane-webgpu.png),
-[WebGL2](screenshots/restty/kitty-pane-webgl2.png), [deleted](screenshots/restty/kitty-pane-deleted.png).
+[WebGL2](screenshots/restty/kitty-pane-webgl2.png), [deleted](screenshots/restty/kitty-pane-deleted.png),
+pi's redraw on [the companion herdr](screenshots/restty/kitty-pane-pi.png) and on
+[stock herdr 0.9.3](screenshots/restty/kitty-pane-pi-stock.png), which shows none.
 
-Companion herdr validation: formatting and Clippy passed; 3912 nextest tests passed, one failed
-and 15 were skipped. The failing `pane_info_and_subscriptions_expose_done_agent_status` timeout
-also fails on the clean upstream `ccc7521a`. Architecture, integration-assets and docs contracts
-passed. Maintenance had one error because the installed Git lacks `diff --default-prefix`.
-`bench-render-scale` ran, but its native-file CoW-retention profile fails on this Mac on both
-branches; it is not reported green. Windows cross-lint was not run.
+Companion herdr validation at `ccd4f248`: formatting and Clippy passed; 3912 nextest tests
+passed, one failed and 16 were skipped. The failing
+`pane_info_and_subscriptions_expose_done_agent_status` timeout also fails on the clean upstream
+`5bd900d8`. Maintenance, architecture, integration-assets and docs contracts passed. Windows
+cross-lint was not run. On the earlier base `ccc7521a`, `bench-render-scale` ran, but its
+native-file CoW-retention profile fails on this Mac on both branches; it is not reported green.
 
-The added release-profile attach benchmark holds 80x24 geometry, one stable image and changing
-text, with 40 samples after 5 warmups. Median microseconds with graphics disabled/enabled were
-174/186 for one populated pane and 194/179 for 15 populated panes. This local sample shows no
-pane-count multiplication of the added attach work; it is not a throughput or cross-device claim.
+The added release-profile attach benchmark, measured on `ccc7521a`, holds 80x24 geometry, one
+stable image and changing text, with 40 samples after 5 warmups. Median microseconds with
+graphics disabled/enabled were 174/186 for one populated pane and 194/179 for 15 populated panes.
+This local sample shows no pane-count multiplication of the added attach work; it is not a
+throughput or cross-device claim.

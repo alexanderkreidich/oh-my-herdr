@@ -173,8 +173,28 @@ try {
   await page.locator('.restty-terminal[data-ready="true"]').waitFor();
   const deleted = await pixels(page);
   assert(deleted.red < 100 && deleted.green < 100, "reload must not resurrect deleted pixels");
+
+  // pi's alt screen: a PNG with C=1 and a random 32-bit ID, then a redraw that drops every
+  // placement (d=a) and places the uploaded image again by ID alone, cropped, row by row
+  const piId = 3_000_000_001;
+  const piPng = await page.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext("2d")!; context.fillStyle = "rgb(0,255,0)"; context.fillRect(0, 0, 64, 64);
+    return canvas.toDataURL("image/png").split(",")[1]!;
+  });
+  await send("pi-upload", `\x1b[?1049h\x1b[?7l\x1b[2J\x1b[H\x1b[?2026h\x1b[2;1H\x1b_Ga=T,f=100,q=2,C=1,c=8,r=4,i=${piId};${piPng}\x1b\\\x1b[7;1HPI_TEXT\x1b[?2026l`);
+  await until(async () => (await pixels(page)).green > 1000, "pi's PNG with a 32-bit image ID");
+  const uploads = assetPackets.length;
+  let redraw = "\x1b[?2026h\x1b_Ga=d,d=a,q=2\x1b\\";
+  for (let row = 1; row <= 7; row++) redraw += `\x1b[${row};1H\x1b[2K${row === 1 ? `\x1b_Ga=p,q=2,C=1,c=8,i=${piId},y=16,h=48,r=3\x1b\\` : row === 6 ? "PI_TEXT" : ""}`;
+  await send("pi-redraw", `${redraw}\x1b[?2026l`);
+  const placed = () => newest?.graphics?.placements[0];
+  await until(() => placed()?.row === 0 && placed()?.rows === 3 && placed()?.sourceY === 16, "pi's placement-only crop in SSP");
+  await until(async () => (await pixels(page)).green > 1000, "pi's image after its placements were redrawn");
+  assert.equal(assetPackets.length, uploads, "a placement-only redraw must not send the pixels again");
+  await pixels(page, join(evidence, `${renderer}-pi-redrawn.png`));
   assert.deepEqual(errors, []);
-  console.log(`PASS Kitty ${renderer} (${backend}): real PTY/attach/SSP pixels, >1 MiB RGBA, bounded upload with live text while ACKs stall, reconnect, late join, resize, PNG replacement, file medium, scroll clipping and deletion with stale pixel ACKs in flight; evidence ${evidence}`);
+  console.log(`PASS Kitty ${renderer} (${backend}): real PTY/attach/SSP pixels, >1 MiB RGBA, bounded upload with live text while ACKs stall, reconnect, late join, resize, PNG replacement, file medium, scroll clipping, deletion with stale pixel ACKs in flight and pi's cropped placement-only redraw; evidence ${evidence}`);
 } finally {
   await browser?.close();
   server.stop();

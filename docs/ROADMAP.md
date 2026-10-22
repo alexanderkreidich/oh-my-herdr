@@ -98,7 +98,8 @@ with a WebGL2 fallback, TypeScript text shaping.
 - [x] Kitty graphics end to end with the companion herdr `feat/kitty-graphics-attach` branch:
       authoritative attach scene, bounded/acknowledged SSP pixel chunks and native reconciliation.
       Real-pane WebGPU/WebGL2 checks cover large RGBA, PNG/file medium, stalled pixel ACKs with
-      live text, joins/reconnect, resize/crop and deletion. Stock herdr still needs that patch.
+      live text, joins/reconnect, resize/crop, deletion and pi's placement-only redraw. Stock herdr
+      still needs that patch ([alexanderkreidich/herdr#1](https://github.com/alexanderkreidich/herdr/pull/1)).
       See [transport and reproduction](restty.md#kitty-graphics-transport).
 
 Done when: the terminal input, IME, paste, copy and selection regressions pass on restty, and the
