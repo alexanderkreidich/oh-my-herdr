@@ -155,6 +155,14 @@ it("keeps sidebar rows on one line unless two lines were chosen", () => {
   }
 });
 
+it("keeps focus mode off until this device turns it on", () => {
+  expect(sanitizeSettings({}).focusMode).toBe(false);
+  expect(sanitizeSettings({ focusMode: true }).focusMode).toBe(true);
+  for (const focusMode of [null, "true", 1]) {
+    expect(sanitizeSettings({ focusMode }).focusMode).toBe(false);
+  }
+});
+
 it("draws agent logos in their brand colors unless Mono was chosen", () => {
   expect(DEFAULT_SETTINGS.agentMarks).toBe("color");
   expect(sanitizeSettings({}).agentMarks).toBe("color");

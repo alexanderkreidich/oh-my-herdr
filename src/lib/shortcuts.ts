@@ -13,6 +13,8 @@ export const SHORTCUTS = [
   { id: "scroll-up", label: "Scroll pane up", keys: ["Mod", "Shift", "PageUp"] },
   { id: "scroll-down", label: "Scroll pane down", keys: ["Mod", "Shift", "PageDown"] },
   { id: "toggle-sidebar", label: "Toggle sidebar", keys: ["Mod", "Shift", "B"] },
+  // the tabs move under their workspaces in the sidebar and the bar over the pane goes (App)
+  { id: "focus-mode", label: "Toggle focus mode", keys: ["Mod", "Shift", "."] },
   // Mod+Shift+N keeps working where the browser lets it through (the installed app), but Chrome
   // keeps Ctrl+Shift+N for a new incognito window in a tab: O is the one shown, and works in both
   { id: "new-session", label: "New workspace", keys: ["Mod", "Shift", "O"] },
@@ -47,6 +49,7 @@ const KEY_TO_ID: Readonly<Record<string, ShortcutId>> = {
   PageUp: "scroll-up",
   PageDown: "scroll-down",
   b: "toggle-sidebar",
+  ".": "focus-mode",
   n: "new-session",
   o: "new-session",
   ArrowUp: "previous-pane",
@@ -269,6 +272,9 @@ export function useShortcuts(actions: AppActions, enabled: boolean): void {
           break;
         case "toggle-sidebar":
           actions.toggleSidebar();
+          break;
+        case "focus-mode":
+          actions.toggleFocusMode();
           break;
         case "new-session":
           actions.openNewSession();

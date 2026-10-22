@@ -35,6 +35,7 @@ import { displayPaneTitle } from "./Sidebar.tsx";
 import { RowMenu, type RowMenuItem } from "./RowMenu.tsx";
 import { paneDrag } from "../lib/paneDrag.ts";
 import { lastViewedPane, rememberViewedPane } from "../lib/lastViewedPane.ts";
+import { tabCloseAsks, tabPane } from "../lib/tabs.ts";
 
 const said = (reason: unknown): string => reason instanceof ApiError ? reason.detail : reason instanceof Error ? reason.message : String(reason);
 
@@ -112,14 +113,8 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
     } : undefined,
   });
   const panesOf = (tab: HerdrTab): PaneInfo[] => panes.filter((pane) => pane.tab_id === tab.tab_id);
-  const paneFor = (tab: HerdrTab): PaneInfo | undefined => {
-    const own = panesOf(tab);
-    const pick = (id: string | null | undefined) => (id ? own.find((pane) => pane.pane_id === id) : undefined);
-    return pick(lastViewedPane("tab", machineId, tab.tab_id))
-      ?? pick(snapshot.layouts?.find((layout) => layout.tab_id === tab.tab_id)?.focused_pane_id)
-      ?? own.find((pane) => pane.focused)
-      ?? own[0];
-  };
+  const paneFor = (tab: HerdrTab): PaneInfo | undefined => tabPane(panesOf(tab), lastViewedPane("tab", machineId, tab.tab_id),
+    snapshot.layouts?.find((layout) => layout.tab_id === tab.tab_id)?.focused_pane_id);
   // a tab herdr still names by its place says what runs in it, as a terminal's tab does (Ghostty)
   const nameOf = (tab: HerdrTab): string => {
     if (sent?.tabId === tab.tab_id) return sent.label;
@@ -280,8 +275,7 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
   const requestClose = (tab: HerdrTab): void => {
     setError(null);
     // a turn that waits on its background work would lose that work too
-    const busy = panesOf(tab).some((pane) => { const status = paneStatus(pane as HerdrPane); return status === "working" || status === "blocked" || status === "waiting"; });
-    if (tabs.length > 1 && !busy) {
+    if (!tabCloseAsks(panesOf(tab) as HerdrPane[], tabs.length)) {
       void close(tab).catch((reason: unknown) => setError(t("Close failed: {reason}", { reason: said(reason) })));
       return;
     }

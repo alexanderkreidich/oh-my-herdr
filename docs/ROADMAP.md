@@ -32,6 +32,12 @@ The visible UI shrinks to a workspace list, one top bar of pill tabs and the ter
 - [x] **Motion pass.** Tokens from the skills (`--ease-out`, `--ease-in-out`), press feedback on
       tabs and buttons, new tabs enter, menus and dialogs open from their origin, the sidebar
       slides; reduced-motion variants. Nothing keyboard-initiated animates.
+- [x] **Focus mode** (`Mod+Shift+.`, the palette): from 769px with the sidebar shown, each
+      workspace's tabs are rows under it (the pill's mark and name, the state in the status
+      column; a tab with no agent reads dimmer) and the bar over the pane goes. A hidden sidebar
+      hands the tabs back to the bar. A split view's halves keep their own strips.
+- [ ] Focus mode follow-ups: the bridge says which shells run a command (`pane.process_info`), so
+      a shell at work does not read as idle; tab rows reorder by drag.
 - [ ] Follow-ups: the split view's halves still draw their own strip rows under an empty bar;
       the sidebar's top zone in the bar snaps while the sidebar slides; Install app in the
       sidebar footer is a candidate for removal (Phase 3).

@@ -38,6 +38,8 @@ export interface AppActions {
   /** the Add PC dialog, from Settings → Remote PCs and the palette; Settings closes first */
   openAddPc: () => void;
   toggleSidebar: () => void;
+  /** Focus mode on or off (Settings.focusMode): the tabs under their workspaces, no bar over the pane */
+  toggleFocusMode: () => void;
   /** flips dark/light (a `system` setting becomes the opposite of the resolved theme) */
   toggleTheme: () => void;
   /** Sign out of token/device authentication; null for automatic local/Tailscale access. */

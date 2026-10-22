@@ -850,6 +850,10 @@ export function App() {
   // the tab that governs the pane region, so the strip's tabs and the pane they select are
   // one thing to a screen reader (A4); null while no tab owns this pane
   const tabPanelLabel = paneTabPanelLabel(snapshot, selectedPane, t);
+  // Focus mode (Settings.focusMode): with the sidebar shown on a wide screen, the tabs live under
+  // their workspaces there (Sidebar) and the bar over the pane goes. A hidden sidebar hands them back
+  // to the bar, so the tabs always have a place on screen.
+  const focusLayout = settings.focusMode && wideScreen && !sidebarCollapsed;
 
   const contentKey = paneContentKey(selectedMachine, selectedPane);
   // App-owned coverage, plus dialogs/menus mounted by descendants (rename, worktree, confirmations).
@@ -1223,6 +1227,7 @@ export function App() {
         if (window.matchMedia("(max-width: 768px)").matches) setDrawerOpen((open) => !open);
         else setSidebarCollapsed((collapsed) => !collapsed);
       },
+      toggleFocusMode: () => updateSettings({ focusMode: !settings.focusMode }),
       toggleTheme: () => updateSettings({ theme: resolvedTheme === "dark" ? "light" : "dark" }),
       lock: canSignOut ? lock : null,
       enableNotifications: bellVisible && bell.run === enableNotifications ? () => void enableNotifications() : null,
@@ -1248,7 +1253,7 @@ export function App() {
         void zoomPane(paneId, mode, machineId).then(() => void load()).catch((err) => layoutRefused("pane zoom failed", err));
       } : null,
     }),
-    [selectPane, selectedPaneId, selectedMachineId, updateSettings, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused],
+    [selectPane, selectedPaneId, selectedMachineId, updateSettings, settings.focusMode, resolvedTheme, canSignOut, lock, bellVisible, bell.run, enableNotifications, load, layoutRefused],
   );
 
   useShortcuts(actions, locked === false);
@@ -1319,13 +1324,39 @@ export function App() {
   }
   if (locked) return <AccessGate reason={lockReason} initialCode={pairCode} onUnlocked={unlock} />;
 
+  const sidebarToggle = (
+    <button
+      type="button"
+      className="icon-button header-desktop-only sidebar-toggle"
+      aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
+      aria-pressed={!sidebarCollapsed}
+      title={t("Toggle sidebar (⌘⇧B)")}
+      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+    >
+      <PanelLeft />
+    </button>
+  );
+  const headerMeta = (
+    <div className="header-meta">
+      <HeaderNote note={note} />
+      <ConnectionChip
+        connected={connected}
+        word={connWord}
+        title={[connected ? null : connWord, targetHerdr ? t("herdr {version} · protocol {protocol}", { version: targetHerdr.version, protocol: targetHerdr.protocol }) : null].filter((part) => part !== null).join(" · ") || undefined}
+      />
+      {/* the Host's herdr is away: the step to take is on that PC (the sidebar's state line says the same) */}
+      {!targetHerdr && <span className="pill pill-offline" title={selectedMachineId === "local" ? t("Start herdr on this PC, or check HERDR_SOCKET.") : undefined}>{t("herdr offline")}</span>}
+    </div>
+  );
+
   return (
-    <MachineSessionsProvider machineIds={machines.map((machine) => machine.id)}><MachineContext.Provider value={selectedMachineId}><div className={`app${sidebarCollapsed ? " sidebar-collapsed" : ""}`} style={sidebarWidth === null ? undefined : { "--sidebar-user-w": `${sidebarWidth}px` } as CSSProperties}>
+    <MachineSessionsProvider machineIds={machines.map((machine) => machine.id)}><MachineContext.Provider value={selectedMachineId}><div className={`app${sidebarCollapsed ? " sidebar-collapsed" : ""}${focusLayout ? " is-focus" : ""}`} style={sidebarWidth === null ? undefined : { "--sidebar-user-w": `${sidebarWidth}px` } as CSSProperties}>
       <header className="app-header is-zoned">
         {/* is-zoned tells this header from the connecting shell's, which has no zones to draw.
             .header-side is the sidebar's own top row from 769px (styles.css); below that its
             button sits in the bar. Right of it, the sidebar toggle leads the pane's bar, open or
-            collapsed, then the tab strip (TabStrip, through a portal) */}
+            collapsed, then the tab strip (TabStrip, through a portal). In focus mode the header is
+            that top row alone: the toggle and the connection's state move into it */}
         <div className="header-side">
           <button
             type="button"
@@ -1337,28 +1368,12 @@ export function App() {
           >
             {drawerOpen ? <X /> : <Menu />}
           </button>
+          {focusLayout && headerMeta}
+          {focusLayout && sidebarToggle}
         </div>
-        <button
-          type="button"
-          className="icon-button header-desktop-only sidebar-toggle"
-          aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
-          aria-pressed={!sidebarCollapsed}
-          title={t("Toggle sidebar (⌘⇧B)")}
-          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-        >
-          <PanelLeft />
-        </button>
-        <div ref={setTabBarHost} className="header-tabs" />
-        <div className="header-meta">
-          <HeaderNote note={note} />
-          <ConnectionChip
-            connected={connected}
-            word={connWord}
-            title={[connected ? null : connWord, targetHerdr ? t("herdr {version} · protocol {protocol}", { version: targetHerdr.version, protocol: targetHerdr.protocol }) : null].filter((part) => part !== null).join(" · ") || undefined}
-          />
-          {/* the Host's herdr is away: the step to take is on that PC (the sidebar's state line says the same) */}
-          {!targetHerdr && <span className="pill pill-offline" title={selectedMachineId === "local" ? t("Start herdr on this PC, or check HERDR_SOCKET.") : undefined}>{t("herdr offline")}</span>}
-        </div>
+        {!focusLayout && sidebarToggle}
+        {!focusLayout && <div ref={setTabBarHost} className="header-tabs" />}
+        {!focusLayout && headerMeta}
       </header>
 
       <div className="app-body">
@@ -1398,7 +1413,9 @@ export function App() {
             const onSelect = active ? selectPane : (id: string, focusInput = true) => selectInSlot(slot, machineId, id, focusInput);
             // one pane's panel keeps the page's own id, whichever slot draws it
             const slotPanelId = !splitOn || slot === "a" ? PANE_TABPANEL_ID : `${PANE_TABPANEL_ID}-${slot}`;
-            const slotPanelLabel = active ? tabPanelLabel : paneTabPanelLabel(slotSnapshot, pane, t);
+            // focus mode draws the solo pane's tabs in the sidebar, as plain rows: no tab strip governs the region
+            const soloStrip = splitOn || !focusLayout;
+            const slotPanelLabel = !soloStrip ? null : active ? tabPanelLabel : paneTabPanelLabel(slotSnapshot, pane, t);
             // a half's own close sits at the end of its tab strip. The row's free end is the
             // half's grip: its pane, dropped on a half of the pane area, opens there too (dockSide)
             const slotEnd = splitOn ? <div className="pane-slot-grip" draggable={paneId !== null}
@@ -1435,7 +1452,7 @@ export function App() {
                 <RenderBoundary resetKey={`${machineId}:${paneId ?? ""}`} fallback={(retry) => <>{slotBar}<RegionCrash message={t("This pane can't be shown.")} retry={retry} onShown={active ? paneLost : undefined} /></>}>
                 <CrashProbe region="pane" />
                 {!(slotSnapshot && pane && workspace) && slotBar}
-                {slotSnapshot && pane && workspace && portalTo(splitOn ? null : tabBarHost,
+                {slotSnapshot && pane && workspace && soloStrip && portalTo(splitOn ? null : tabBarHost,
                   <TabStrip snapshot={slotSnapshot} workspace={workspace} selectedPane={pane} panelId={slotPanelId} splitDrag={wideScreen} onSelectPane={onSelect} end={slotEnd}
                     onNewTab={() => actions.openNewTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
                     onNewTerminal={() => actions.openTerminalTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}

@@ -28,6 +28,14 @@ describe("matchShortcut", () => {
     expect(matchShortcut(keyEvent("<", { ctrlKey: true, code: "Comma" }), false)).toBe("settings");
   });
 
+  it("toggles focus mode on Mod+Shift+. whatever Shift types on that key", () => {
+    expect(matchShortcut(keyEvent(">", { metaKey: true, code: "Period" }), true)).toBe("focus-mode");
+    expect(matchShortcut(keyEvent(">", { ctrlKey: true, code: "Period" }), false)).toBe("focus-mode");
+    // the Russian layout's Shift on the same key types a comma
+    expect(matchShortcut(keyEvent(",", { metaKey: true, code: "Period" }), true)).toBe("focus-mode");
+    expect(shortcutDisplayKeys("focus-mode", {})).toEqual(["Mod", "Shift", "."]);
+  });
+
   it("opens the palette on Ctrl+F on every platform, unless Settings rebinds or frees it", () => {
     expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), false)).toBe("palette");
     expect(matchShortcut(keyEvent("f", { ctrlKey: true, shiftKey: false }), true)).toBe("palette");
