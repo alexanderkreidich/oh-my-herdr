@@ -36,7 +36,11 @@ export function MachineSidebar(props: Props) {
   const loadingWords = useAnnouncedText(props.machines.length === 0 ? t("Loading PCs…") : null);
   // no top bar: a workspace starts from its PC's header, and Add PC lives in Settings → Remote PCs
   return <SidebarActivityProvider value={activity}><div className="sidebar-shell">
-    <div className="machine-list" aria-label={t("PCs and workspaces")}>
+    {/* a click on no control (the empty space under the rows) leaves the keyboard nowhere: it goes
+        back to the terminal, unless the click selected text or a finger made it (no soft keyboard) */}
+    <div className="machine-list" aria-label={t("PCs and workspaces")} onClick={() => {
+      if (document.activeElement === document.body && window.getSelection()?.isCollapsed !== false && !window.matchMedia("(pointer: coarse)").matches) props.actions.focusInput();
+    }}>
       {props.machines.map((machine) => <MachineGroup key={machine.id} {...props} machine={machine} />)}
       <p className={loadingWords === null ? "visually-hidden" : "tree-state"} role="status">{loadingWords}</p>
     </div>

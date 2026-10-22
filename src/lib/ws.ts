@@ -778,6 +778,11 @@ export class HerdrSocket {
     return this.connected && !this.probing && this.mode === "interact" && this.inputReady.has(paneId);
   }
 
+  /** Attached on a live connection that may type, and waiting for the pane to say its input is ready. */
+  inputOpening(paneId: string): boolean {
+    return this.connected && !this.probing && this.mode === "interact" && this.attached.has(paneId) && !this.inputReady.has(paneId);
+  }
+
   sendInput(paneId: string, text: string): boolean {
     if (!this.canInput(paneId)) { this.traceProbeRefusal(); return false; }
     const seq = this.nextInputSeq(paneId);
