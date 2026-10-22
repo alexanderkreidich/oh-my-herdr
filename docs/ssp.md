@@ -25,7 +25,12 @@ A client attaches with `sync: "ssp"` (the bridge lists the `ssp` feature). Each 
 rows that changed (after a `scroll`, when the screen scrolled), the styles those rows use, the
 cursor, the modes, a clipboard write if one is new, `echo` and `rtt`. The client applies it to the
 screen it names, keeps the screens from `throwaway` on, draws the newest, and answers
-`ssp-ack {stream, num}`.
+`ssp-ack {stream, num}`. When only `echo` changed, the newest screen goes again with the same `num`:
+the client takes its `echo` and `rtt` all the same.
+
+A remote PC's panes are synced by that PC's own bridge, over the SSH link (docs/remote-pcs.md), so
+the PC must run this fork's bridge: upstream's (bundle versions below 1000) has no `ssp` feature,
+and its panes stream raw bytes with no local echo.
 
 - **Latest state wins.** The sender diffs from the newest screen the client is assumed to have:
   the newest one sent, while its acknowledgement is not overdue, else the newest acknowledged. A
@@ -68,10 +73,11 @@ tables differ draws each cell where the bridge has it.
 ## Local echo
 
 What the user types is drawn at once as a guess of the program's echo, and checked against the
-bridge's screen once the bridge says the program has had time to echo it: each `input` and `keys`
-frame carries a per-pane `seq`, and `echo` is the newest `seq` applied at least 50 ms before the
-screen. A screen that does not show a guess yet gets 200 ms more (herdr draws the pane at its own
-pace) before the guess counts as wrong.
+bridge's screens. A guess comes true as soon as a screen shows it (in a cell that held something
+else). It is wrong once the bridge says the program has had time to echo it and the screen still
+does not: each `input` and `keys` frame carries a per-pane `seq`, `echo` is the newest `seq` applied
+at least 50 ms before the screen, and a screen that does not show a guess yet gets 200 ms more
+(herdr draws the pane at its own pace) before the guess counts as wrong.
 
 - Printable single-width characters, Backspace and Left/Right are guessed; typing inserts.
   Anything else (Enter, control keys, a paste, a wide character, the last column, a hidden cursor)
@@ -80,9 +86,11 @@ pace) before the guess counts as wrong.
   never echoes, so its first guess fails and nothing ever shows. The masked-prompt detection
   (`shared/secret-prompt.ts`) turns guessing off as well, as do observing and input not being ready.
 - One wrong guess that was shown takes every guess back.
-- Guesses show while the round trip is over 30 ms (until it drops to 20 ms) or while an echo is late
-  (250 ms), and are underlined until confirmed over 80 ms (until 50 ms). Only the newest cursor
-  guess is judged: the screen that echoes an older one may already show newer input.
+- Guesses show while the round trip, or the time a guessed character takes to show on a screen
+  (smoothed as the round trip is), is over 30 ms (until both drop to 20 ms), or while an echo is
+  late (250 ms). herdr's own pace makes an echo slow on a fast link too. Guesses are underlined
+  until confirmed while the round trip is over 80 ms (until 50 ms). Only the newest cursor guess is
+  judged: the screen that echoes an older one may already show newer input.
 
 ## Verification
 
@@ -103,11 +111,22 @@ press to its glyph on screen. Measured on an M-series Mac, herdr 0.9.3, Chrome:
 | Link | First key of the line | Every key after it |
 |---|---:|---:|
 | 200 ms round trip, raw stream (before) | 226 ms | 232 ms |
-| 200 ms round trip, SSP with local echo | 226 ms | 32 ms (median; the second key waits for the first's confirmation) |
+| 200 ms round trip, SSP with local echo | 227 ms | 32 ms (median: the next frame) |
 | no delay, raw stream (before) | 37 ms | 49 ms |
-| no delay, SSP | 50 ms | 32–49 ms |
+| no delay, SSP | 41–44 ms | 65 ms |
 
-Without delay the time is herdr's own: it draws the pane at its own pace, about 40 ms after the echo.
+The SSP rows are from a headless Chrome that drew at 30 fps, so a key shown at once reads as one
+33 ms frame. Without delay the time is herdr's own: it draws the pane at its own pace, about 30 ms
+after the input, which is at the threshold where guesses start to show.
+
+On a remote PC over SSH (a Hetzner server, about 80 ms round trip, typing into a shell there in a
+herdr session of its own), the same typing measured:
+
+| Bridge on the PC | First key of the line | Every key after it |
+|---|---:|---:|
+| upstream's (bundle 31), raw stream, to the bytes' arrival (before drawing) | 73–78 ms | 69–188 ms (median 76) |
+| this fork's, SSP with local echo | 89–98 ms | 32 ms (the next frame) |
+| this fork's, a key every 110 ms | 87–91 ms | 2–35 ms |
 
 ## The PTY sidecar
 
