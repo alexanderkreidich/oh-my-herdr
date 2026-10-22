@@ -1807,6 +1807,16 @@ button {
   display: contents;
 }
 
+/* from 769px, the sidebar's top row holds the PC switcher and its + (MachineSidebar, through a
+   portal; Machines.css); focus mode's connection state and toggle follow it */
+.header-switcher {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 /* the rest of the bar: the solo pane's tab strip (TabStrip, drawn here through a portal). With
    no pane open, or a split view (a strip per half), it stays empty. */
 .header-tabs {

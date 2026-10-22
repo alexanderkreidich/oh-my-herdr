@@ -118,7 +118,7 @@ try {
           await betaRow.waitFor({ state: "attached" });
           const openNew = async () => {
             if (width === 390) await page.locator('[aria-controls="workspace-drawer"]').click();
-            await page.locator(".machine-new").click();
+            await page.locator(".pc-new").click();
             await page.getByRole("dialog").waitFor();
           };
           await openNew();

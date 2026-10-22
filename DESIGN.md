@@ -830,7 +830,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   unchanged. It follows herdr's workspace scope: Rename, Close workspace/group, repository
   worktree actions, and Expand/Collapse for a group. Dismissal restores the prior focus. The
   explicit `⋯` uses those same actions at its button. An edited name keeps the browser's paste menu;
-  touch long press still reorders. Agents and PC headers keep the browser's context menu.
+  touch long press still reorders. Agents and the PC switcher keep the browser's context menu.
   An agent row selects its pane. Its `⋯` (drawn as a workspace row's is) opens its menu with one
   item, Pin agent or Unpin agent; a right-click opens the same menu at the pointer and leaves the
   focus where it was.
@@ -884,7 +884,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Mono metadata at `--chip-h`. Offline is the one header pill that stays, and uses danger tokens. A deep link waiting for its PC's roster says **Opening link…** in the same `.header-note` pill (`role="status"`) until it lands or its failure note replaces it. That status stays in the document while there is no note, clipped and empty (`.visually-hidden`, never `display: none`, as `.conn-live`), and the words of a page that opens with a link land a frame after it: a live region that appears together with its content is not announced. The `.header-note` pill carries a sentence, so it is set in the interface face (`--font-ui`), not the mono one. A deep link that could not open what it named, and Copy link, say so in a plain `.header-note` pill for a moment (8 s, 1.6 s for Link copied). The note takes the flexible context's place and ellipsizes when narrow, keeping the lens and More controls in view.
 
 ### Sidebar roster row and footer
-- No top bar. The sidebar opens with the plan panel (when Settings puts it there), the PC workspace groups and a separate **Agents** list spanning the connected PCs. A workspace starts from the `+` on its PC's header, or from the **New workspace**
+- No top bar. The sidebar opens with the plan panel (when Settings puts it there), the PC workspace groups and a separate **Agents** list spanning the connected PCs. A workspace starts from the `+` at the far edge of the sidebar's top row, on the PC on screen, or from the **New workspace**
   button in the dashed **No workspaces yet** box of an empty PC. **Add PC** lives in Settings →
   Remote PCs and in the command palette. Search lives in the command palette, not the roster.
 - Every row sits on one grid, built from existing tokens as `--side-*` aliases on `.sidebar-shell`:
@@ -901,8 +901,8 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   Agents list gives its space back; PC and workspace folds do not hide agent rows. In the drawer
   (`max-width: 768px`) the list starts folded. Until the PCs are in and every connected PC's
   panes have come, an empty list says **Loading agents…**, never "No agents running".
-- A PC's header is the head of its workspaces, and the caret beside its `+` is the one fold over
-  them. The roster has no label or fold of its own.
+- The roster shows one PC at a time, the one the PC switcher picked; it has no PC header, label
+  or fold of its own.
 - A repository's parent row keeps `workspace.label`; its opened linked
   worktree rows show their actual checkout branches. Each row's compact status
   glyph rolls up all of the workspace's panes as herdr does (blocked, then done, then working,
@@ -1101,15 +1101,23 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   agent rows show their pane's own title. Each row's
   place is available to screen readers, without repeating what its title already says. The
   palette, which has no header, names the workspace and folder once when they are the same.
-- A PC group header is a monitor icon in the leading cell, the name in `--text-strong` semibold, “Host” for
-  the local machine (also when it is the only PC: the name alone does not say which computer it
-  is), and a state dot (done = connected, working pulse = connecting/reconnecting, blocked =
-  error, idle = disconnected), then the fold's caret (`.machine-toggle`, always shown; the name
-  itself is not a control) and a `+` in the status column that starts a workspace on that
-  PC (disabled while it is offline). An SSH PC's manage button sits before the
-  caret and shows on hover, focus, while its panel is open, while the PC is not connected, and always
-  on touch. Connected is the dot alone; every other state is also written under the name, with the server's
-  error clamped to two lines and complete in the tooltip.
+- The sidebar's top row holds the PC switcher (`.pc-switch`) and a `+` at the row's far edge, over
+  the rows' status cells, that starts a workspace on the PC on screen (disabled while it is offline).
+  From 769px the row is the header's zone over the sidebar (App's `.header-switcher`, drawn through a
+  portal; in focus mode the connection state and the sidebar toggle follow it); a phone's drawer heads
+  its list with it. The switcher is the PC's mark (its initial on its own colour, `.pc-mark`: the Host
+  takes `--accent`, every other PC one of five theme colours its id picks) in the rows' leading cell,
+  the name in `--text-strong` semibold where the rows' titles start, a state dot only while the PC is
+  not connected (working pulse = connecting/reconnecting, blocked = error, idle = disconnected or
+  setup), and the up-down chevron; a `--status-blocked` point on the chevron says another PC waits on
+  the user (an action it needs, an update running, or a pane that needs input). Its menu is the row
+  menu primitive (a popover from the trigger's left edge, a sheet on a phone): every PC shown, with
+  the mark, the name and a hint (what it waits on, its state, **Needs input**, or **Host**), the PC on
+  screen as the current item; then **Manage {name}** for an SSH PC on screen, which opens its controls
+  over the list, and **Add PC**. Picking a PC opens the pane it last showed in this window, else the
+  usual fallback, and keeps a phone's drawer open on its workspaces. Every state but connected is
+  written over the list, with the server's error clamped to two lines and complete in the tooltip.
+  A PC being removed stays on screen, its Remove PC busy, until the server answers.
 - SSH PC management stays inline: its rename form and action buttons reflow within the sidebar
   instead of floating over it. Rename shares the name field's row where both fit and goes under
   the field in a narrow sidebar; the action buttons wrap into rows that share a height. A

@@ -194,8 +194,9 @@ export function App() {
     return storedSelection()?.machine_id ?? "local";
   });
   const selectedMachine = machines.find((m) => m.id === selectedMachineId);
-  // the PCs the sidebar and its notices show: the Host alone until remote PCs are turned on (Settings → Remote PCs)
-  const shownMachines = settings.showRemotePcs ? machines : machines.filter((machine) => machine.kind === "local");
+  // the PCs the switcher and the notices show: the Host alone until remote PCs are turned on (Settings → Remote PCs),
+  // and the PC on screen whatever the setting (a link can open one)
+  const shownMachines = settings.showRemotePcs ? machines : machines.filter((machine) => machine.kind === "local" || machine.id === selectedMachineId);
   const snapshot = selectedMachine?.snapshot ?? null;
   const machinesRef = useRef(machines); machinesRef.current = machines;
   const [updateRemote, setUpdateRemote] = useState(false);
@@ -779,9 +780,19 @@ export function App() {
     }).catch(() => { /* a failed read is not evidence that the pane disappeared */ });
     return () => { cancelled = true; };
   }, [snapshot, selectedPaneId, selectedMachineId, selectedMachine?.state, linkTick]);
+  // the pane each PC last showed in this window: switching back to a PC opens it again
+  const lastPanes = useRef(new Map<string, string>());
   useEffect(() => {
     storeSelection(selectedMachineId, selectedPaneId);
+    if (selectedPaneId !== null) lastPanes.current.set(selectedMachineId, selectedPaneId);
   }, [selectedMachineId, selectedPaneId]);
+  const switchMachine = useCallback((machineId: string) => {
+    if (machineId === selectedMachineRef.current) return;
+    // a pane that closed meanwhile takes the usual fallback above
+    selectTarget(machineId, lastPanes.current.get(machineId) ?? null);
+    // a phone's drawer stays open on the PC picked: its workspaces are the next thing to choose
+    if (!wideScreen) setDrawerOpen(true);
+  }, [selectTarget, wideScreen]);
 
   const selectPane = useCallback((paneId: string, focusInput = true) => {
     pendingLink.current = null; setLinkLanded(true);
@@ -1299,6 +1310,9 @@ export function App() {
   // the tab bar's place in the header: the solo pane's tab strip is drawn there through a portal,
   // so the header and the strip are one bar. A split view keeps a strip per half.
   const [tabBarHost, setTabBarHost] = useState<HTMLDivElement | null>(null);
+  // the PC switcher's place in the sidebar's own top row (MachineSidebar, through a portal); a
+  // phone's drawer heads its list with it instead
+  const [switcherHost, setSwitcherHost] = useState<HTMLDivElement | null>(null);
 
   if (locked === null) {
     // the auth state is unknown until /api/health or /api/session answers (ten seconds when
@@ -1353,10 +1367,10 @@ export function App() {
     <MachineSessionsProvider machineIds={machines.map((machine) => machine.id)}><MachineContext.Provider value={selectedMachineId}><div className={`app${sidebarCollapsed ? " sidebar-collapsed" : ""}${focusLayout ? " is-focus" : ""}`} style={sidebarWidth === null ? undefined : { "--sidebar-user-w": `${sidebarWidth}px` } as CSSProperties}>
       <header className="app-header is-zoned">
         {/* is-zoned tells this header from the connecting shell's, which has no zones to draw.
-            .header-side is the sidebar's own top row from 769px (styles.css); below that its
-            button sits in the bar. Right of it, the sidebar toggle leads the pane's bar, open or
-            collapsed, then the tab strip (TabStrip, through a portal). In focus mode the header is
-            that top row alone: the toggle and the connection's state move into it */}
+            .header-side is the sidebar's own top row from 769px (styles.css), the PC switcher in
+            it; below that its button sits in the bar. Right of it, the sidebar toggle leads the
+            pane's bar, open or collapsed, then the tab strip (TabStrip, through a portal). In focus
+            mode the header is that top row alone: the toggle and the connection's state move into it */}
         <div className="header-side">
           <button
             type="button"
@@ -1368,6 +1382,7 @@ export function App() {
           >
             {drawerOpen ? <X /> : <Menu />}
           </button>
+          {wideScreen && <div ref={setSwitcherHost} className="header-switcher" />}
           {focusLayout && headerMeta}
           {focusLayout && sidebarToggle}
         </div>
@@ -1382,7 +1397,7 @@ export function App() {
           {/* a sidebar that cannot be drawn leaves the panes working */}
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
-            <MachineSidebar machines={shownMachines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} onSelect={selectTarget} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); }} />
+            <MachineSidebar machines={shownMachines} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} presentedPaneId={presentedPaneId} paneInFront={paneInFront} actions={actions} switcherHost={wideScreen ? switcherHost : null} onSelect={selectTarget} onSwitch={switchMachine} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={(id) => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); }} />
           </RenderBoundary>
           <SidebarResizer width={sidebarWidth} onResize={setSidebarWidth} />
         </aside>

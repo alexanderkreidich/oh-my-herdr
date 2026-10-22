@@ -22,7 +22,12 @@ const REMOVE_EXPLANATION = "Removes this registration. Remote sessions keep runn
 interface Scenario { theme: "dark" | "light" }
 
 const scenarios: Scenario[] = [{ theme: "dark" }, { theme: "light" }];
-const machineGroup = (page: Page): Locator => page.locator(".machine-group").filter({ has: page.locator(".machine-name", { hasText: REMOTE_NAME }) });
+// the sidebar shows the PC the switcher picked, and the switcher's menu opens its controls
+const machineGroup = (page: Page): Locator => page.locator(`section.machine-group[aria-label="PC ${REMOTE_NAME}"]`);
+async function pick(page: Page, name: string): Promise<void> {
+  await page.locator(".pc-switch").click();
+  await page.getByRole("menu").getByRole(name.startsWith("Manage ") ? "menuitemcheckbox" : "menuitem", { name }).click();
+}
 
 async function fixtureValue(page: Page, key: string): Promise<unknown> {
   return page.evaluate((path) => {
@@ -195,7 +200,7 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
   const errors: string[] = [];
   try {
     await context.addInitScript((theme) => {
-      localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme, density: "comfortable", defaultView: "chat" }));
+      localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme, density: "comfortable", defaultView: "chat", showRemotePcs: true }));
       localStorage.setItem("herdr-web-ui:sidebar-width", "520");
     }, scenario.theme);
     const page = await context.newPage();
@@ -205,10 +210,10 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
     assert.equal(await page.locator("html").getAttribute("data-theme"), scenario.theme, `${scenario.theme} theme is active`);
 
     const group = machineGroup(page);
+    await page.locator(".pc-switch").waitFor();
+    await pick(page, REMOTE_NAME);
     await group.waitFor({ state: "attached" });
-    const manage = group.locator(".machine-manage");
-    await group.locator(".machine-header").hover();
-    await manage.click();
+    await pick(page, `Manage ${REMOTE_NAME}`);
     const controls = group.locator(".machine-controls");
     await controls.waitFor({ state: "visible" });
     const remove = group.getByRole("button", { name: REMOVE_LABEL, exact: true });
@@ -229,11 +234,9 @@ async function withScenario(browser: Awaited<ReturnType<typeof chromium.launch>>
     await capture(controls, scenario, "armed");
     await checkDangerPresentation(page, scenario.theme, "armed", confirm);
 
-    await group.locator(".machine-header").hover();
-    await manage.click();
+    await pick(page, `Manage ${REMOTE_NAME}`);
     await controls.waitFor({ state: "detached" });
-    await group.locator(".machine-header").hover();
-    await manage.click();
+    await pick(page, `Manage ${REMOTE_NAME}`);
     await controls.waitFor({ state: "visible" });
     assert.equal(await group.getByRole("button", { name: REMOVE_LABEL, exact: true }).count(), 1, `${scenario.theme} closing and reopening Manage resets confirmation`);
     assert.equal(await group.getByRole("button", { name: CONFIRM_LABEL, exact: true }).count(), 0, `${scenario.theme} reopened removal starts unarmed`);

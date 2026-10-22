@@ -1,5 +1,127 @@
-/* One PC per group: its name is the head of its workspaces, from the rows' leading edge, and
-   the state line starts where the name does. The fold and the + close the header at its right. */
+/* The sidebar's top row (MachineSidebar): the PC switcher, the + at the row's far edge over the
+   rows' status cells. From 769px it is drawn in the header's own top row of the sidebar (App,
+   .header-switcher), outside .sidebar-shell, so it sizes from the global tokens; a phone's drawer
+   heads its list with it. The PC's mark sits in the rows' leading cell and its name where theirs start. */
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--side-gutter) 0;
+}
+
+.pc-switch {
+  /* the rows' hover fill (Sidebar.css --side-hover), which this row cannot inherit from the header */
+  --pc-switch-hover: color-mix(in srgb, var(--bg-hover) 50%, var(--bg-panel));
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 var(--space-2) 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+}
+
+.pc-switch:active { transform: scale(0.97); }
+.pc-switch[aria-expanded="true"] { background: var(--pc-switch-hover); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pc-switch:hover { background: var(--pc-switch-hover); }
+}
+
+.pc-switch:focus-visible {
+  outline: var(--ring);
+  outline-offset: calc(var(--ring-offset) * -1);
+}
+
+.pc-switch > .pc-mark { margin-inline: calc((var(--control-h) - var(--icon-size)) / 2); }
+
+.pc-switch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-switch-chevron {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  margin-left: var(--space-2);
+  color: var(--text-dim);
+}
+
+.pc-switch-chevron svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+/* another PC waits on the user: a point on the chevron, ringed in the row's surface */
+.pc-switch-attention {
+  position: absolute;
+  top: calc(-1 * var(--space-1) / 2);
+  right: calc(-1 * var(--space-1));
+  width: calc(var(--dot-size) - var(--hairline));
+  height: calc(var(--dot-size) - var(--hairline));
+  border-radius: var(--radius-pill);
+  background: var(--status-blocked);
+  box-shadow: 0 0 0 calc(var(--hairline) * 2) var(--bg-panel);
+}
+
+.sidebar-row-action.pc-new {
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  margin-left: auto;
+}
+
+@media (pointer: coarse) {
+  .pc-switch { height: var(--touch-target); }
+
+  .sidebar-row-action.pc-new {
+    width: var(--touch-target);
+    height: var(--touch-target);
+    margin-right: calc((var(--control-h) - var(--touch-target)) / 2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-switch { transition: background-color var(--dur-fast) ease; }
+  .pc-switch:active { transform: none; }
+}
+
+/* A PC's initial on its own colour (MachineSidebar PcMark): the Host the accent, every other PC
+   one of five theme colours its id picks */
+.pc-mark {
+  --pc-hue: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--pc-hue) 22%, var(--bg-elevated));
+  color: color-mix(in srgb, var(--pc-hue) 75%, var(--text-strong));
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+.pc-mark[data-hue="1"] { --pc-hue: var(--status-working); }
+.pc-mark[data-hue="2"] { --pc-hue: var(--syntax-meta); }
+.pc-mark[data-hue="3"] { --pc-hue: var(--syntax-string); }
+.pc-mark[data-hue="4"] { --pc-hue: var(--syntax-number); }
+.pc-mark[data-hue="5"] { --pc-hue: var(--syntax-keyword); }
+
+/* The PC on screen: its state line, notice or controls first, then its workspaces. */
 .machine-list {
   position: relative;
   flex: 1 1 0;
@@ -27,41 +149,7 @@
   --machine-indent: var(--side-gutter);
 }
 
-.machine-group + .machine-group { margin-top: var(--space-4); }
-
-.machine-header {
-  display: flex;
-  align-items: center;
-  padding: 0 var(--side-gutter);
-}
-
-.machine-title {
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: var(--side-row);
-  color: var(--text-strong);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  line-height: var(--lh-tight);
-}
-
-.machine-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.machine-kind {
-  flex: none;
-  margin-left: var(--space-2);
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-regular);
-}
-
+/* the switcher's word for a PC that is not connected: connected is the quiet default and has none */
 .machine-dot {
   flex: none;
   width: var(--dot-size);
@@ -71,54 +159,12 @@
   background: var(--status-idle);
 }
 
-.machine-dot.is-connected { background: var(--status-done); }
 .machine-dot.is-error { background: var(--status-blocked); }
 
 .machine-dot.is-connecting,
 .machine-dot.is-reconnecting {
   background: var(--status-working);
   animation: pulse var(--dur-pulse) var(--ease-pulse) infinite;
-}
-
-/* the + fills the rows' status cell */
-.machine-new { width: var(--side-box); }
-
-/* An SSH PC's manage button takes no room until its header is hovered or focused, its panel is
-   open or the PC is not connected. It stays in the focus order. */
-.machine-manage {
-  width: 0;
-  overflow: hidden;
-  opacity: 0;
-}
-
-.machine-header:focus-within > .machine-manage,
-.machine-manage[aria-expanded="true"],
-.machine-group.is-offline .machine-manage {
-  width: var(--side-action);
-  overflow: visible;
-  opacity: 1;
-}
-
-@media (hover: hover) {
-  .machine-header:hover > .machine-manage {
-    width: var(--side-action);
-    overflow: visible;
-    opacity: 1;
-  }
-}
-
-@media (pointer: coarse) {
-  .machine-manage {
-    width: var(--side-action);
-    overflow: visible;
-    opacity: 1;
-  }
-
-  .machine-new {
-    width: var(--touch-target);
-    height: var(--touch-target);
-    margin-right: calc((var(--side-box) - var(--touch-target)) / 2);
-  }
 }
 
 .machine-state {

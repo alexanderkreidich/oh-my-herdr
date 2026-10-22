@@ -115,7 +115,6 @@ try {
         await context.addInitScript((paneId) => {
           localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
           localStorage.setItem("herdr-web-ui:recent-directories:local", JSON.stringify(["/fixture/project"]));
-          for (const id of ["local", "remote", "offline"]) localStorage.setItem(`herdr-web-ui:pc-collapsed:${id}`, "1");
           localStorage.setItem("herdr-web-ui:recent-panes:remote", JSON.stringify([paneId]));
         }, panes.api);
         const page = await context.newPage(); const errors: string[] = [];

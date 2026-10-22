@@ -1,7 +1,7 @@
 /**
  * The minimal chrome (docs/ROADMAP.md, Phase 1) in a real browser, on a herdr of its own: the bar
  * holds the sidebar toggle and the tabs as pills and nothing else; the sidebar lists workspaces
- * only; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
+ * only, under its top row's PC switcher and +; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
  * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU). Focus mode
  * (Mod+Shift+.) moves the tabs under their workspace, and a hidden sidebar hands them back to the bar.
  *
@@ -54,6 +54,27 @@ try {
   assert.equal(await page.getByText("No agents running").count(), 0, "no Agents section");
   assert.equal(await page.locator(".agents-sidebar, .workspace-folder, .workspace-favicon").count(), 0, "no agents list or workspace face");
 
+  // its top row: the PC switcher, and the + for a new workspace at the row's far edge; no PC header over the list
+  const side = page.locator(".app-header .header-side");
+  const switcher = side.locator(".pc-switch");
+  const plus = side.locator(".pc-new");
+  await switcher.waitFor();
+  assert.equal(await page.locator(".sidebar .pc-switch, .machine-header").count(), 0, "no PC header or second switcher in the list");
+  const [sideBox, plusBox] = [await side.boundingBox(), await plus.boundingBox()];
+  assert.ok(sideBox && plusBox && sideBox.x + sideBox.width - (plusBox.x + plusBox.width) <= 16, `the + ends the top row: ${JSON.stringify({ sideBox, plusBox })}`);
+  await switcher.click();
+  const pcs = page.getByRole("menu", { name: "PCs", exact: true });
+  await pcs.waitFor();
+  assert.equal(await pcs.locator('[aria-current="true"]').count(), 1, "the PC on screen is the menu's current item");
+  await pcs.getByRole("menuitem", { name: "Add PC", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  await pcs.waitFor({ state: "detached" });
+  await plus.click();
+  const newWorkspace = page.locator(".new-session-modal");
+  await newWorkspace.waitFor();
+  await page.keyboard.press("Escape");
+  await newWorkspace.waitFor({ state: "detached" });
+
   // never a chat, even for a pane that remembered one
   assert.equal(await page.locator(".chat-view, .composer").count(), 0, "the pane shows its terminal");
   await page.locator(".restty-terminal canvas").first().waitFor({ state: "attached" });
@@ -82,6 +103,7 @@ try {
   assert.equal(await rows.count(), 2, "both tabs are rows under their workspace");
   assert.equal(await page.locator(".pane-column").evaluate((column) => Math.round(column.getBoundingClientRect().top)), 0, "the pane runs to the window's top");
   assert.equal(await page.locator(".app-header .sidebar-toggle").count(), 1, "the sidebar toggle stays, in the sidebar's top row");
+  assert.equal(await page.locator(".app-header .header-side .pc-switch").count(), 1, "the PC switcher stays in that row too");
   await rows.nth(1).click();
   await page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-tab.is-selected .workspace-tab-select`).nth(0).waitFor();
   assert.equal(await rows.nth(1).getAttribute("aria-current"), "true", "a row opens its tab's pane");

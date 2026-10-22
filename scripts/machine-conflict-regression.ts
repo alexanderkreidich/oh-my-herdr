@@ -80,12 +80,13 @@ try {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(([key, id]) => { for (const storage of [sessionStorage, localStorage]) storage.setItem(key!, JSON.stringify({ machine_id: id, pane_id: null })); }, ["herdr-web-ui:selection", pc.id]);
   await page.reload();
-  const group = page.locator(`section.machine-group.is-current[aria-label="PC ${pc.name}"]`);
+  const group = page.locator(`section.machine-group[aria-label="PC ${pc.name}"]`);
   await group.waitFor({ timeout: 10_000 });
-  await group.getByRole("button", { name: `Manage ${pc.name}`, exact: true }).click();
+  await page.locator(".pc-switch").click();
+  await page.getByRole("menuitemcheckbox", { name: `Manage ${pc.name}`, exact: true }).click();
   await group.getByRole("button", { name: "Remove PC", exact: true }).click();
   await group.getByRole("button", { name: "Confirm remove PC", exact: true }).click();
-  await page.locator(`section.machine-group.is-current[aria-label="PC ${local.name}"]`).waitFor();
+  await page.locator(`section.machine-group[aria-label="PC ${local.name}"]`).waitFor();
   await page.waitForFunction(() => document.querySelector(`section.machine-group[aria-label="PC QA remote"]`) === null);
   // the roster without the PC came in while the request was held: a note it raised is still up
   const deadline = Date.now() + 5_000;

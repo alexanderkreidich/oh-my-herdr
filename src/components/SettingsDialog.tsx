@@ -820,7 +820,7 @@ function RemotePcsPage({ actions, pcSettings, pcSettingsError, onPcSettings }: {
   const { settings, update } = useSettings();
   return (
     <SettingsGroup>
-      <SettingsRow label={t("Show remote PCs")} description={t("List the PCs you added or saved in herdr in the sidebar, under this one. Off, the sidebar shows this PC alone; the others stay set up.")}>
+      <SettingsRow label={t("Show remote PCs")} description={t("List the PCs you added or saved in herdr in the PC switcher at the top of the sidebar. Off, it lists this PC alone; the others stay set up.")}>
         <Toggle label={t("Show remote PCs")} checked={settings.showRemotePcs} onChange={(showRemotePcs) => update({ showRemotePcs })} />
       </SettingsRow>
       <SettingsRow label={t("Add PC")} description={t("Connect another PC over an SSH alias or user@host. Its workspaces join the sidebar.")}>
