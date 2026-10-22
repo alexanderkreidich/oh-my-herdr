@@ -561,11 +561,11 @@ if (import.meta.main) {
     const host = process.env["HOST"] ?? "127.0.0.1";
     const port = process.env["PORT"] || DEFAULT_PORT;
     const reason = code === "EADDRINUSE"
-      ? `the port is in use. Another app (or herdr web ui) may already use it; start with another PORT=, or open http://${host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host}:${port} if it is this app`
+      ? `the port is in use. Another app (or oh-my-herdr) may already use it; start with another PORT=, or open http://${host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host}:${port} if it is this app`
       : code === "EADDRNOTAVAIL"
         ? "this PC has no such address; try HOST=127.0.0.1"
         : "the port needs permission; try a PORT above 1024";
-    console.error(`herdr web ui cannot listen on ${host}:${port}: ${reason}.`);
+    console.error(`oh-my-herdr cannot listen on ${host}:${port}: ${reason}.`);
     process.exit(1);
   }
   let stopping = false;

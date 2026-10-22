@@ -2437,7 +2437,7 @@ export function PaneTerminal({
         )}
         {paneId !== null && !ended && !connected && (
           <div className="terminal-banner terminal-banner-warning" role="status">
-            {t(connectedBefore ? "Reconnecting to herdr web ui…" : "Connecting to herdr web ui…")}
+            {t(connectedBefore ? "Reconnecting to oh-my-herdr…" : "Connecting to oh-my-herdr…")}
             {/* one line, cut with an ellipsis: a command is never broken inside a word; the title holds it whole */}
             {draft.text.length > 0 && <span className="draft-held" title={draft.text}> {t("Input held:")} <code>“{draft.text}”</code></span>}
           </div>

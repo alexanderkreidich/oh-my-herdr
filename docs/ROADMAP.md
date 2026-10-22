@@ -1,6 +1,6 @@
 # Roadmap
 
-restty-herdr: an improved, minimal fork of herdr web UI with a Ghostty-like terminal emulator
+oh-my-herdr: an improved, minimal fork of herdr web UI with a Ghostty-like terminal emulator
 ([restty](https://github.com/wiedymi/restty)) and a Mosh-style State Synchronization Protocol.
 
 Each phase is a few slices; each slice is one branch and one PR (AGENTS.md, Development flow).

@@ -1,4 +1,4 @@
-# restty-herdr
+# oh-my-herdr
 
 Improved, minimal fork of [herdr web UI](https://github.com/devswha/herdr-web-ui) with a
 Ghostty-like terminal emulator and a State Synchronization Protocol.
@@ -35,7 +35,7 @@ them back.
 - One slice per branch, cut from `main`: `feat/…`, `fix/…`, `refactor/…`, `chore/…`, `docs/…`.
   A slice is one roadmap item, small enough to review in one sitting.
 - Pull requests go to this fork only:
-  `gh pr create -R alexanderkreidich/restty-herdr --base main`. In a fork `gh` defaults to the
+  `gh pr create -R alexanderkreidich/oh-my-herdr --base main`. In a fork `gh` defaults to the
   parent repository: never open a PR, issue or comment on `devswha/herdr-web-ui`.
 - Upstream is a source of fixes, not a branch to follow. Cherry-pick bridge and terminal fixes
   (`git remote add upstream https://github.com/devswha/herdr-web-ui`); never merge its `main`.

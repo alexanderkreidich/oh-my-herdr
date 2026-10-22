@@ -71,7 +71,7 @@ import { SplitDropPreview } from "./components/SplitDropPreview.tsx";
 import { CrashProbe, RegionCrash } from "./components/AppCrash.tsx";
 import { RenderBoundary } from "./components/RenderBoundary.tsx";
 
-const APP_TITLE = "herdr web ui";
+const APP_TITLE = "oh-my-herdr";
 /** how soon after a key press a focus counts as the user's own (lastKeyAtRef) */
 const KEY_FOCUS_MS = 1000;
 const POLL_MS = 5000;
@@ -1138,7 +1138,7 @@ export function App() {
   const connWord = t(connected ? "live" : outputStopped ? "disconnected" : connectedBefore ? "reconnecting" : "connecting");
 
   useEffect(() => {
-    document.title = selectedTitle ? `${selectedTitle} · herdr` : APP_TITLE;
+    document.title = selectedTitle ? `${selectedTitle} · oh-my-herdr` : APP_TITLE;
   }, [selectedTitle]);
 
   // A new tab's workspace: the named one, else the selected pane's. Its folder is the workspace's:
@@ -1297,7 +1297,7 @@ export function App() {
           <main className="terminal-host">
             <div className="terminal-placeholder">
               <div className="terminal-placeholder-inner">
-                <span>{t("Connecting to herdr web ui…")}</span>
+                <span>{t("Connecting to oh-my-herdr…")}</span>
               </div>
             </div>
           </main>
