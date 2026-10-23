@@ -5,11 +5,22 @@ import { sanitizeFontFamily } from "./fontFamily.ts";
 import { sanitizeUiFontSize } from "./typography.ts";
 import { sanitizeKeyBarExtras } from "./keys.ts";
 import { LANGUAGE_SETTINGS, type LanguageSetting } from "./i18n.ts";
-import { CHAT_WIDTHS, DICTATION_LANGUAGES, DIFF_STYLES, MARKDOWN_WIDTHS, VOICE_BUTTONS,
+import { CHAT_WIDTHS, DIFF_STYLES, MARKDOWN_WIDTHS,
   QUICK_REPLIES_MAX, QUICK_REPLY_MAX_CHARS, USAGE_KEYS_MAX, TERMINAL_FONT_MIN, TERMINAL_FONT_MAX,
   TERMINAL_WHEEL_SPEED_MIN, TERMINAL_WHEEL_SPEED_MAX, CHAT_FONT_MIN, CHAT_FONT_MAX,
-  type Settings as CurrentSettings, type ChatWidth, type DictationLanguage, type VoiceButton } from "./settings.ts";
-type Settings = Omit<CurrentSettings, "darkTheme" | "lightTheme" | "fileOpen" | "webLinks" | "showRemotePcs" | "claudeLaunchMode" | "codexLaunchMode" | "terminalLigatures" | "terminalRenderer" | "terminalThemeName" | "focusMode">;
+  type Settings as CurrentSettings, type ChatWidth } from "./settings.ts";
+// the voice settings this version had, pinned with it
+type VoiceButton = "auto" | "on" | "off";
+const VOICE_BUTTONS: readonly VoiceButton[] = ["auto", "on", "off"];
+const DICTATION_LANGUAGES = [
+  "ar-SA", "cs-CZ", "da-DK", "de-DE", "el-GR", "en-GB", "en-US", "es-ES", "fi-FI", "fr-FR", "he-IL", "hi-IN",
+  "hu-HU", "id-ID", "it-IT", "ja-JP", "ko-KR", "nb-NO", "nl-NL", "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU",
+  "sk-SK", "sv-SE", "th-TH", "tr-TR", "uk-UA", "vi-VN", "zh-CN", "zh-TW",
+] as const;
+type DictationLanguage = "auto" | (typeof DICTATION_LANGUAGES)[number];
+type Settings = Omit<CurrentSettings, "darkTheme" | "lightTheme" | "fileOpen" | "webLinks" | "showRemotePcs" | "claudeLaunchMode" | "codexLaunchMode" | "terminalLigatures" | "terminalRenderer" | "terminalThemeName" | "focusMode"> & {
+  voiceInput: VoiceButton; voiceLanguage: DictationLanguage; voicePolishChat: boolean; voicePolishTerminal: boolean;
+};
 type Palette = "amber" | "charcoal" | "catppuccin";
 const PALETTES: readonly Palette[] = ["amber", "charcoal", "catppuccin"];
 const STORAGE_KEY = "t-rex:settings";

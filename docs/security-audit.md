@@ -111,12 +111,6 @@ Evidence: `server/machines.ts:prepare`, `server/remote-host.ts:authorizeKey`, `s
 
 ### 5. Optional integrations have their own data flows and saved secrets
 
-- Voice: user-initiated recordings and optional transcript polishing go to the configured
-  OpenAI-compatible provider (`api.openai.com/v1` by default), with the configured API key.
-  `voice.json` stores a user-supplied key in plaintext with owner-only permissions. A configured
-  HTTP endpoint is allowed, so transport safety depends on that endpoint. Without a configured
-  server provider, dictation can use browser `SpeechRecognition`; its processing location/provider
-  is controlled by the browser and is not guaranteed to be local.
 - CLIProxy/Hub: a configured management URL receives its management bearer key. `cliproxy.json`
   stores it in plaintext with owner-only permissions; arbitrary HTTP(S) configuration is allowed.
   The default localhost URL alone does not activate it.
@@ -129,8 +123,7 @@ Evidence: `server/machines.ts:prepare`, `server/remote-host.ts:authorizeKey`, `s
   relay cannot see terminal traffic. The code requires a token and strips sensitive inherited
   environment variables from the Portal child. Tailscale is a separate optional transport.
 
-Evidence: `server/voice.ts`, `shared/voice.ts`, `src/lib/voice.ts:beginBrowser`,
-`server/cliproxy.ts`, `server/push.ts:deliver`, `server/portal.ts:resume`.
+Evidence: `server/cliproxy.ts`, `server/push.ts:deliver`, `server/portal.ts:resume`.
 
 ### 6. Browser clipboard writes and local diagnostics are automatic
 

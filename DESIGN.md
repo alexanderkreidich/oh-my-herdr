@@ -1602,8 +1602,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   with a mouse, reaching `--pointer-target` through an invisible `::before` expander; under a
   coarse pointer the button itself grows to `--touch-target` wide and `--touch-target` plus
   `--space-1` tall), then ONE row of controls under it:
-  on the left the add button (lucide `Plus`, named "Attach files"), the mic when voice input
-  shows it (see Voice input), and the background-task chip; on the right the status content and ONE round Send/Stop button.
+  on the left the add button (lucide `Plus`, named "Attach files") and the background-task chip; on the right the status content and ONE round Send/Stop button.
   The message's text starts `--space-4` in (`--space-3` on a phone, `480px` and below).
 - The strip (`.composer-strip`) tucked under the card, as t3code's composer context strip: the
   card's own `--bg-elevated` with a `--border` hairline, inset on each side by the card's radius
@@ -1623,8 +1622,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   over the transcript).
 - Empty chat (`.composer-greeting`): one line on the composer's column, directly over it,
   `What should <agent> do in <folder>?` in `--text-strong`, `--fs-display`, `--fw-semibold`, `--tracking-display`, centred,
-  and under it `PC · full path` in `--text-dim`, `--fs-sm`. Both wrap anywhere. While dictation's
-  recording pill is open over the composer the greeting is hidden (its box stays). No suggestion
+  and under it `PC · full path` in `--text-dim`, `--fs-sm`. Both wrap anywhere. No suggestion
   chips or starter prompts. The greeting is out of the flow, so it takes no row from the terminal
   surface. In a mouse-driven window from `769px` the composer is moved up (a transform, nothing
   else changes size) so the greeting and the input card sit at the pane's vertical centre; a
@@ -1840,16 +1838,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   A desktop's picked pane takes typing at once.
 - Enter sends and Shift+Enter breaks by default; with **Enter sends** off, Mod+Enter sends. On touch screens the same device setting is shown inverted as **Return inserts a new line**, with Send and hardware Mod+Enter explained below it. IME Enter is ignored. Stop sends Escape. While the agent works and a draft shows Send in Stop's place, Escape in the box is Stop; an open completion menu takes the first Escape, and its X in the top corner (`.composer-menu-close`, Close suggestions, sticky over the rows it scrolls; the first row leaves it room) does the same for a pointer or a phone, which has no Escape, keeping the text and the focus in the box. T3 Code's command menu closes on Escape alone. Working Send schedules a pending message; its Send now action submits that same message now.
 
-### Voice input
-- A mic button sits beside the add button in the composer and beside Send in the terminal input line; it
-  fills with `--accent` while recording. Dictated text is inserted at the caret, never sent.
-- `voiceInput`: `auto`, `on` or `off`; default `auto`. Auto puts the mic in the composer only, not on
-  a phone (the composer's `(max-width: 640px), (pointer: coarse)`), and leaves it out where dictation
-  cannot work (no HTTPS, or no key and no browser recognition). On shows it in both inputs and on a
-  phone, disabled with its reason where it cannot work.
-- The recording pill shows Cancel, a **Recording** label, the level bars, a mono timer and Done.
-  Amber only; `--danger` stays for errors.
-
 ### Command palette
 - At `<=480px` the header has no palette button: the More menu's first item, **Search panes and
   actions**, opens it by touch, and a connected keyboard still opens it with `Mod+Shift+K` (or
@@ -1921,7 +1909,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   **Composer**: Enter sends, send queued messages automatically, and on a touch screen the suggestion
   chip (off by default); then **Quick replies**; then **File viewer**: wrap long
   lines, Markdown width, Diff layout), **Terminal** (font size, font family, wheel
-  speed, input mode, Key bar), **Alerts**, **Voice input**, **Subscription usage**,
+  speed, input mode, Key bar), **Alerts**, **Subscription usage**,
   **Shortcuts** (the platform-resolved global bindings), **Phone & devices** (the phone address,
   Keep screen on, Install; then Portal, where the server offers it; then paired devices),
   **Remote PCs**, **About** (Updates, herdr, the repository links). A button that points at
@@ -2123,7 +2111,7 @@ The values are the ones in `src/styles.css`.
 | Move easing | `--ease-in-out` | `cubic-bezier(0.77, 0, 0.175, 1)` | Something moving on screen from one place to another |
 | Dialog | `--dur-modal` | `220ms` | A dialog growing in from `641px` (scale 0.96 and opacity, centred) over its darkening scrim |
 | Pulse easing | `--ease-pulse` | `steps(2, jump-none)` | Endless working and reconnecting dots; avoids drawing every display refresh |
-| Spring easing | `--ease-spring` | `cubic-bezier(0.32, 0.72, 0, 1)` | Voice recording pill enter (180ms, scale 0.96->1 + opacity, from the mic button) and exit (120ms); a phone's sheet rising and springing back |
+| Spring easing | `--ease-spring` | `cubic-bezier(0.32, 0.72, 0, 1)` | A phone's sheet rising and springing back; the sidebar sliding |
 | Sheet in | `--dur-sheet` | `360ms` | A phone's sheet rising, and springing back after a short drag |
 | Sheet out | `--dur-sheet-out` | `240ms` | A phone's sheet dropping, however it closed |
 
@@ -2140,15 +2128,10 @@ The values are the ones in `src/styles.css`.
   the sidebar slides in and out (`--dur-modal` on `--ease-spring`); the pane column takes its new
   width once. Nothing a shortcut opens or toggles animates (`data-key-action`,
   `lib/shortcuts.ts`). Rules for new motion: AGENTS.md, UX and motion.
-- The voice recording waveform is the one surface allowed to draw every frame: only while
-  recording, driven by the live microphone level, transform-only (`scaleY` on 7 bars). The pill is
-  a state change, not a dialog, so the snap rule above does not apply to it.
 - `prefers-reduced-motion: reduce` removes pulses, drawer/control transitions, sheet rise and drop,
   smooth chat scrolling and settings toggle motion; a drag still follows the finger. State remains legible without animation.
   One exception: the sidebar's RUN dot keeps its stepped breath, opacity only and nothing moving,
   so a running agent does not look frozen.
-- Under reduced motion the voice pill swaps its bars for one level bar updated at 4 Hz and drops
-  the ring and the morph; the **Recording** label and the timer stay.
 
 ## 7. Depth & Surface
 
@@ -2202,7 +2185,7 @@ The values are the ones in `src/styles.css`.
   are refused, and a plain Ctrl/Alt chord the terminal uses, or a ⌘ chord the browser commonly
   uses, saves only after Save anyway.
   Reservations vary by browser and installed-app mode; a warning is not a guarantee of delivery.
-  Bindings belong to this browser, not the remote PC or pane. Hold-to-dictate remains fixed.
+  Bindings belong to this browser, not the remote PC or pane.
 - Text-field selection and IME composition keep their keys. Focus-local list/tab navigation and
   reordering are separate from global bindings; they must not intercept terminal input.
   Global actions target the selected pane, and the original handled chord must never also reach its PTY.
