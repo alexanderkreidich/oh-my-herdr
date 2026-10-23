@@ -10,8 +10,8 @@ import { createServer } from "./index.ts";
 // changes there when herdr's events say so: a token through pane.updated, the agent's line
 // through a status event of the same status.
 it("carries a plugin's pane tokens and agent line to the browsers' roster, live", async () => {
-  const stateDir = mkdtempSync(join(tmpdir(), "herdr-web-ui-test-pane-tokens-"));
-  const workspace = await workspaceCreate({ cwd: stateDir, label: "herdr-web-ui-test-pane-tokens" });
+  const stateDir = mkdtempSync(join(tmpdir(), "t-rex-test-pane-tokens-"));
+  const workspace = await workspaceCreate({ cwd: stateDir, label: "t-rex-test-pane-tokens" });
   const paneId = workspace.root_pane.pane_id;
   const server = createServer({ port: 0, hostname: "127.0.0.1", stateDir, token: "test-token", tailscaleOwner: null });
   const abort = new AbortController();

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 
@@ -48,9 +48,9 @@ try {
 
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
     let file: string;
-    try { file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length)); }
+    try { file = decodeURIComponent(path.slice("/t-rex/demo/app/".length)); }
     catch { return new Response("bad path", { status: 400 }); }
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
@@ -63,11 +63,11 @@ try {
       // 390x420: what `interactive-widget=resizes-content` leaves of a phone while its keyboard is up
       const context = await browser.newContext({ viewport: { width: 390, height: 420 }, isMobile: true, hasTouch: true, locale: "en-US" });
       try {
-        await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+        await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
         const page = await context.newPage();
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
+        await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await page.locator(".conn-live").waitFor();
         const palette = page.getByRole("dialog", { name: "Command palette", exact: true });
         const calls = (): Promise<Calls> => page.evaluate(() => (window as unknown as { pluginCalls: Calls }).pluginCalls);

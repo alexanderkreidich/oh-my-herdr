@@ -1,7 +1,8 @@
-# oh-my-herdr
+# t-rex
 
-Improved, minimal fork of [herdr web UI](https://github.com/devswha/herdr-web-ui) with a
-Ghostty-like terminal emulator and a State Synchronization Protocol.
+A browser terminal for the [herdr](https://github.com/herdrdev/herdr) multiplexer, built like
+Superlogical's [Rex](https://www.superlogical.com): herdr keeps every session, and the browser
+attaches to it through a Ghostty-like terminal emulator and a State Synchronization Protocol.
 
 A browser client for the herdr terminal multiplexer: a React 19 client (`src/`), a Bun bridge
 (`server/`) that talks to herdr's unix-socket API, and the wire contract both import (`shared/`).
@@ -34,14 +35,11 @@ them back.
 
 - One slice per branch, cut from `main`: `feat/…`, `fix/…`, `refactor/…`, `chore/…`, `docs/…`.
   A slice is one roadmap item, small enough to review in one sitting.
-- Pull requests go to this fork only:
-  `gh pr create -R alexanderkreidich/oh-my-herdr --base main`. In a fork `gh` defaults to the
-  parent repository: never open a PR, issue or comment on `devswha/herdr-web-ui`.
-- Upstream is a source of fixes, not a branch to follow. Cherry-pick bridge and terminal fixes
-  (`git remote add upstream https://github.com/devswha/herdr-web-ui`); never merge its `main`.
+- Pull requests go to this repository, named explicitly so `gh` never picks another:
+  `gh pr create -R alexanderkreidich/t-rex --base main`.
 - Commits and everything on GitHub are in English, Conventional Commits
   (`feat(tabs): …`, `refactor(chat): delete the transcript readers`).
-- No changelog fragments and no `v*` tags until the fork has its own release train (roadmap):
+- No changelog fragments and no `v*` tags until t-rex has its own release train (roadmap):
   installed updaters act on tags alone.
 
 The loop for a UI slice:
@@ -61,7 +59,7 @@ The loop for a UI slice:
      slice changes what it checks;
    - `bun run check fast` before a PR (generated types and themes, typecheck, build, unit tests).
      Changes to `server/`, `shared/` or terminal I/O also run `bun run check integration` (a herdr
-     of its own). Upstream's browser lane still assumes the chat and the old header: it is being
+     of its own). The old browser lane still assumes the chat and the old header: it is being
      replaced (roadmap, Phase 2), so do not chase its failures from removed UI.
    - after removing UI, `bun scripts/i18n-prune.ts` drops the translations nothing asks for.
 5. Run the `review-animations` skill over a diff that touches motion; fix what it blocks. One-off
@@ -123,9 +121,7 @@ UI piece behind a switcher before committing to one).
 - Theme colours are edited only in the theme blocks of `src/styles.css`. Never edit
   `src/lib/themes.generated.ts` or the generated copies in DESIGN.md, index.html and
   `public/manifest.webmanifest`; run `bun run generate:themes`.
-- The fork still carries upstream's identity (plugin id `devswha.herdr-web-ui`, updater,
-  remote-bundle URL). Usage telemetry has been removed. Until the roadmap's fork-identity slice
-  lands, do not ship a build that updates from upstream or reintroduce upstream reporting.
+- Usage telemetry is gone for good: never add reporting to a third party.
 
 `server/AGENTS.md` and `src/AGENTS.md` hold the traps local to each side. Code conventions
 (imports, CSS tokens, i18n entries, fixed sleeps, wording, icons) are enforced by the

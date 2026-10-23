@@ -12,8 +12,8 @@ describe("pasteDirectory", () => {
 
   it("keeps attachments next to the pane, or in the temp dir without a cwd", () => {
     delete process.env["HERDR_WEB_PASTE_DIR"];
-    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".herdr-web-ui"));
-    expect(pasteDirectory(null)).toBe(join(tmpdir(), "herdr-web-ui", ".herdr-web-ui"));
+    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".t-rex"));
+    expect(pasteDirectory(null)).toBe(join(tmpdir(), "t-rex", ".t-rex"));
   });
 
   it("uses HERDR_WEB_PASTE_DIR for every pane when set, as an absolute path", () => {
@@ -47,11 +47,11 @@ describe("pasteDirectory", () => {
     process.env["HERDR_WEB_PASTE_DIR"] = "  /var/tmp/pastes  ";
     expect(pasteDirectory("/work/repo")).toBe(resolve("/var/tmp/pastes"));
     process.env["HERDR_WEB_PASTE_DIR"] = "   ";
-    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".herdr-web-ui"));
+    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".t-rex"));
   });
 
   it("treats an empty HERDR_WEB_PASTE_DIR as unset", () => {
     process.env["HERDR_WEB_PASTE_DIR"] = "";
-    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".herdr-web-ui"));
+    expect(pasteDirectory("/work/repo")).toBe(join("/work/repo", ".t-rex"));
   });
 });

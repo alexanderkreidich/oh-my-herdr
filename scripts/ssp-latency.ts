@@ -124,7 +124,7 @@ async function measure(delay: number): Promise<{ first: number; rest: number; ma
   const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox", "--accept-lang=en-US"] });
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+    await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
     const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${link.port}/`);
     await page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-select`).click();

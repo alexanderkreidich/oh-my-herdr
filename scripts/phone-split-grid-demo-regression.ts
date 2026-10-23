@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 
@@ -85,8 +85,8 @@ try {
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, () => `<script src="./demo-transport.js"></script>\n    ${record}\n    <script type="module"`));
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
-    let file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length));
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
+    let file = decodeURIComponent(path.slice("/t-rex/demo/app/".length));
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
     const body = Bun.file(join(app, file));
@@ -97,12 +97,12 @@ try {
     try {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" });
       await context.addInitScript(() => {
-        if (!localStorage.getItem("herdr-web-ui:settings")) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "terminal" }));
+        if (!localStorage.getItem("t-rex:settings")) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "terminal" }));
       });
       const page = await context.newPage();
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.shell)}&view=terminal`);
+      await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.shell)}&view=terminal`);
       await page.locator(".conn-live").waitFor({ state: "attached" });
       const made = await layout(page, "/api/pane/split", { pane_id: panes.shell, direction: "right", focus: true });
       assert.ok(made.pane?.pane_id, JSON.stringify(made));

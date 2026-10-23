@@ -62,7 +62,7 @@ try {
   browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--enable-unsafe-webgpu"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await context.addInitScript((renderer) => {
-    localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalRenderer: renderer }));
+    localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", terminalRenderer: renderer }));
     const Native = window.WebSocket;
     const sockets: WebSocket[] = [];
     (window as unknown as { kittyTestSockets: WebSocket[] }).kittyTestSockets = sockets;

@@ -1,13 +1,13 @@
 {
-  "name": "herdr-web-ui",
+  "name": "t-rex",
   "private": true,
   "version": "0.4.12",
   "type": "module",
-  "description": "Browser version of the herdr terminal - live herdr workspaces, panes and agents in a web UI",
+  "description": "Your herdr sessions in a Ghostty-like terminal, in the browser and on your phone. Built like Superlogical's Rex, on the herdr multiplexer and restty.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/devswha/herdr-web-ui.git"
+    "url": "git+https://github.com/alexanderkreidich/t-rex.git"
   },
   "scripts": {
     "postinstall": "bun scripts/build-restty.ts",
@@ -27,7 +27,6 @@
     "generate:types": "bun run scripts/generate-protocol-types.ts",
     "generate:themes": "bun run scripts/generate-themes.ts",
     "build:remote": "bun run scripts/build-remote-bundle.ts",
-    "build:site": "bun scripts/build-site.ts",
     "test:ssh": "bun run scripts/ssh-integration.ts"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-# herdr web ui Design System
+# t-rex Design System
 
 Extracted from the shipped client (`src/styles.css`, `src/components/*`), not invented. The machine
 copy of every token is the `:root` block in `src/styles.css`; every table below mirrors it value for
@@ -596,7 +596,7 @@ The values are the ones in `src/styles.css`. Every token but `--fs-input` is `ca
   event, scoped to the active, presented pane and its PC; a modal or observe mode blocks it.
   It sends no text or keys and never takes an attach. The binding follows the existing shortcut
   customization and Mod+Shift policy.
-- All settings share one sanitized `localStorage["herdr-web-ui:settings"]` record.
+- All settings share one sanitized `localStorage["t-rex:settings"]` record.
 
 ## 4. Spacing & Layout
 
@@ -719,7 +719,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   it to resize the sidebar between `240px` and `520px`, never past half the window; the arrow
   keys move the focused edge `16px`, Home and End go to the limits, and a double-click returns to
   `--sidebar-w`. The seam shows `--border-strong` under a pointer and `--accent` while held or
-  focused. The chosen width is kept per device (`herdr-web-ui:sidebar-width`) and written as
+  focused. The chosen width is kept per device (`t-rex:sidebar-width`) and written as
   `--sidebar-user-w` on `.app`; the sidebar and its top row in the header both read
   `--sidebar-shown-w`. A phone's drawer keeps `--sidebar-w`.
 - The sidebar keeps its width on desktop until its edge is dragged, and is a `<=768px` drawer. The desktop collapse removes its
@@ -914,7 +914,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   checkouts put away; the name follows the chevron. Worktree rows sit one cell in, their name half
   a cell further, and the elbow from the parent's guide reaches it.
   Worktree folds are remembered at
-  `herdr-web-ui:worktree-group-collapsed:<machineId>:<repo_key>`; a folded group keeps the selected
+  `t-rex:worktree-group-collapsed:<machineId>:<repo_key>`; a folded group keeps the selected
   child visible, and status snapshots preserve a deliberate fold.
 - Worktree branches come from the existing `GET /api/worktree/list`, matched by repository key,
   open workspace ID and normalized checkout path. A listing-confirmed detached checkout reads
@@ -1041,13 +1041,13 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   Events carry the epoch too: changing it invalidates other panes' cached finish IDs until their
   next snapshot. The browser never infers a finish epoch from counters. An older bridge missing either
   field always keeps the dot; transitions wholly missed by the server cannot be counted.
-- Each `(PC, epoch, pane)` has its own `herdr-web-ui:finish:` localStorage key, containing the
+- Each `(PC, epoch, pane)` has its own `t-rex:finish:` localStorage key, containing the
   greatest viewed finish ID, its write time and an optional completed-answer fingerprint. A
   delayed lower finish ID also stays read: counters only advance inside an epoch, while other
   epochs have separate keys. Tabs writing different panes cannot overwrite
   one another; storage events reconcile a same-pane race toward the maximum. A tab closed before
   reconciliation or storage eviction can bring back a read dot, never acknowledge a newer finish.
-  Old `herdr-web-ui:seen:<pc>` records are removed. Epochs this tab actually left are removed;
+  Old `t-rex:seen:<pc>` records are removed. Epochs this tab actually left are removed;
   unfamiliar epochs are ignored, not deleted using a possibly stale first roster. Storage is
   capped at 2,000 keys, oldest first, never pruned by a tab's pane or PC roster. Another browser or
   device keeps its own record. Saved read records survive reconnecting/offline rosters, which
@@ -2215,7 +2215,7 @@ The values are the ones in `src/styles.css`.
   the command palette, including its plugin actions, in the phone touch UI.
   The key bar sends terminal input only; it is not an app-action toolbar. Hardware keyboards use
   the same global bindings on phones and desktops.
-- `document.title` is `<pane title> · oh-my-herdr` while selected, otherwise `oh-my-herdr`.
+- `document.title` is `<pane title> · t-rex` while selected, otherwise `t-rex`.
 
 ### Accepted debt
 

@@ -56,7 +56,7 @@ describe("approved bridge replacement", () => {
           descriptor = { ...descriptor, pid: 4243, bridge_protocol: options.replacementProtocol ?? BRIDGE_PROTOCOL, bundle_version: options.replacementBundle ?? REMOTE_BUNDLE_VERSION };
           return "";
         }
-        if (script.includes('for f in "$HOME/.config/herdr-web-ui/bridges/"')) return JSON.stringify(descriptor);
+        if (script.includes('for f in "$HOME/.config/t-rex/bridges/"')) return JSON.stringify(descriptor);
         throw new Error(`Unexpected remote command: ${script}`);
       };
       SshConnection.prototype.forward = async (local: number, remote: number) => {

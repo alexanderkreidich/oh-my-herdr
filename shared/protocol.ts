@@ -1,5 +1,5 @@
 /**
- * herdr-web-ui's own HTTP/WebSocket contract, shared by the Bun server and the React client.
+ * t-rex's own HTTP/WebSocket contract, shared by the Bun server and the React client.
  *
  * The herdr WIRE types are NOT hand-written here: they are generated from herdr's
  * published API schema into ./herdr-api.generated.ts and re-exported below, so a
@@ -156,7 +156,7 @@ export type { Machine, MachineEvent, PaneTarget, SetupJob, SetupRequest, SetupAc
  *         (layout.set_split_ratio: a split in that tab, root at [], false follows the first child,
  *         true the second; finite ratio in 0.1..0.9; an absent split answers split_not_found)
  *  POST   /api/pane/image  { pane_id, content_type, data_base64 } -> { ok: true, path }
- *         pasted image -> file under <pane cwd>/.herdr-web-ui/ (under HERDR_WEB_PASTE_DIR when the
+ *         pasted image -> file under <pane cwd>/.t-rex/ (under HERDR_WEB_PASTE_DIR when the
  *         server's environment sets it), path for the prompt
  *  POST   /api/workspace/create { cwd?, label?, agent?: { kind, name?, args? } }
  *         -> WorkspaceCreated (workspace.create, then agent.start in the root pane when `agent` is given;
@@ -336,7 +336,7 @@ export interface HealthAuth {
  * reach that address is let in (`open` in `server/access.ts`). It is a warning, never a gate:
  * nothing about who is let in changes because this field exists.
  *
- * Never sent to a request that did not get in. "This host runs herdr-web-ui with no token"
+ * Never sent to a request that did not get in. "This host runs t-rex with no token"
  * is reconnaissance for whoever is asking, not help.
  */
 export interface LanExposure {

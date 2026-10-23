@@ -40,7 +40,7 @@ const ran = (paneId: string, word: string) => until(async () => (await paneText(
 
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+  await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
   // a pane's input-ready frames wait while `gate` is closed: the moment between a pick and its
   // input opening lasts as long as the check needs, on any machine
   const gate = { closed: false, held: [] as (string | Buffer)[], release: () => {} };

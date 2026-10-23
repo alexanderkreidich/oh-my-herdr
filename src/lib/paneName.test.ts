@@ -4,7 +4,7 @@ import { codexThreadTitle, folderName, placeLine, shortPathTitle, taskRowLines, 
 it("shows a path title as its last folder, and leaves any other title alone", () => {
   expect(shortPathTitle("/tmp/audit-oDjsU2/lms-backend")).toBe("lms-backend");
   expect(shortPathTitle("/home/haemin/dev/api/")).toBe("api");
-  expect(shortPathTitle("~/dev/herdr web ui")).toBe("herdr web ui");
+  expect(shortPathTitle("~/dev/my web app")).toBe("my web app");
   expect(shortPathTitle("~")).toBe("~");
   expect(shortPathTitle("/")).toBe("/");
   expect(shortPathTitle("C:\\Users\\haemi\\work\\site")).toBe("site");
@@ -58,9 +58,9 @@ it("draws a two-line row as the pane's title over its place, without repeating a
 
 it("keeps the thread of a Codex title and drops the project folder Codex adds after it", () => {
   expect(codexThreadTitle("Respond to greeting | worktree-rapid-valley...")).toBe("Respond to greeting");
-  expect(codexThreadTitle("Compare a | b outputs | herdr-web-ui")).toBe("Compare a | b outputs");
+  expect(codexThreadTitle("Compare a | b outputs | my-web-app")).toBe("Compare a | b outputs");
   expect(codexThreadTitle("Respond to greeting")).toBe("Respond to greeting");
-  expect(codexThreadTitle(" | herdr-web-ui")).toBe(" | herdr-web-ui");
+  expect(codexThreadTitle(" | my-web-app")).toBe(" | my-web-app");
 });
 
 it("strips a Codex title to its thread for a row, and keeps the folder for an alert and for other agents", () => {

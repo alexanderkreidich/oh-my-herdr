@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 
 const screenshotDir = process.env.SHORTCUT_SCREENSHOT_DIR;
 const app = mkdtempSync(join(tmpdir(), "herdr-exact-shortcuts-demo-"));
 
 async function stored(page: Page): Promise<Record<string, string | null>> {
-  return await page.evaluate(() => JSON.parse(localStorage.getItem("herdr-web-ui:settings") ?? "{}").shortcutOverrides ?? {});
+  return await page.evaluate(() => JSON.parse(localStorage.getItem("t-rex:settings") ?? "{}").shortcutOverrides ?? {});
 }
 
 async function record(page: Page, name: string, chord: string): Promise<string> {
@@ -26,7 +26,7 @@ try {
   await buildDemoApp(app);
   const index = join(app, "index.html");
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, '<script src="./demo-transport.js"></script>\n    <script type="module"'));
-  const prefix = "/herdr-web-ui/demo/app/";
+  const prefix = "/t-rex/demo/app/";
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
@@ -45,7 +45,7 @@ try {
       try {
         await context.addInitScript(() => {
           Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
-          if (localStorage.getItem("herdr-web-ui:settings") === null) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
+          if (localStorage.getItem("t-rex:settings") === null) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
         });
         const page = await context.newPage();
         page.setDefaultTimeout(10000);

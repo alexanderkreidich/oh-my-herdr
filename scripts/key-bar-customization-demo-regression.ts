@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Locator, type Page } from "playwright-core";
 import { appFaces } from "./app-faces.ts";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
 import { screenText } from "./terminal-screen.ts";
@@ -14,7 +14,7 @@ import { screenText } from "./terminal-screen.ts";
 const repo = join(import.meta.dir, "..");
 const app = mkdtempSync(join(tmpdir(), "herdr-key-bar-demo-"));
 const evidence = process.env.UI_EVIDENCE_DIR;
-const SETTINGS_KEY = "herdr-web-ui:settings";
+const SETTINGS_KEY = "t-rex:settings";
 const MIGRATED_KEYS = ["direct", "Escape", "Tab", "BackTab", "Control", "Alt", "Shift", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "ctrl-c", "ctrl-d", "ctrl-z", "pipe", "tilde", "slash"];
 const DEFAULT_KEY_BAR_KEYS = ["direct", "Escape", "Tab", "ctrl-c", "Control", "Alt", "Shift", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
@@ -127,7 +127,7 @@ try {
 
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    const prefix = "/herdr-web-ui/demo/app/";
+    const prefix = "/t-rex/demo/app/";
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
     let file: string;
     try { file = decodeURIComponent(path.slice(prefix.length)); }
@@ -148,12 +148,12 @@ try {
             language: "en", terminalInputMode: "direct",
             keyBarExtras: ["alt", "shift-tab", "home-end", "page-up-down", "ctrl-d", "ctrl-z", "pipe", "tilde", "slash"],
           }));
-          localStorage.setItem(`herdr-web-ui:view:${pane}`, "terminal");
+          localStorage.setItem(`t-rex:view:${pane}`, "terminal");
         }, { pane: panes.api, key: SETTINGS_KEY });
         const page = await context.newPage();
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
+        await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await ready(page);
         await appFaces(page);
         assert.deepEqual(await keysOf(page), MIGRATED_KEYS, "old extras retain every fixed key, modifier and paired extra in their original order");
@@ -307,7 +307,7 @@ try {
           const response = await route.fetch();
           await route.fulfill({ response, body: (await response.text()).replace(/env\(safe-area-inset-bottom(?:,\s*0px)?\)/g, "34px") });
         });
-        await inset.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
+        await inset.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         const barBox = (): Promise<{ bottom: number; paddingBottom: string; paddingLeft: string }> => inset.locator(".key-bar").evaluate((row) => {
           const style = getComputedStyle(row);
           return { bottom: row.getBoundingClientRect().bottom, paddingBottom: style.paddingBottom, paddingLeft: style.paddingLeft };
@@ -444,7 +444,7 @@ try {
         // answer a chord as a terminal would: the demo has no herdr to turn the names into keys.
         const shell = await context.newPage();
         shell.on("pageerror", (error) => errors.push(error.message));
-        await shell.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.shell)}`);
+        await shell.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.shell)}`);
         await ready(shell);
         const shellBar = shell.locator(".key-bar");
         const screen = (): Promise<string> => screenText(shell, ".pane-terminal .restty-terminal");

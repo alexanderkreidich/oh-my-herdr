@@ -54,7 +54,7 @@ describe("deep links", () => {
 
 describe("workspace slugs", () => {
   it("makes a short, readable slug from a workspace's name, cut at a word", () => {
-    expect(slugOf("HERDR WEB UI")).toBe("herdr-web-ui");
+    expect(slugOf("MY WEB APP")).toBe("my-web-app");
     expect(slugOf("Crème brûlée: v2!")).toBe("creme-brulee-v2");
     expect(slugOf("FRG-845 CLOUDFLARE CUSTOM CHALLENGES")).toBe("frg-845-cloudflare");
     expect(slugOf("supercalifragilisticexpialidocious")).toBe("supercalifragilisticexpi");
@@ -63,8 +63,8 @@ describe("workspace slugs", () => {
   });
 
   it("writes and reads the id and the slug as one ws value", () => {
-    const link = { machine: "local", workspace: "w2K", workspaceSlug: "herdr-web-ui", pane: "w2K:p1", settings: null, section: null, sidebar: null };
-    expect(linkSearch(link)).toBe("?ws=w2K-herdr-web-ui&pane=w2K%3Ap1");
+    const link = { machine: "local", workspace: "w2K", workspaceSlug: "my-web-app", pane: "w2K:p1", settings: null, section: null, sidebar: null };
+    expect(linkSearch(link)).toBe("?ws=w2K-my-web-app&pane=w2K%3Ap1");
     expect(readLink(linkSearch(link))).toEqual(link);
     expect(readLink("?ws=w2K")).toMatchObject({ workspace: "w2K", workspaceSlug: null });
   });
@@ -84,10 +84,10 @@ describe("resolving a link", () => {
     panes: panes.map(([pane_id, workspace_id]) => ({ pane_id, workspace_id, focused: false })),
     layouts: [],
   }) as never;
-  const two = roster([["w2", "HERDR WEB UI"], ["w3", "Billing"]], [["w2:p1", "w2"], ["w2:p2", "w2"], ["w3:p1", "w3"]]);
+  const two = roster([["w2", "MY WEB APP"], ["w3", "Billing"]], [["w2:p1", "w2"], ["w2:p2", "w2"], ["w3:p1", "w3"]]);
 
   it("opens the linked pane when it is still in the linked workspace", () => {
-    expect(resolveLink(two, { workspace: "w2", workspaceSlug: "herdr-web-ui", pane: "w2:p2" })).toEqual({ pane: "w2:p2", workspace: "w2", note: null });
+    expect(resolveLink(two, { workspace: "w2", workspaceSlug: "my-web-app", pane: "w2:p2" })).toEqual({ pane: "w2:p2", workspace: "w2", note: null });
     // a renamed workspace keeps its links: no other workspace has the old slug
     expect(resolveLink(two, { workspace: "w3", workspaceSlug: "old-name", pane: "w3:p1" })).toEqual({ pane: "w3:p1", workspace: "w3", note: null });
   });
@@ -97,8 +97,8 @@ describe("resolving a link", () => {
   });
 
   it("follows the slug when herdr has handed the id to another workspace", () => {
-    const reused = roster([["w2", "Billing"], ["w9", "HERDR WEB UI"]], [["w2:p1", "w2"], ["w9:p1", "w9"]]);
-    expect(resolveLink(reused, { workspace: "w2", workspaceSlug: "herdr-web-ui", pane: "w2:p1" })).toEqual({ pane: "w9:p1", workspace: "w9", note: "pane-closed" });
+    const reused = roster([["w2", "Billing"], ["w9", "MY WEB APP"]], [["w2:p1", "w2"], ["w9:p1", "w9"]]);
+    expect(resolveLink(reused, { workspace: "w2", workspaceSlug: "my-web-app", pane: "w2:p1" })).toEqual({ pane: "w9:p1", workspace: "w9", note: "pane-closed" });
   });
 
   it("finds a workspace by slug alone, and says so when nothing it names is open", () => {

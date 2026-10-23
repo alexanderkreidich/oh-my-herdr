@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Locator, type Page } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 
@@ -41,7 +41,7 @@ try {
   await buildDemoApp(app);
   const index = join(app, "index.html");
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, '<script src="./demo-transport.js"></script>\n    <script type="module"'));
-  const prefix = "/herdr-web-ui/demo/app/";
+  const prefix = "/t-rex/demo/app/";
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
@@ -58,7 +58,7 @@ try {
     try {
       const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "en-US" });
       await context.addInitScript((paneMenuSelector) => {
-        localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", terminalInputMode: "line", alertsOn: false }));
+        localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", terminalInputMode: "line", alertsOn: false }));
         const name = (node: EventTarget | null): string => node instanceof Element
           ? node.tagName.toLowerCase() + (typeof node.className === "string" && node.className ? `.${node.className.split(" ")[0]}` : "") : String(node);
         window.__contextmenus = [];

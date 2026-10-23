@@ -5,6 +5,8 @@ dist/
 evidence/
 .omo/
 .gjc/
+# images pasted into a pane (server/paste.ts); .herdr-web-ui/ from before the rename
+.t-rex/
 .herdr-web-ui/
 # a check run's herdr config and state, when CHECK_DIR keeps it in the checkout (scripts/check.ts)
 .ci/
@@ -12,17 +14,5 @@ evidence/
 
 remote-bundles/
 
-# README demo videos: uploaded to GitHub, not committed (docs/development.md)
-docs/screenshots/*.mp4
-
-# the website, assembled by scripts/build-site.ts
-_site/
-
-# film footage and renders, made by scripts/film/
-_film/
-
 # one-off screenshot and probe scripts kept inside the repo so imports resolve
 scripts/*.tmp.ts
-
-# the iOS app's bundled pages and demo, assembled by app/scripts/build-web.ts
-app/www/

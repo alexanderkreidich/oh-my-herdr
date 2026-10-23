@@ -495,7 +495,7 @@ describe("host detection", () => {
       expect(inspection).toMatchObject({
         platform: "win32-x64", home: "C:\\Users\\u", herdrPath: "C:\\Users\\u\\AppData\\Local\\Programs\\Herdr\\bin\\herdr.exe",
         expectedSocket: "C:\\Users\\u\\AppData\\Roaming\\herdr\\sessions\\qa\\herdr.sock",
-        runtimeDir: `C:\\Users\\u\\AppData\\Local\\herdr-web-ui\\remote-v${REMOTE_BUNDLE_VERSION}`, bundleReady: false,
+        runtimeDir: `C:\\Users\\u\\AppData\\Local\\t-rex\\remote-v${REMOTE_BUNDLE_VERSION}`, bundleReady: false,
       });
     }
   });

@@ -119,8 +119,9 @@ describe("DESIGN.md", () => {
  */
 const ICON_VERSIONS: Record<string, { sha256: string; cacheName: string }> = {
   ram1: { sha256: "ed82342db3ec3ed2151ddd2d0d77805233e9251758e29972b4f09aa95602041e", cacheName: "herdr-web-ui-v4-ram" },
+  rex1: { sha256: "312f5f2ff7f0d73806295776ca38c4aea812c54f6e88fab717be91645d0455ec", cacheName: "t-rex-v5-rex" },
 };
-const CURRENT_ICONS = "ram1";
+const CURRENT_ICONS = "rex1";
 
 /** The icon images: dotfiles and other strays in public/icons (a Finder .DS_Store) are not icons. */
 function iconFiles(): string[] {
@@ -176,7 +177,7 @@ describe("UI wording", () => {
   // "Session" means the herdr server session or an agent's history; the dialog that makes a
   // workspace says "New workspace" (AGENTS.md).
   it("says New workspace, never New session", () => {
-    const offenders = [...scan("src/**/*.{ts,tsx}"), ...scan("site/**/*.{ts,tsx,html}"), "index.html"]
+    const offenders = [...scan("src/**/*.{ts,tsx}"), ...scan("demo/**/*.{ts,tsx}"), "index.html"]
       .filter((file) => !file.endsWith(".test.ts"))
       .flatMap((file) => read(file).split("\n").flatMap((line, index) =>
         /^\s*(?:\/\/|\/?\*)/.test(line) || !/\bNew [Ss]ession\b/.test(line) ? [] : [`${file}:${index + 1}: ${line.trim()}`]));

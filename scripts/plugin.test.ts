@@ -70,7 +70,7 @@ describe("plugin settings files", () => {
 
   it("says where settings go when there are none", async () => {
     const run = await status();
-    expect(run.out).toContain(`config: none (settings go in ${join(scratch, ".config", "herdr-web-ui", "env")})`);
+    expect(run.out).toContain(`config: none (settings go in ${join(scratch, ".config", "t-rex", "env")})`);
   });
 });
 
@@ -104,8 +104,8 @@ describe("the herdr socket", () => {
 
 describe("port", () => {
   const keep = (port: number) => {
-    mkdirSync(join(scratch, ".config", "herdr-web-ui"), { recursive: true });
-    writeFileSync(join(scratch, ".config", "herdr-web-ui", "plugin-port"), `${port}\n`);
+    mkdirSync(join(scratch, ".config", "t-rex"), { recursive: true });
+    writeFileSync(join(scratch, ".config", "t-rex", "plugin-port"), `${port}\n`);
   };
 
   it("reports the port an earlier start fell back to", async () => {
@@ -130,7 +130,7 @@ describe("port", () => {
       expect(started.err).toContain(`Set another PORT in ${join(configDir, ".env")}`);
       expect(readFileSync(join(scratch, "state", "server.log"), "utf8")).toContain(`start: port ${holder.port} on 127.0.0.1 cannot be opened`);
       expect(existsSync(join(scratch, "state", "server.pid"))).toBe(false);
-      expect(existsSync(join(scratch, ".config", "herdr-web-ui", "plugin-port"))).toBe(false);
+      expect(existsSync(join(scratch, ".config", "t-rex", "plugin-port"))).toBe(false);
     } finally { await holder.stop(true); }
   });
 
@@ -157,7 +157,7 @@ describe("port", () => {
       try {
         writeFileSync(join(configDir, ".env"), `PORT=${stranger.port}\n`);
         const started = await run("start");
-        expect(started.err).not.toContain("herdr web ui is running");
+        expect(started.err).not.toContain("t-rex is running");
         expect(started.exitCode).toBe(1);
         expect(started.err).toContain(`port ${stranger.port} on 127.0.0.1 cannot be opened`);
       } finally { await stranger.stop(true); }
@@ -188,7 +188,7 @@ describe("port", () => {
       expect(started.out).toContain(`already running at http://127.0.0.1:${ours.port}`);
       expect(started.exitCode).toBe(0);
       expect(readFileSync(join(scratch, "state", "server.pid"), "utf8")).toBe(`${process.pid}\n`);
-      expect(readFileSync(join(scratch, ".config", "herdr-web-ui", "plugin-port"), "utf8")).toBe(`${ours.port}\n`);
+      expect(readFileSync(join(scratch, ".config", "t-rex", "plugin-port"), "utf8")).toBe(`${ours.port}\n`);
     } finally { await Promise.all([ours.stop(true), stranger.stop(true)]); }
   });
 
@@ -209,8 +209,8 @@ describe("port", () => {
       const started = await run("start", { HERDR_PLUGIN_ROOT: scratch });
       expect(started.out).not.toContain("instead");
       expect(started.exitCode).toBe(1);
-      expect(started.err).toContain(`herdr web ui is running at http://127.0.0.1:${ours.port} (pid ${process.pid}) but cannot reach herdr: herdr socket unreachable`);
-      expect(readFileSync(join(scratch, ".config", "herdr-web-ui", "plugin-port"), "utf8")).toBe(`${ours.port}\n`);
+      expect(started.err).toContain(`t-rex is running at http://127.0.0.1:${ours.port} (pid ${process.pid}) but cannot reach herdr: herdr socket unreachable`);
+      expect(readFileSync(join(scratch, ".config", "t-rex", "plugin-port"), "utf8")).toBe(`${ours.port}\n`);
       expect(readFileSync(join(scratch, "state", "server.pid"), "utf8")).toBe(`${process.pid}\n`);
     } finally { await ours.stop(true); }
   }, 40_000);
@@ -234,7 +234,7 @@ describe("port", () => {
       const started = await run("start", { HERDR_PLUGIN_ROOT: scratch });
       expect(started.err).not.toContain("cannot reach herdr");
       expect(started.exitCode).toBe(0);
-      expect(started.out).toContain(`herdr web ui already running at http://127.0.0.1:${ours.port}`);
+      expect(started.out).toContain(`t-rex already running at http://127.0.0.1:${ours.port}`);
     } finally { await ours.stop(true); }
   }, 40_000);
 });
@@ -249,7 +249,7 @@ describe("stop", () => {
     const started = Date.now();
     const stopped = await run("stop");
     expect(stopped.exitCode, stopped.err).toBe(0);
-    expect(stopped.out).toContain(`stopped herdr web ui (pid ${pid})`);
+    expect(stopped.out).toContain(`stopped t-rex (pid ${pid})`);
     expect(Date.now() - started).toBeGreaterThanOrEqual(900);
     expect(() => process.kill(-pid, 0)).toThrow();
     expect(existsSync(join(scratch, "state", "server.pid"))).toBe(false);
@@ -272,7 +272,7 @@ describe("stop", () => {
       const started = Date.now();
       const stopped = await run("stop");
       expect(stopped.exitCode, stopped.err).toBe(0);
-      expect(stopped.out).toContain(`stopped herdr web ui (pid ${pid})`);
+      expect(stopped.out).toContain(`stopped t-rex (pid ${pid})`);
       expect(Date.now() - started).toBeLessThan(5_000);
       expect(existsSync(join(scratch, "state", "server.pid"))).toBe(false);
     } finally { parent.kill("SIGKILL"); }
@@ -280,8 +280,8 @@ describe("stop", () => {
 });
 
 describe("the state dir when run by hand", () => {
-  const legacy = () => join(scratch, ".local", "state", "herdr-web-ui");
-  const managed = (base = join(scratch, ".local", "state")) => join(base, "herdr", "plugins", "devswha.herdr-web-ui");
+  const legacy = () => join(scratch, ".local", "state", "t-rex");
+  const managed = (base = join(scratch, ".local", "state")) => join(base, "herdr", "plugins", "alexanderkreidich.t-rex");
   const pidFile = (dir: string, pid: number) => { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, "server.pid"), `${pid}\n`); };
   const byHand = (extra: Record<string, string | undefined> = {}) => run("status", { HERDR_PLUGIN_STATE_DIR: undefined, PORT: "1", ...extra });
 

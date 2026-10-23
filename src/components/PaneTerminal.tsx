@@ -337,7 +337,7 @@ export function PaneTerminal({
   draftHeldForRef.current = paneId !== null && draftState.owner === paneStorageId(machineId, paneId) && !draftIsEmpty(draft) ? paneId : null;
   useEffect(() => {
     if (!paneId || draftState.owner !== paneStorageId(machineId, paneId)) return;
-    const key = `herdr-web-ui:terminal-draft:${draftState.owner}`;
+    const key = `t-rex:terminal-draft:${draftState.owner}`;
     try { if (draftIsEmpty(draft)) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify({ ...draft, at: Date.now() })); } catch {}
   }, [draftState, paneId, machineId, draft]);
   // transient OSC 52 feedback ("copied") — a pill in the banner column
@@ -1278,7 +1278,7 @@ export function PaneTerminal({
           return;
         }
         // said in the grid itself, over the view's drawing: the next frame is drawn whole
-        term.write(`\r\n\u001b[31m[herdr-web-ui] ${message.code}: ${message.message}\u001b[0m\r\n`);
+        term.write(`\r\n\u001b[31m[t-rex] ${message.code}: ${message.message}\u001b[0m\r\n`);
         view.invalidate();
       }
       setConnected(socket.connected);
@@ -2112,7 +2112,7 @@ export function PaneTerminal({
     // a record past its TTL, an undated one, and a hand-edited one all restore as nothing held
     let saved = EMPTY_DRAFT;
     try {
-      saved = paneId ? restoreDraft(localStorage.getItem(`herdr-web-ui:terminal-draft:${paneStorageId(machineId, paneId)}`), Date.now()) : EMPTY_DRAFT;
+      saved = paneId ? restoreDraft(localStorage.getItem(`t-rex:terminal-draft:${paneStorageId(machineId, paneId)}`), Date.now()) : EMPTY_DRAFT;
     } catch {}
     setDraft(saved);
     draftPaneRef.current = paneId;
@@ -2407,7 +2407,7 @@ export function PaneTerminal({
         )}
         {paneId !== null && !ended && !connected && (
           <div className="terminal-banner terminal-banner-warning" role="status">
-            {t(connectedBefore ? "Reconnecting to oh-my-herdr…" : "Connecting to oh-my-herdr…")}
+            {t(connectedBefore ? "Reconnecting to t-rex…" : "Connecting to t-rex…")}
             {/* one line, cut with an ellipsis: a command is never broken inside a word; the title holds it whole */}
             {draft.text.length > 0 && <span className="draft-held" title={draft.text}> {t("Input held:")} <code>“{draft.text}”</code></span>}
           </div>

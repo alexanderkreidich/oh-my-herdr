@@ -242,7 +242,7 @@ describe("slots", () => {
 
   it("tells runners that share a loopback apart although they check out to one path", async () => {
     const base = await freeRange(3);
-    const path = "/w/herdr-web-ui/herdr-web-ui";
+    const path = "/w/t-rex/t-rex";
     expect(checkoutIdentity(path, {})).toBe(path);
     const first = checkoutIdentity(path, { RUNNER_NAME: "herdr-ci-pc-1" });
     const second = checkoutIdentity(path, { RUNNER_NAME: "herdr-ci-pc-2" });

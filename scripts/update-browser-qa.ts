@@ -55,7 +55,7 @@ try {
     try { return await (await fetch(`${origin}/api/updates`)).json() as UpdateStatus; } catch { return null; }
   };
   await until(async () => (await status())?.managed === true, "Managed server never became ready");
-  const workspace = await workspaceCreate({ cwd: temp, label: "herdr-web-ui-test-update-browser" });
+  const workspace = await workspaceCreate({ cwd: temp, label: "t-rex-test-update-browser" });
   workspaceId = workspace.workspace.workspace_id;
   const paneId = workspace.root_pane.pane_id;
   browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
@@ -82,7 +82,7 @@ try {
     if (summary) writeFileSync(join(upstream, "release-summaries.json"), JSON.stringify({ [version]: { en: { new: [summary] } } }));
   };
   const told = "The QA release, in a line.";
-  // its own section: Unreleased is empty since changelog.d fragments, and an empty release is not told
+  // its own section: Unreleased is empty, and an empty release is not told
   cut("99.0.0", "\n### Fixed\n- The QA release fixes one thing.\n", told);
   await git(upstream, "add", "."); await git(upstream, "commit", "-qm", "QA update"); await git(upstream, "tag", "v99.0.0");
   const next = await git(upstream, "rev-parse", "HEAD");
@@ -126,7 +126,7 @@ try {
   // A reload is explicit. The new frontend's build revision must match the server.
   await page.locator(".update-notice").getByRole("button", { name: "Reload app" }).click();
   // the new version tells of the update: its line opens Settings on what the update brought
-  await page.locator(".update-notice").getByText("herdr web ui was updated to v99.0.0.", { exact: true }).waitFor();
+  await page.locator(".update-notice").getByText("t-rex was updated to v99.0.0.", { exact: true }).waitFor();
   await page.screenshot({ path: join(evidence, "updated-line-desktop.png") });
   await page.locator(".update-notice").getByRole("button", { name: "What's new", exact: true }).click();
   await page.getByRole("region", { name: "What the last update brought", exact: true }).waitFor();

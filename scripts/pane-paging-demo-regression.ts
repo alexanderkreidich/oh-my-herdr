@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
 import { appFaces } from "./app-faces.ts";
@@ -26,7 +26,7 @@ const scrollGeometry = (page: Page) => page.evaluate(() => {
     returnControls: [...document.querySelectorAll<HTMLElement>(".pane-frame.is-current .chat-new-messages")].map((button) => ({ label: button.getAttribute("aria-label"), text: button.textContent, className: button.className, height: button.getBoundingClientRect().height })),
     loading: node.querySelector(".chat-inline-state")?.textContent ?? null };
 });
-// The demo's api pane opens mid-turn and ends that turn 4.5 s later (site/demo/transport.ts): the
+// The demo's api pane opens mid-turn and ends that turn 4.5 s later (demo/transport.ts): the
 // answer lands and the work block folds, so the transcript's height changes under the reader. Paging
 // asserts exact scroll positions, so it starts only once that turn has ended and its fold has settled.
 async function demoTurnEnded(page: Page): Promise<void> {
@@ -72,7 +72,7 @@ try {
     for (const name of ["CONNECTING", "OPEN", "CLOSING", "CLOSED"]) Object.defineProperty(window.WebSocket, name, { value: Demo[name] });
   })();</script>`;
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, () => `<script src="./demo-transport.js"></script>\n${record}\n<script type="module"`));
-  const prefix = "/herdr-web-ui/demo/app/";
+  const prefix = "/t-rex/demo/app/";
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
@@ -93,7 +93,7 @@ try {
       try {
         await fractional.addInitScript(() => {
           Object.defineProperty(navigator, "platform", { configurable: true, value: "iPad" });
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
         });
         const page = await fractional.newPage();
         page.setDefaultTimeout(10000);
@@ -173,7 +173,7 @@ try {
         try {
           await context.addInitScript(() => {
             Object.defineProperty(navigator, "platform", { configurable: true, value: "iPad" });
-            if (localStorage.getItem("herdr-web-ui:settings") === null) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false, chatFontSize: 19 }));
+            if (localStorage.getItem("t-rex:settings") === null) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false, chatFontSize: 19 }));
           });
           const page = await context.newPage();
           page.setDefaultTimeout(10000);

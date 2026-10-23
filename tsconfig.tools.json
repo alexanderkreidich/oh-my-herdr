@@ -23,21 +23,16 @@
     "scripts/terminal-viewport-regression.ts",
     "scripts/pane-find-regression.ts",
     "scripts/cliproxy-settings-regression.ts",
-    "scripts/build-site.ts",
     "scripts/ci-lanes.ts",
     "scripts/ci-tests.ts",
-    "scripts/release-notes.ts",
-    "scripts/release-guards.ts",
-    "scripts/changelog-fold.ts",
-    "site/demo/transport.ts",
+    "demo/transport.ts",
     "scripts/build-remote-bundle.ts",
     "scripts/ssh-integration.ts",
     "scripts/gjc-status-browser-regression.ts",
     "scripts/lan-exposure-notice-regression.ts",
     "scripts/application-paging-regression.ts",
     "scripts/omo-question-wheel-regression.ts",
-    "scripts/pane-paging-demo-regression.ts",
-    "app/scripts/build-web.ts"
+    "scripts/pane-paging-demo-regression.ts"
   ],
   "include": []
 }

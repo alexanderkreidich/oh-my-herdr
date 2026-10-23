@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 
@@ -78,7 +78,7 @@ try {
           ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US", colorScheme: theme }
           : { viewport: { width: 1280, height: 900 }, locale: "en-US", colorScheme: theme });
         try {
-          await context.addInitScript(([value, sidebarRows]) => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme: value, sidebarRows })), [theme, rows] as const);
+          await context.addInitScript(([value, sidebarRows]) => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", theme: value, sidebarRows })), [theme, rows] as const);
           const page = await context.newPage();
           const errors: string[] = [];
           page.on("pageerror", (error) => errors.push(error.message));

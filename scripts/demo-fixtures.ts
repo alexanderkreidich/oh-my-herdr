@@ -1,20 +1,20 @@
 /**
- * Captures what the browser demo (site/demo/transport.ts) serves in place of a server: the machine
+ * Captures what the browser demo (demo/transport.ts) serves in place of a server: the machine
  * roster with herdr's real snapshot shapes, the agent kinds, one pane's slash commands, and the
  * shell pane's terminal output for `git log` and `bun test`, on an 80×24 grid so the recording
  * replays on a phone. Everything comes from the staged, fictional README session
- * (scripts/readme-media/stage.ts), never from the herdr you work in, and the real hostname and
- * login are replaced before anything is written to site/demo/fixtures/.
+ * (scripts/demo-stage.ts), never from the herdr you work in, and the real hostname and
+ * login are replaced before anything is written to demo/fixtures/.
  *
  *   bun scripts/demo-fixtures.ts
  */
 import { hostname, userInfo } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { stage } from "./readme-media/stage.ts";
+import { stage } from "./demo-stage.ts";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.ts";
 
-const OUT = join(import.meta.dir, "../site/demo/fixtures");
+const OUT = join(import.meta.dir, "../demo/fixtures");
 const REAL_HOST = hostname();
 const REAL_USER = userInfo().username;
 const demo = await stage();

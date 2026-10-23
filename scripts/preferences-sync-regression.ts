@@ -17,15 +17,15 @@ const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDi
 const origin = `http://127.0.0.1:${server.port}`;
 
 interface Opened { context: BrowserContext; page: Page; puts: { settings: Record<string, unknown>; pins?: string[] }[] }
-const mainKey = "herdr-web-ui:settings";
+const mainKey = "t-rex:settings";
 const qaDir = process.env["PREFERENCES_QA_DIR"];
 if (qaDir) mkdirSync(qaDir, { recursive: true });
 
 async function browserAt(browser: Awaited<ReturnType<typeof chromium.launch>>, own: Record<string, unknown> = {}, pins: string[] = [], before?: (context: BrowserContext) => Promise<void>): Promise<Opened> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "en-US" });
   await context.addInitScript(([own, pins]) => {
-    if (!localStorage.getItem("herdr-web-ui:settings")) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme: "dark", terminalFontSize: 13, ...own }));
-    if (!localStorage.getItem("herdr-web-ui:sidebar-agent-pins")) localStorage.setItem("herdr-web-ui:sidebar-agent-pins", JSON.stringify(pins));
+    if (!localStorage.getItem("t-rex:settings")) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", theme: "dark", terminalFontSize: 13, ...own }));
+    if (!localStorage.getItem("t-rex:sidebar-agent-pins")) localStorage.setItem("t-rex:sidebar-agent-pins", JSON.stringify(pins));
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
       setItem.call(this, key, value);
@@ -135,7 +135,7 @@ try {
     console.log("QA mode change reached second client");
     assert.deepEqual(a.puts.map((body) => Object.keys(body.settings)), [["theme"]]);
     assert.deepEqual(a.puts[0]?.pins, ["local:w1:pa"]);
-    await storageHolds(b.page, "herdr-web-ui:sidebar-agent-pins", ["local:w1:pa"]);
+    await storageHolds(b.page, "t-rex:sidebar-agent-pins", ["local:w1:pa"]);
 
     await a.page.goto(`${origin}/?settings=terminal`);
     await a.page.getByRole("button", { name: "Increase terminal font size", exact: true }).click();
@@ -143,7 +143,7 @@ try {
     await windows([a, b]);
     assert.equal(a.puts.length, 1);
     await settingsHold(b.page, { terminalFontSize: 13 });
-    const aPins = storageHolds(a.page, "herdr-web-ui:sidebar-agent-pins", ["local:w9:p1"]);
+    const aPins = storageHolds(a.page, "t-rex:sidebar-agent-pins", ["local:w9:p1"]);
     await write({}, ["local:w9:p1"]);
     await aPins;
     console.log("QA device settings and pins verified");

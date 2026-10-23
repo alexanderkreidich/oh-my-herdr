@@ -1,12 +1,12 @@
 # Security
 
-herdr web ui gives a browser the terminals of the PC it runs on. Anyone who gets past its access
+t-rex gives a browser the terminals of the PC it runs on. Anyone who gets past its access
 check can type into them, so a flaw in who gets in is as serious as it gets here.
 
 ## Reporting a vulnerability
 
 Report it privately through
-[GitHub's private vulnerability reporting](https://github.com/devswha/herdr-web-ui/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/alexanderkreidich/t-rex/security/advisories/new).
 Do not open a public issue, pull request or discussion about it.
 
 Include what you can of:
@@ -40,7 +40,7 @@ In scope, for example:
 - the remote-PC path: SSH, the bridge bundle's checksums and the relay (`server/ssh.ts`,
   `server/remote-bundle.ts`, `server/machine-api.ts`, `server/machine-relay.ts`);
 - updates installing anything other than a published release (`server/updater.ts`,
-  `server/supervisor.ts`, `install.sh`);
+  `server/supervisor.ts`);
 - sign-ins the subscription usage strip reads (`server/usage.ts`) leaving the server's PC other than
   to their own provider;
 - push keys and subscriptions (`server/push.ts`).

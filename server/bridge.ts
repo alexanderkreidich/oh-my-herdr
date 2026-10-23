@@ -7,7 +7,7 @@ import { HerdrError, herdrSocketPath, ping } from "./herdr/client.ts";
 import { attachableIdentity, sidecarAvailable } from "./pty/sidecar.ts";
 
 export interface BridgeDescriptor { managed_remote?: boolean; port: number; token: string; pid: number; socket_path: string; bridge_protocol: number; bundle_version: string }
-export function bridgeRegistry(): string { return join(homedir(), ".config/herdr-web-ui/bridges"); }
+export function bridgeRegistry(): string { return join(homedir(), ".config/t-rex/bridges"); }
 export function socketPath(): string {
   const path = resolve(herdrSocketPath());
   try { return realpathSync(path); } catch { return path; }

@@ -68,7 +68,7 @@ function command(argv: string[], cwd = root): void {
   if (result.exitCode !== 0) throw new Error(`${argv[0]} failed: ${result.stderr.toString()}`);
 }
 async function archive(): Promise<void> {
-  const filename = `herdr-web-ui-${platform}.tgz`;
+  const filename = `t-rex-${platform}.tgz`;
   const archive = join(output, filename);
   const temporaryArchive = archive + ".tmp";
   const tar = Bun.spawn(["tar", "czf", temporaryArchive, "-C", stage, "."], { stdout: "inherit", stderr: "inherit" });

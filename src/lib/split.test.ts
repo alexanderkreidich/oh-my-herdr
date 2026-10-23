@@ -119,7 +119,7 @@ describe("split view", () => {
 
 describe("split storage", () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const storageKey = "herdr-web-ui:split";
+  const storageKey = "t-rex:split";
 
   afterEach(() => {
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);

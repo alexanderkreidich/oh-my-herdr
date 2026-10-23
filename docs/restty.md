@@ -61,7 +61,7 @@ copy with denied clipboard permission; history wheel/edge selection; legacy and 
 protocols; composition and Safari/iPad/iPhone event replays; drafts across offline pane switches;
 file/path drop and paste; split panes; WebGL2/Appearance persistence; new tabs; viewport, pinch,
 search, minimal UI and SSP latency. It does not restore the removed chat/header tests or certify
-physical IMEs. Full replacement of upstream's obsolete browser lane remains a Phase 2 task.
+physical IMEs. Full replacement of the obsolete browser lane remains a Phase 2 task.
 
 Canvas tests read `.restty-terminal.screen()` through `scripts/terminal-screen.ts`, rather than
 querying renderer DOM rows. `selection: null` means no selection; `selection: ""` can be a valid

@@ -32,7 +32,7 @@ let stateDir: string;
 let fake: FakePushService;
 
 beforeEach(async () => {
-  stateDir = mkdtempSync(join(tmpdir(), "herdr-web-ui-push-"));
+  stateDir = mkdtempSync(join(tmpdir(), "t-rex-push-"));
   fake = await startFakePushService();
 });
 
@@ -178,7 +178,7 @@ describe("push delivery", () => {
     expect(received!.vapidValid).toBe(true);
     expect(received!.vapidKey).toBe(push.publicKey());
     expect(received!.vapidClaims.aud).toBe(new URL(fake.subscription.endpoint).origin);
-    expect(received!.vapidClaims.sub).toBe("https://github.com/devswha/herdr-web-ui");
+    expect(received!.vapidClaims.sub).toBe("https://github.com/alexanderkreidich/t-rex");
   });
 
   it("keeps equal pane IDs, titles, status baselines and push links separated by PC", async () => {

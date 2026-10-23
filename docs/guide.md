@@ -2,95 +2,35 @@
 
 [← README](../README.md) · [Quick start](#quick-start) · [Supported agents](#supported-agents) · [Features](#features) · [Phone](#on-your-phone) · [Remote PCs](#remote-pcs-over-ssh) · [Access and safety](#access-and-safety) · [Configuration](#configuration) · [Updates](#updates) · [Keyboard shortcuts](#keyboard-shortcuts) · [How it works](#how-it-works) · [FAQ](#faq)
 
-Install, connect and use herdr web ui on your desktop and phone.
-
-## A look around
-
-<table>
-  <tr>
-    <td colspan="2"><img src="media/look-chat.png" alt="Chat view of a Claude Code pane: its &quot;Worked for 2m 36s&quot; block opened into Grep, Read, Edit, Write and Bash rows, above a Markdown answer with a code block and a link."></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><b>Chat</b>: the agent's own transcript, each turn's work folded into one line you can open</td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="media/look-prompt.png" alt="A Codex pane waiting for input: an &quot;Allow command?&quot; card for git push with its three options, answered from the chat."></td>
-    <td width="50%"><img src="media/look-terminal.png" alt="Terminal view of a shell pane: git history and a passing bun test run in the live herdr terminal."></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Answer prompts</b>: approvals and questions become cards, answered from the chat</td>
-    <td align="center"><b>Terminal</b>: the same pane, live, through<br><code>herdr terminal attach</code></td>
-  </tr>
-</table>
-
-<p align="center">
-  <img src="screenshots/demo-mobile.gif" width="219" alt="Phone demo: scrolling a chat, opening the session list, approving a Codex command, the terminal with its key bar, and typing a message.">
-  <img src="screenshots/mobile-chat.png" width="200" alt="Phone chat view of a Claude Code pane.">
-  <img src="screenshots/mobile-terminal.png" width="200" alt="Phone terminal view with the Esc, Tab, Ctrl, arrow and Ctrl+C key bar.">
-  <img src="screenshots/mobile-sessions.png" width="200" alt="Phone session list with Claude Code, Codex, gjc, omo and shell panes and their live status.">
-</p>
-
-<details>
-<summary><b>▶ Watch the demos in HD</b> (desktop 1920×1200, phone 1080×1920)</summary>
-
-https://github.com/user-attachments/assets/4ca73671-ebfc-4c18-b8f2-99331abf9fa7
-
-https://github.com/user-attachments/assets/2f030569-1004-425e-835d-9e775ec6e4c8
-
-</details>
+Install, connect and use t-rex on your desktop and phone.
 
 ## Quick start
 
-> **Want a look first?** [Try it in your browser](https://herdrweb.dev/demo/): the app on a fictional session, nothing to install. Nothing in it is live.
+You need [herdr](https://github.com/herdrdev/herdr) 0.9.0+, [Bun](https://bun.sh) 1.4+ and Node 18+
+(Node runs the terminal sidecar), with herdr installed and running first: start it with `herdr`.
 
-**1. Install it** with one line, on Linux (x64, arm64) or macOS:
+**1. Install it** as a herdr plugin:
 
 ```bash
-curl -fsSL https://herdrweb.dev/install.sh | sh
+herdr plugin install alexanderkreidich/t-rex
 ```
 
-It does, in order, only what is not done yet:
+herdr builds it and starts it along with itself, on `127.0.0.1:7317`, following the socket of the
+current herdr session. When herdr is already running, the app starts now. Choose the plugin's
+**Phone setup** action inside herdr to see the phone address, its QR code and a pairing code.
 
-- **What it runs on.** [herdr](https://github.com/herdrdev/herdr) 0.9.0+, [Bun](https://bun.sh) 1.4+ and Node 18+ (Node runs the terminal sidecar). A missing one is installed for your user only, without sudo: herdr and Bun by their own installers, into `~/.local/bin` and `~/.bun`, and Node 22 from nodejs.org, checked against its published SHA-256, into `~/.local/share/herdr-web-ui/node`. Nothing is compiled.
-- **The app**, as a herdr plugin at the latest release (set `HERDR_WEB_UI_REF` to install another branch or tag): herdr builds it and starts it along with itself, on `127.0.0.1:7317`, following the socket of the current herdr session. When herdr is already running, the app starts now.
-- **The phone address.** When Tailscale runs on this PC, it serves the app to your tailnet (`tailscale serve`, see [On your phone](#on-your-phone)), tells you the command that undoes it, and prints the address as a QR code. Without Tailscale, it says what to set up.
-
-- **The app in your browser.** On a new install, on a PC with a desktop, it opens `http://127.0.0.1:7317` in your browser and says so: click **Install** in the address bar to add the app. It doesn't open anything in CI, over SSH, or when `HERDR_WEB_NO_OPEN=1` is set; then it prints the address instead. Over SSH it prints the tunnel to run from your own computer, `ssh -L 7317:127.0.0.1:7317 <this-pc>`, after which `http://127.0.0.1:7317` there opens the app and its **Install** button.
-
-Run it again at any time, for example after setting up Tailscale: it keeps what is there and prints the address and QR code again.
-
-On a first install it mentions a GitHub star, once, unless the account the [gh CLI](https://cli.github.com) is signed in to has starred the repository already. When gh is signed in and that account has not, it also asks at the terminal whether to star it, and does so only if you answer `y`. It never stars by itself. Without a terminal, as when a script runs it, it does not ask, and a question nobody answers goes on after 20 seconds.
-
-<p align="center">
-  <img src="screenshots/install.png" alt="The installer's output on a PC that had herdr but no Bun or Node: Bun and Node installed, the herdr plugin installed, the app served to the tailnet with the command that undoes it, the phone address, the PC's Tailscale IP, and a QR code that opens the app on the phone" width="760">
-</p>
-
-<sub>A PC named fresh-pc on a sample tailnet (alice@example.com): the names and the QR code are placeholders.</sub>
-
-<details>
-<summary>Other ways to install</summary>
-
-**The plugin alone**, when herdr, Bun and Node are there already. After installing, choose
-the plugin's **Phone setup** action inside herdr to see the address, QR and a pairing code.
+**Or from a checkout:**
 
 ```bash
-herdr plugin install devswha/herdr-web-ui
-```
-
-**From a checkout:**
-
-```bash
-git clone https://github.com/devswha/herdr-web-ui.git
-cd herdr-web-ui
+git clone https://github.com/alexanderkreidich/t-rex.git
+cd t-rex
 bun install
 bun run start
 ```
 
-You need herdr 0.9.0+, Bun 1.4+ and Node 18+, and herdr must be installed and running first: start it with `herdr`. `start` builds the client and runs the server under the update supervisor. It talks to `~/.config/herdr/herdr.sock` unless `HERDR_SOCKET` says otherwise. If herdr isn't running there, the app still opens, but its header shows **herdr offline** and the page says it cannot reach herdr at that socket.
+`start` builds the client and runs the server under the update supervisor. It talks to `~/.config/herdr/herdr.sock` unless `HERDR_SOCKET` says otherwise. If herdr isn't running there, the app still opens, but its header shows **herdr offline** and the page says it cannot reach herdr at that socket.
 
-</details>
-
-**2. Open it** at **http://127.0.0.1:7317**, the address the installer opened. The installed app belongs to that exact address: `localhost:7317` is another address to the browser, so a tab there still offers **Install**. Every workspace of your herdr session is a row in the sidebar, as in herdr's own, led by its project's icon when its folder keeps one (a favicon in the folder, `public/` or `static/`; else an app icon such as Next.js's `app/icon.*` or Electron's `build/icon.png`; else a logo such as `logo.svg` or `assets/logo.png`; the folder is the worktree checkout, or else the pane's working folder, so a pane that has `cd`'d into `src/` looks there) and a folder glyph otherwise (a repository row with worktrees under it is also its fold button: the folder opens and closes with it, and an icon turns into that folder under the pointer; the worktree rows nested under it have no mark); its tabs are always shown in a strip, and the active tab shows all its split panes together. Pick one, open a shell in your home folder with **New workspace** (the sidebar's `+`), or add a shell tab to a workspace with **New tab** (the strip's `+`, or the command palette on a wider screen or with a keyboard). Right-click a tab to rename or close it; on a phone, tap the selected tab’s **⋯** for a trimmed menu with pane actions, Rename tab and Close tab. A focused tab also opens its menu with Shift+F10, and double-click still renames it.
+**2. Open it** at **http://127.0.0.1:7317**. The installed app belongs to that exact address: `localhost:7317` is another address to the browser, so a tab there still offers **Install**. Every workspace of your herdr session is a row in the sidebar, as in herdr's own, led by its project's icon when its folder keeps one (a favicon in the folder, `public/` or `static/`; else an app icon such as Next.js's `app/icon.*` or Electron's `build/icon.png`; else a logo such as `logo.svg` or `assets/logo.png`; the folder is the worktree checkout, or else the pane's working folder, so a pane that has `cd`'d into `src/` looks there) and a folder glyph otherwise (a repository row with worktrees under it is also its fold button: the folder opens and closes with it, and an icon turns into that folder under the pointer; the worktree rows nested under it have no mark); its tabs are always shown in a strip, and the active tab shows all its split panes together. Pick one, open a shell in your home folder with **New workspace** (the sidebar's `+`), or add a shell tab to a workspace with **New tab** (the strip's `+`, or the command palette on a wider screen or with a keyboard). Right-click a tab to rename or close it; on a phone, tap the selected tab’s **⋯** for a trimmed menu with pane actions, Rename tab and Close tab. A focused tab also opens its menu with Shift+F10, and double-click still renames it.
 
 Drag a tab to change its order within the workspace, or choose **Move tab left / right** from
 its menu (also on a phone). Alt+Shift+Left/Right moves a focused tab. Reordering keeps the
@@ -110,16 +50,16 @@ list then opens in the active half only, and the focus stays there. Both halves 
 tab, and you type in whichever half is active; the other half shows that tab at the active half's size.
 
 
-**3. Take it with you.** Scan the installer's QR code with a phone signed in to the same Tailscale account, then install the app from the browser. See [On your phone](#on-your-phone).
+**3. Take it with you.** Scan the QR code of **Phone setup** with a phone signed in to the same Tailscale account, then install the app from the browser. See [On your phone](#on-your-phone).
 
 ### In a terminal
 
-**The phone address, again:** run the one-line installer again. On a PC where the app is installed it installs nothing and prints the address and its QR code, serving the app to your tailnet first if nothing does yet. It finds the version that actually runs: herdr's plugin directory keeps the version first installed, and **Settings → Updates** runs newer ones from `~/.config/herdr-web-ui/updates`. From a checkout, `bun scripts/plugin.ts phone` does the same.
+**The phone address, again:** choose the plugin's **Phone setup** action, or run `bun scripts/plugin.ts phone` from a checkout. It prints the address and its QR code, serving the app to your tailnet first if nothing does yet.
 
 **A pairing code, on a PC with no browser of its own:**
 
 ```bash
-root=$(herdr plugin list --json | bun -e 'const d = JSON.parse(await Bun.stdin.text()); console.log(d.result.plugins.find((p) => p.plugin_id === "devswha.herdr-web-ui")?.plugin_root ?? "")')
+root=$(herdr plugin list --json | bun -e 'const d = JSON.parse(await Bun.stdin.text()); console.log(d.result.plugins.find((p) => p.plugin_id === "alexanderkreidich.t-rex")?.plugin_root ?? "")')
 bun "$root/scripts/plugin.ts" pair   # plugin install
 bun scripts/plugin.ts pair           # from a checkout
 ```
@@ -127,23 +67,23 @@ bun scripts/plugin.ts pair           # from a checkout
 `pair` prints the code, the address the phone opens when Tailscale serves one, and that address as a QR code. Neither is a herdr action: herdr keeps an action's output in its log, and a pairing code belongs on the screen. The actions start, stop and report on the server:
 
 ```bash
-herdr plugin action invoke devswha.herdr-web-ui.start    # leaves a running server alone
-herdr plugin action invoke devswha.herdr-web-ui.status
-herdr plugin action invoke devswha.herdr-web-ui.phone    # visible phone setup pane
-herdr plugin action invoke devswha.herdr-web-ui.stop
+herdr plugin action invoke alexanderkreidich.t-rex.start    # leaves a running server alone
+herdr plugin action invoke alexanderkreidich.t-rex.status
+herdr plugin action invoke alexanderkreidich.t-rex.phone    # visible phone setup pane
+herdr plugin action invoke alexanderkreidich.t-rex.stop
 ```
 
-Its PID and log live under `HERDR_PLUGIN_STATE_DIR`. For persistent settings (see [Configuration](#configuration)), add `KEY=value` lines to the `env` file (no dot) in the directory that `herdr plugin config-dir devswha.herdr-web-ui` prints. A plugin checkout from 0.3.25 on also reads `.env` there, which wins where both set a key; an older one needs a plugin reinstall first, since in-app updates do not replace the checkout. The plugin's `status` prints the files it read. Protect that file if it holds a token.
+Its PID and log live under `HERDR_PLUGIN_STATE_DIR`. For persistent settings (see [Configuration](#configuration)), add `KEY=value` lines to the `env` file (no dot) in the directory that `herdr plugin config-dir alexanderkreidich.t-rex` prints. A plugin checkout from 0.3.25 on also reads `.env` there, which wins where both set a key; an older one needs a plugin reinstall first, since in-app updates do not replace the checkout. The plugin's `status` prints the files it read. Protect that file if it holds a token.
 
 ### Uninstall
 
 ```bash
-herdr plugin action invoke devswha.herdr-web-ui.stop
-herdr plugin uninstall devswha.herdr-web-ui
-tailscale serve --https=<port> off    # the port the installer printed, if it served the app
+herdr plugin action invoke alexanderkreidich.t-rex.stop
+herdr plugin uninstall alexanderkreidich.t-rex
+tailscale serve --https=<port> off    # the port Phone setup printed, if it served the app
 ```
 
-The installer's herdr, Bun and Node stay, since other tools may use them: `~/.local/bin/herdr`, `~/.bun`, and `~/.local/share/herdr-web-ui/node` with its link `~/.local/bin/node`. Push keys, paired devices and the identity file that owns the app's Portal address are in `~/.config/herdr-web-ui`.
+Push keys, paired devices and the identity file that owns the app's Portal address are in `~/.config/t-rex`.
 
 ## Supported agents
 
@@ -283,7 +223,7 @@ Serve the app over **HTTPS** to install it and receive push alerts. The simplest
 tailscale serve --bg --https=443 http://127.0.0.1:7317
 ```
 
-The one-line installer runs this for you when Tailscale runs on the PC and does not serve the app yet, on the first free port of 443, 8443, 7317 and 17317, and prints the command that undoes it. On Linux, `tailscale serve` needs root or `sudo tailscale set --operator=$USER` once; the installer says so when Tailscale refuses.
+**Phone setup** runs this for you when Tailscale runs on the PC and does not serve the app yet, on the first free port of 443, 8443, 7317 and 17317, and prints the command that undoes it. On Linux, `tailscale serve` needs root or `sudo tailscale set --operator=$USER` once; Phone setup says so when Tailscale refuses.
 
 Only devices in your tailnet can open that address. Your own devices get in without a code as it is: `tailscale serve` states your login. If your own phone is asked to pair anyway, `HERDR_WEB_TAILSCALE_SERVE_ONLY=1` lets it in without a code on a tailnet one login owns, and only when nothing else, such as a public reverse proxy or tunnel, reaches this port (see [Access and safety](#access-and-safety)). Devices that belong to someone else pair with a six-digit code.
 
@@ -319,7 +259,7 @@ On a phone:
   pane is open. It is off by default, releases when the app is hidden, and resumes when
   you return. It needs HTTPS or localhost and browser support; power-saving mode may refuse it.
 
-On a computer, install the app from `http://127.0.0.1:7317`. When the app runs on a PC you reach over SSH, tunnel to it first with `ssh -L 7317:127.0.0.1:7317 <this-pc>` and open that address on your own computer; the installer prints this line when you install over SSH.
+On a computer, install the app from `http://127.0.0.1:7317`. When the app runs on a PC you reach over SSH, tunnel to it first with `ssh -L 7317:127.0.0.1:7317 <this-pc>` and open that address on your own computer.
 
 A plain HTTP LAN address also works in the browser, but it can't install the app or receive push.
 
@@ -457,7 +397,7 @@ At startup, the app waits for any recorded Portal process to stop before answeri
 
 **Sign out** in Settings → Devices clears, after asking once, this browser's token and device cookies; terminal sessions and agents keep running. It is shown when this browser signed in with the token or as a paired device, not when a proxy sends the token in the `Authorization` header (sign out at the proxy) or for automatic local or Tailscale access.
 
-If `devices.json` under `HERDR_WEB_STATE_DIR` (default `~/.config/herdr-web-ui`) is corrupt or unreadable, the server keeps unrecognized external clients out and preserves the file. Local access and the owner's trusted Tailscale login without a configured token, and a valid token, still work. Settings → Phone & devices and the server log explain the error. Restore a valid registry from backup or fix its permissions, then restart; pairing and device changes remain disabled until it is repaired.
+If `devices.json` under `HERDR_WEB_STATE_DIR` (default `~/.config/t-rex`) is corrupt or unreadable, the server keeps unrecognized external clients out and preserves the file. Local access and the owner's trusted Tailscale login without a configured token, and a valid token, still work. Settings → Phone & devices and the server log explain the error. Restore a valid registry from backup or fix its permissions, then restart; pairing and device changes remain disabled until it is repaired.
 
 Nothing is typed without you:
 - Input typed while disconnected waits as a draft for you to send or discard.
@@ -474,13 +414,13 @@ Observe connections cannot take a pane, and a displaced bridge never takes it ba
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Bind address. Use `0.0.0.0` or a LAN address only with `HERDR_WEB_TOKEN` set or once a device is paired: until then that address is open to anyone who reaches it (see [Access and safety](#access-and-safety)). |
-| `PORT` | `7317` | HTTP and WebSocket port. Left unset, the plugin takes the next of 17317, 27317, 37317 and 47317 when 7317 cannot be opened (another program has it, or Windows reserves it for Hyper-V, WSL2 or Docker), keeps that port for later starts, and the installer and the **herdr web ui status** action print the address. A port set here is never changed |
+| `PORT` | `7317` | HTTP and WebSocket port. Left unset, the plugin takes the next of 17317, 27317, 37317 and 47317 when 7317 cannot be opened (another program has it, or Windows reserves it for Hyper-V, WSL2 or Docker), keeps that port for later starts, and the **t-rex status** action prints the address. A port set here is never changed |
 | `HERDR_SOCKET` | `~/.config/herdr/herdr.sock` | herdr socket for API calls and terminal attach. For a named session, use `~/.config/herdr/sessions/<name>/herdr.sock`. A plugin install follows the socket of the herdr session that starts it; set `HERDR_SOCKET` in the plugin's config to pin another one, and that setting wins. |
 | `HERDR_WEB_TOKEN` | unset | Shared token for scripts and proxies. Once set, every client that is not a paired device needs it, this computer and your own Tailscale login included |
 | `HERDR_WEB_CSP` | unset (enforced) | `report-only` sends the policy as `Content-Security-Policy-Report-Only`: the browser reports what it would block and the app keeps working. Used to measure the policy after a change |
 | `HERDR_WEB_TAILSCALE_OWNER` | this PC's Tailscale login | The Tailscale login that gets in through `tailscale serve` without pairing. Set it on a PC whose Tailscale node is tagged, which has no login of its own |
 | `HERDR_WEB_TAILSCALE_SERVE_ONLY` | unset (off) | `1` declares `tailscale serve` the only way anything reaches this port. Then the owner's own device gets in through serve without a code, on a tailnet one login owns with no tagged node. Enable it only when no public reverse proxy, tunnel or other forwarding server exposes this port: a visitor through one would otherwise get the owner's access |
-| `HERDR_WEB_STATE_DIR` | `~/.config/herdr-web-ui` | Push keys, device subscriptions, PC registrations, update builds and the app's Portal identity |
+| `HERDR_WEB_STATE_DIR` | `~/.config/t-rex` | Push keys, device subscriptions, PC registrations, update builds and the app's Portal identity |
 | `HERDR_WEB_OPENAI_API_KEY` | unset | OpenAI API key for [voice input](#voice-input). Set here, it cannot be changed from the app |
 | `HERDR_WEB_OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API root for voice input |
 | `HERDR_WEB_AUTO_UPDATE` | `0` | `1` installs new releases without asking |
@@ -488,7 +428,7 @@ Observe connections cannot take a pane, and a displaced bridge never takes it ba
 | `HERDR_WEB_BUNDLE_MANIFEST` | unset | Remote-PC bundle manifest (path or URL) that overrides local and published bundles |
 | `HERDR_WEB_HERDR_BIN` | `herdr` | herdr executable used for terminal attach |
 | `HERDR_WEB_APP_NAME` | unset (`herdr`) | The name the installed app has on a phone or computer, for example the PC's name. Each PC installs as an app of its own, and without it they are all called `herdr`. An app already installed takes the new name when the browser next updates it, usually within a day or two, without a reinstall. Keep it short: a home screen cuts a long label |
-| `HERDR_WEB_PASTE_DIR` | `<pane cwd>/.herdr-web-ui` | Where pasted and attached files are saved: an absolute path or `~/…`. Set it to keep them out of your projects; an agent may then ask before reading one. It covers the panes of this server's PC; a remote PC keeps the default |
+| `HERDR_WEB_PASTE_DIR` | `<pane cwd>/.t-rex` | Where pasted and attached files are saved: an absolute path or `~/…`. Set it to keep them out of your projects; an agent may then ask before reading one. It covers the panes of this server's PC; a remote PC keeps the default |
 | `HERDR_WEB_MEDIA_ROOTS` | unset | Folders besides its own that a rendered HTML page may play a video or sound from, through a symlink beside it or a `../` link: absolute paths separated by `:` (`;` on Windows), for example a network share where recordings are kept. Any page can then find out which files exist there. Unset, a page plays its large videos only from its own folder, so a page that came with its own symlinks cannot find out which of this PC's files exist. A large video plays from an address made for that render: it works only from the device's network address that opened the page, for 30 minutes (reload the page after that), and stops when that device is revoked or signs out. The page's own script can read that address and share it, so for those 30 minutes anyone behind the same network address can play that file too |
 | `CODEX_HOME` | `~/.codex` | Where Codex sessions are read |
 
@@ -498,13 +438,13 @@ Observe connections cannot take a pane, and a displaced bridge never takes it ba
 
 An update is built and typechecked in a private checkout while the current server keeps serving. The new server must pass a health check, or the previous build comes back. herdr and your agents keep running, and a **Reload app** notice lets you save drafts before the new frontend loads.
 
-After a herdr plugin reinstall, or a `git pull` and a build, in the checkout the app runs from, reloading the page cannot bring the update in: the server keeps running its old code. The page says so on its next status read, in place of the **Reload app** notice, and asks you to restart herdr web ui on the PC. The notice goes away once it restarts:
+After a herdr plugin reinstall, or a `git pull` and a build, in the checkout the app runs from, reloading the page cannot bring the update in: the server keeps running its old code. The page says so on its next status read, in place of the **Reload app** notice, and asks you to restart t-rex on the PC. The notice goes away once it restarts:
 
 ```sh
-herdr plugin action invoke devswha.herdr-web-ui.stop    # plugin install
-herdr plugin action invoke devswha.herdr-web-ui.start
-herdr plugin action invoke devswha.herdr-web-ui.stop-windows    # on Windows
-herdr plugin action invoke devswha.herdr-web-ui.start-windows
+herdr plugin action invoke alexanderkreidich.t-rex.stop    # plugin install
+herdr plugin action invoke alexanderkreidich.t-rex.start
+herdr plugin action invoke alexanderkreidich.t-rex.stop-windows    # on Windows
+herdr plugin action invoke alexanderkreidich.t-rex.start-windows
 ```
 
 From a checkout, stop `bun run start` and run it again.
@@ -523,7 +463,7 @@ This is for Linux and macOS. On Windows, and for a remote PC, update herdr on th
 
 ## Usage privacy
 
-This fork does not collect or send installation, update or daily activity counts. The upstream sender, tracking ID, settings projection, API, controls and receiver have been removed. Existing `telemetry.json` files from older versions are not read or sent; they may be deleted manually. No opt-out environment variable is needed.
+t-rex does not collect or send installation, update or daily activity counts. The usage sender of the client it began from, its tracking ID, settings projection, API, controls and receiver have been removed. Existing `telemetry.json` files from older versions are not read or sent; they may be deleted manually. No opt-out environment variable is needed.
 
 Optional integrations and the updater have separate network behavior. See [the source audit](security-audit.md) for destinations, credential access and remaining upstream trust boundaries.
 
@@ -611,7 +551,7 @@ flowchart LR
     B[Browser / phone app]
   end
   subgraph pc [This PC]
-    S[herdr web ui<br/>Bun server]
+    S[t-rex<br/>Bun server]
     H[(herdr server)]
     A[Agents in herdr panes<br/>Claude Code, Codex, …]
     T[(Agent session files)]
@@ -657,7 +597,7 @@ No, but a phone needs two things Tailscale gives at once: a way to reach the PC 
 <details>
 <summary><b>Does my code or conversation leave my machine?</b></summary>
 
-Session files stay on the PC running each agent, and their contents are sent to browsers connected to the app. herdr web ui has no hosted relay or account service of its own. The agents' own connections to model providers depend on their configuration.
+Session files stay on the PC running each agent, and their contents are sent to browsers connected to the app. t-rex has no hosted relay or account service of its own. The agents' own connections to model providers depend on their configuration.
 
 Optional features can send data off the PC:
 - [Voice input](#voice-input) sends recordings to the configured transcription provider; polishing also sends the transcribed text. Without a configured API key, browser speech recognition may use the browser vendor's service.
@@ -678,7 +618,7 @@ The chat needs the agent's own session file. Check that the agent runs in a herd
 <details>
 <summary><b>The colors look too dark, or the light theme looks dark, in Samsung Internet.</b></summary>
 
-Samsung Internet has a forced dark mode that repaints every page, including one that brings its own light and dark themes, as this app does. A light theme comes out dark, and a dark one is darkened a second time: similar shades run together, and the bars of the plan meters can look empty. Turn off **Force dark mode for web content** (**웹 콘텐츠에 어두운 화면 모드 강제 적용**) in Samsung Internet's settings, or open the app in Chrome. Reported on a Galaxy Tab S7+ ([#451](https://github.com/devswha/herdr-web-ui/issues/451)).
+Samsung Internet has a forced dark mode that repaints every page, including one that brings its own light and dark themes, as this app does. A light theme comes out dark, and a dark one is darkened a second time: similar shades run together, and the bars of the plan meters can look empty. Turn off **Force dark mode for web content** (**웹 콘텐츠에 어두운 화면 모드 강제 적용**) in Samsung Internet's settings, or open the app in Chrome. Reported on a Galaxy Tab S7+ ([#451](https://github.com/alexanderkreidich/t-rex/issues/451)).
 </details>
 
 <details>
@@ -686,11 +626,11 @@ Samsung Internet has a forced dark mode that repaints every page, including one 
 
 All three are in the herdr plugin marketplace too, and each does something this app does not. [collie](https://github.com/AltanS/collie) is a mobile terminal for herdr, tmux and zellij, with a status dashboard, a key pad, quick replies and voice input, served over Tailscale by its own bridge. [roamgate](https://github.com/powerfooI/roamgate) is a browser client for herdr with a file explorer and diff annotations, installed by its own script. [herdr-remote](https://github.com/dcolinmorgan/herdr-remote) is a macOS menu-bar app with a phone dashboard and a Telegram bot behind a relay and a free tunnel.
 
-herdr web ui reads the agent's own transcript, so Claude Code, Codex, omp, omo, gjc, pi, OpenCode and identifiable Devin CLI panes are a chat with the work folded per turn. Supported prompt cards are checked against the live menu before an answer is typed; Devin prompts use Terminal. The terminal is the same live pane as your TUI, other PCs join over SSH from the sidebar, and it installs and updates as a herdr plugin, with no server or account of its own. It brings no tunnel: you reach it over Tailscale, SSH or your own HTTPS proxy. If you want tmux or zellij, diffs, Telegram or a tunnel out of the box, one of the others is the better fit.
+t-rex reads the agent's own transcript, so Claude Code, Codex, omp, omo, gjc, pi, OpenCode and identifiable Devin CLI panes are a chat with the work folded per turn. Supported prompt cards are checked against the live menu before an answer is typed; Devin prompts use Terminal. The terminal is the same live pane as your TUI, other PCs join over SSH from the sidebar, and it installs and updates as a herdr plugin, with no server or account of its own. It brings no tunnel: you reach it over Tailscale, SSH or your own HTTPS proxy. If you want tmux or zellij, diffs, Telegram or a tunnel out of the box, one of the others is the better fit.
 </details>
 
 <details>
 <summary><b>How is this different from Happy, Paseo or CloudCLI UI?</b></summary>
 
-Those projects start and manage agents through their own wrapper, daemon or server, and bring their own apps. herdr web ui adds nothing between you and the agent. It is a window onto the herdr sessions you already run, so the same pane is live in your terminal, your browser and your phone at once. If you don't use herdr, one of those is the better fit.
+Those projects start and manage agents through their own wrapper, daemon or server, and bring their own apps. t-rex adds nothing between you and the agent. It is a window onto the herdr sessions you already run, so the same pane is live in your terminal, your browser and your phone at once. If you don't use herdr, one of those is the better fit.
 </details>

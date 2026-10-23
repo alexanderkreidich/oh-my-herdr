@@ -9,7 +9,7 @@ User instruction: hello
 
 ---
 name: probe-skill
-description: Probe skill for herdr-web-ui fixtures.
+description: Probe skill for t-rex fixtures.
 ---
 
 Reply with the single word PROBED.
@@ -21,7 +21,7 @@ Resolve any relative paths in this skill (e.g. `scripts/foo.js`, `templates/conf
 
 ---
 name: probe-skill-two
-description: Second probe skill for herdr-web-ui fixtures.
+description: Second probe skill for t-rex fixtures.
 ---
 
 Reply with the single word BUNDLED.

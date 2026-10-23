@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { chromium, type CDPSession, type Locator, type Page } from "playwright-core";
 import type { KeyBarItem } from "../src/lib/keyBar.ts";
 import { KEY_REPEAT_DELAY_MS, KEY_REPEAT_INTERVAL_MS } from "../src/lib/keyRepeat.ts";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 
 // Production client over the demo's synthetic transport. The disposable app only listens on
@@ -90,7 +90,7 @@ try {
 
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    const prefix = "/herdr-web-ui/demo/app/";
+    const prefix = "/t-rex/demo/app/";
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
     let file: string;
     try { file = decodeURIComponent(path.slice(prefix.length)); }
@@ -106,13 +106,13 @@ try {
       const context = await browser.newContext({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true, locale: "en-US" });
       try {
         await context.addInitScript(({ pane, items }) => {
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalInputMode: "direct", keyBarItems: items }));
-          localStorage.setItem(`herdr-web-ui:view:${pane}`, "terminal");
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", terminalInputMode: "direct", keyBarItems: items }));
+          localStorage.setItem(`t-rex:view:${pane}`, "terminal");
         }, { pane: panes.api, items: keyBarItems });
         const page = await context.newPage();
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
+        await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await page.locator(".conn-live").waitFor({ state: "attached" });
         await page.waitForFunction(() => document.querySelector<HTMLButtonElement>('.key-bar .key[data-key="ArrowLeft"]')?.disabled === false, undefined, { timeout: 5_000 });
         await page.locator(".terminal-ime").focus();
@@ -249,13 +249,13 @@ try {
       });
       try {
         await iphone.addInitScript(({ pane }) => {
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalInputMode: "direct" }));
-          localStorage.setItem(`herdr-web-ui:view:${pane}`, "terminal");
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", terminalInputMode: "direct" }));
+          localStorage.setItem(`t-rex:view:${pane}`, "terminal");
         }, { pane: panes.api });
         const page = await iphone.newPage();
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.api)}`);
+        await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.api)}`);
         await page.locator(".conn-live").waitFor({ state: "attached" });
         await page.waitForFunction(() => document.querySelector<HTMLButtonElement>('.key-bar .key[data-key="ArrowLeft"]')?.disabled === false, undefined, { timeout: 5_000 });
         const helper = page.locator(".pane-frame.is-current .terminal-ime");

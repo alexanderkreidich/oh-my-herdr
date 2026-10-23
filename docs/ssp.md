@@ -29,7 +29,7 @@ screen it names, keeps the screens from `throwaway` on, draws the newest, and an
 the client takes its `echo` and `rtt` all the same.
 
 A remote PC's panes are synced by that PC's own bridge, over the SSH link (docs/remote-pcs.md), so
-the PC must run this fork's bridge: upstream's (bundle versions below 1000) has no `ssp` feature,
+the PC must run t-rex's bridge: an older one (bundle versions below 1000) has no `ssp` feature,
 and its panes stream raw bytes with no local echo.
 
 - **Latest state wins.** The sender diffs from the newest screen the client is assumed to have:
@@ -124,9 +124,9 @@ herdr session of its own), the same typing measured:
 
 | Bridge on the PC | First key of the line | Every key after it |
 |---|---:|---:|
-| upstream's (bundle 31), raw stream, to the bytes' arrival (before drawing) | 73–78 ms | 69–188 ms (median 76) |
-| this fork's, SSP with local echo | 89–98 ms | 32 ms (the next frame) |
-| this fork's, a key every 110 ms | 87–91 ms | 2–35 ms |
+| an older one (bundle 31), raw stream, to the bytes' arrival (before drawing) | 73–78 ms | 69–188 ms (median 76) |
+| t-rex's, SSP with local echo | 89–98 ms | 32 ms (the next frame) |
+| t-rex's, a key every 110 ms | 87–91 ms | 2–35 ms |
 
 ## The PTY sidecar
 

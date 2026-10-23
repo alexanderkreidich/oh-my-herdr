@@ -33,13 +33,13 @@ const { createServer } = await import("../server/index.ts");
 const { UsageService } = await import("../server/usage.ts");
 
 const repo = realpathSync(join(import.meta.dir, ".."));
-const SEED_LABEL = "restty-herdr";
+const SEED_LABEL = "t-rex";
 
 /** One workspace with a few tabs, made once per herdr session and reused after. */
 async function seed(): Promise<void> {
   const snapshot = await sessionSnapshot();
   // test-herdr.ts keeps a resident workspace in an empty session; the seed stands in for it
-  const resident = snapshot.workspaces.filter((workspace) => workspace.label === "herdr-web-ui-test-resident");
+  const resident = snapshot.workspaces.filter((workspace) => workspace.label === "t-rex-test-resident");
   if (snapshot.workspaces.some((workspace) => workspace.label === SEED_LABEL)) {
     for (const workspace of resident) await workspaceClose(workspace.workspace_id);
     return;
@@ -72,7 +72,7 @@ if (shot === undefined) {
   const browser = await chromium.launch({ executablePath: chromePath(), args: ["--lang=en-US"] });
   try {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2, colorScheme: flag("--theme") === "light" ? "light" : "dark", locale: "en-US" });
-    await page.addInitScript((theme) => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", theme })), flag("--theme") === "light" ? "light" : "dark");
+    await page.addInitScript((theme) => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", theme })), flag("--theme") === "light" ? "light" : "dark");
     await page.goto(origin);
     await page.waitForSelector(".terminal-host", { timeout: 20_000 });
     await page.waitForTimeout(Number(flag("--wait") ?? 1500));

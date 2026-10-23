@@ -12,7 +12,7 @@ import { CHAT_WIDTHS, DICTATION_LANGUAGES, DIFF_STYLES, MARKDOWN_WIDTHS, VOICE_B
 type Settings = Omit<CurrentSettings, "darkTheme" | "lightTheme" | "fileOpen" | "webLinks" | "showRemotePcs" | "claudeLaunchMode" | "codexLaunchMode" | "terminalLigatures" | "terminalRenderer" | "terminalThemeName" | "focusMode">;
 type Palette = "amber" | "charcoal" | "catppuccin";
 const PALETTES: readonly Palette[] = ["amber", "charcoal", "catppuccin"];
-const STORAGE_KEY = "herdr-web-ui:settings";
+const STORAGE_KEY = "t-rex:settings";
 export const DEFAULT_SETTINGS: Settings = {
   terminalInputMode: "auto",
   keyBarExtras: ["alt"],

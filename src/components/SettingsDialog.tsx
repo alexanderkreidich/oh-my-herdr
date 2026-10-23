@@ -5,7 +5,6 @@ import "./SettingsDialog.css";
 
 import type { AppActions } from "../lib/actions.ts";
 import { useInstallPrompt } from "../lib/install.ts";
-import { changePc, inNativeApp } from "../lib/nativeApp.ts";
 import { SHORTCUTS, bindingDisplayKeys, formatKeys, isMacPlatform, setShortcutRecording, shortcutDisplayKeys, shortcutKeys, shortcutConflict, type ShortcutId } from "../lib/shortcuts.ts";
 import { MENU_SHORTCUT_KEYS, recordShortcut, shortcutMatchesQuery } from "../lib/shortcutRecorder.ts";
 import { exactChordRisk, isReservedShortcutKey, parseExactChord } from "../lib/shortcutBindings.ts";
@@ -764,8 +763,6 @@ function DevicesPage({ auth, onSignOut }: { auth: HealthAuth | null; onSignOut: 
   const { settings, update } = useSettings();
   const t = useT();
   const installPrompt = useInstallPrompt();
-  // the iOS app (app/) holds this page: its way back to the app's list of PCs
-  const nativeApp = inNativeApp();
   // the server says what Tailscale on its PC already serves
   const [access, setAccess] = useState<RemoteAccess | null | undefined>(undefined);
   const loadAccess = useCallback(() => {
@@ -782,11 +779,6 @@ function DevicesPage({ auth, onSignOut }: { auth: HealthAuth | null; onSignOut: 
   return (
     <>
       <SettingsGroup title={t("Phone")} section="phone">
-        {nativeApp && (
-          <SettingsRow label={t("Change PC")} description={window.location.protocol === "capacitor:" ? t("This is the demo. Go back to the app's list of PCs to open yours.") : t("This app shows {address}. Go back to its list of PCs to open another.", { address: window.location.host })}>
-            <button type="button" className="btn" onClick={() => void changePc()}>{t("Change PC")}</button>
-          </SettingsRow>
-        )}
         <div className="settings-item"><PhonePanel plan={plan} loading={access === undefined} onRefresh={loadAccess} /></div>
         <SettingsRow label={t("Keep screen on")} description={<>{t("While a terminal is open.")}{wakeLockProblem !== null && <span className="settings-condition">{wakeLockProblem}</span>}</>}>
           <Toggle label={t("Keep screen on")} checked={settings.keepScreenOn} onChange={(keepScreenOn) => update({ keepScreenOn })} />
@@ -872,10 +864,10 @@ function AboutPage({ updates, herdrVersion, bridgesFollow }: { updates: UpdatesM
       <SettingsGroup title={t("About")} className="settings-about" section="about">
         <div className="settings-row">
           <div className="settings-row-text">
-            <span className="settings-label">oh-my-herdr</span>
-            <a className="settings-link" href="https://herdrweb.dev/" target="_blank" rel="noreferrer">herdrweb.dev</a>
+            <span className="settings-label">t-rex</span>
+            <span className="settings-description">{t("Built like Superlogical's Rex, on herdr and restty.")}</span>
           </div>
-          <a className="btn" href="https://github.com/devswha/herdr-web-ui" target="_blank" rel="noreferrer"><Star aria-hidden="true" />{t("Star on GitHub")}</a>
+          <a className="btn" href="https://github.com/alexanderkreidich/t-rex" target="_blank" rel="noreferrer"><Star aria-hidden="true" />{t("Star on GitHub")}</a>
         </div>
       </SettingsGroup>
     </>

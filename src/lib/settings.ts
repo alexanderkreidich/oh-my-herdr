@@ -304,8 +304,8 @@ export function alertPrefs(settings: Settings): AlertPrefs {
   return { input: settings.alertInput, done: settings.alertDone };
 }
 
-const STORAGE_KEY = "herdr-web-ui:settings";
-const THEMES_STORAGE_KEY = "herdr-web-ui:themes";
+const STORAGE_KEY = "t-rex:settings";
+const THEMES_STORAGE_KEY = "t-rex:themes";
 export const TERMINAL_FONT_MIN = 10;
 export const TERMINAL_FONT_MAX = 22;
 export const TERMINAL_WHEEL_SPEED_MIN = 1;

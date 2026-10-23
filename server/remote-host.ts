@@ -1,7 +1,7 @@
 /**
  * What setup does on a PC, in that PC's own shell. A Linux or macOS host runs sh; a
  * Windows host runs PowerShell (OpenSSH there defaults to cmd, which cannot even find
- * `sh`). Both keep the same contract: the bridge registry under ~/.config/herdr-web-ui,
+ * `sh`). Both keep the same contract: the bridge registry under ~/.config/t-rex,
  * one runtime directory per bundle version, and a descriptor per herdr socket.
  *
  * Windows differs in three places that are easy to get wrong:
@@ -21,9 +21,9 @@ import type { SshConnection } from "./ssh.ts";
 import { psQuote } from "./powershell.ts";
 
 export const REMOTE_PATH = 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; ';
-export const BUNDLE_DIR = `.local/share/herdr-web-ui/remote-v${REMOTE_BUNDLE_VERSION}`;
+export const BUNDLE_DIR = `.local/share/t-rex/remote-v${REMOTE_BUNDLE_VERSION}`;
 /** the Windows runtime directory, under %LOCALAPPDATA%; `$base` in the scripts below */
-export const WINDOWS_BUNDLE_BASE = "$env:LOCALAPPDATA\\herdr-web-ui";
+export const WINDOWS_BUNDLE_BASE = "$env:LOCALAPPDATA\\t-rex";
 export const UNSUPPORTED_HOST = "Only Linux, macOS (x64 or arm64) and Windows (x64) PCs are supported.";
 export const HERDR_INSTALL_CMD = "https://herdr.dev/install.cmd";
 
@@ -96,9 +96,9 @@ async function fetchBundle(platform: string, signal: AbortSignal, options: Insta
 export const posixHost: RemoteHost = {
   kind: "posix",
   bundleDescription: "Private web bridge bundle (Bun, Node and node-pty; no build tools needed)",
-  logHint: "~/.config/herdr-web-ui/bridges/bridge.log",
+  logHint: "~/.config/t-rex/bridges/bridge.log",
   async inspect(ssh, session) {
-    const inspection = await ssh.run(REMOTE_PATH + `printf '%s\\n' "$(uname -s)" "$(uname -m)" "$(cd -P "$HOME" && pwd -P)" "\${XDG_CONFIG_HOME:-$HOME/.config}" "$(command -v herdr || true)"; test -x "$HOME/${BUNDLE_DIR}/bin/bun" && printf 'bundle-ready\\n' || true; for d in "$HOME/.local/share/herdr-web-ui/remote-v"*; do if test -x "$d/bin/bun"; then printf 'bundle-older\\n'; break; fi; done; for f in "$HOME/.config/herdr-web-ui/bridges/"*.json; do test ! -f "$f" || cat "$f"; printf '\\n'; done`);
+    const inspection = await ssh.run(REMOTE_PATH + `printf '%s\\n' "$(uname -s)" "$(uname -m)" "$(cd -P "$HOME" && pwd -P)" "\${XDG_CONFIG_HOME:-$HOME/.config}" "$(command -v herdr || true)"; test -x "$HOME/${BUNDLE_DIR}/bin/bun" && printf 'bundle-ready\\n' || true; for d in "$HOME/.local/share/t-rex/remote-v"*; do if test -x "$d/bin/bun"; then printf 'bundle-older\\n'; break; fi; done; for f in "$HOME/.config/t-rex/bridges/"*.json; do test ! -f "$f" || cat "$f"; printf '\\n'; done`);
     const [os, arch, home, xdgConfig, herdrPath, ...lines] = inspection.split("\n");
     if (!["Linux", "Darwin"].includes(os ?? "") || !["x86_64", "aarch64", "arm64"].includes(arch ?? "")) throw new Error(UNSUPPORTED_HOST);
     if (!home?.startsWith("/")) throw new Error("The SSH account's home directory ($HOME) could not be read on this PC");
@@ -111,7 +111,7 @@ export const posixHost: RemoteHost = {
       home, herdrPath: herdrPath ?? "", expectedSocket,
       bundleReady: lines.includes("bundle-ready"), bundleOlder: lines.includes("bundle-older"),
       descriptors: parseDescriptors(lines),
-      runtimeDir: `${home}/${BUNDLE_DIR}`, registryDir: `${home}/.config/herdr-web-ui/bridges`,
+      runtimeDir: `${home}/${BUNDLE_DIR}`, registryDir: `${home}/.config/t-rex/bridges`,
     };
   },
   herdrVersion: (ssh, herdrPath) => ssh.run(`${shellQuote(herdrPath)} --version`),
@@ -123,14 +123,14 @@ export const posixHost: RemoteHost = {
     const { asset, input } = await fetchBundle(platform, signal, options);
     // Verify on BOTH hosts, extract into staging and atomically rename. No user-wide
     // Bun/Node/herdr installation is changed; the complete runtime lives in this dir.
-    await ssh.run(`set -eu; umask 077; base="$HOME/.local/share/herdr-web-ui"; mkdir -p "$base"; ${POSIX_INSTALL_LOCK} tmp=$(mktemp -d "$base/install.XXXXXX"); trap 'rm -rf "$tmp"; ${POSIX_INSTALL_RELEASE}' EXIT HUP INT TERM; if command -v timeout >/dev/null; then timeout ${INSTALL_UPLOAD_TIMEOUT_S} cat > "$tmp/bundle.tgz"; else cat > "$tmp/bundle.tgz"; fi; if command -v sha256sum >/dev/null; then actual=$(sha256sum "$tmp/bundle.tgz" | cut -d ' ' -f 1); else actual=$(shasum -a 256 "$tmp/bundle.tgz" | cut -d ' ' -f 1); fi; test "$actual" = ${shellQuote(asset.sha256)}; mkdir "$tmp/runtime"; tar xzf "$tmp/bundle.tgz" -C "$tmp/runtime"; test -x "$tmp/runtime/bin/bun"; test -x "$tmp/runtime/bin/node"; test -x "$tmp/runtime/bin/herdr"; "$tmp/runtime/bin/bun" --version; "$tmp/runtime/bin/herdr" --version; "$tmp/runtime/bin/node" "$tmp/runtime/server/pty/smoke.mjs"; release="$HOME/${BUNDLE_DIR}-${asset.sha256.slice(0, 16)}"; if test ! -d "$release"; then mv "$tmp/runtime" "$release"; fi; ln -s "$release" "$tmp/current"; if test -d "$HOME/${BUNDLE_DIR}" && test ! -L "$HOME/${BUNDLE_DIR}"; then mv "$HOME/${BUNDLE_DIR}" "$HOME/${BUNDLE_DIR}-legacy-$(date +%s)"; fi; "$release/bin/bun" -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' "$tmp/current" "$HOME/${BUNDLE_DIR}"`, input, 30 * 60_000);
+    await ssh.run(`set -eu; umask 077; base="$HOME/.local/share/t-rex"; mkdir -p "$base"; ${POSIX_INSTALL_LOCK} tmp=$(mktemp -d "$base/install.XXXXXX"); trap 'rm -rf "$tmp"; ${POSIX_INSTALL_RELEASE}' EXIT HUP INT TERM; if command -v timeout >/dev/null; then timeout ${INSTALL_UPLOAD_TIMEOUT_S} cat > "$tmp/bundle.tgz"; else cat > "$tmp/bundle.tgz"; fi; if command -v sha256sum >/dev/null; then actual=$(sha256sum "$tmp/bundle.tgz" | cut -d ' ' -f 1); else actual=$(shasum -a 256 "$tmp/bundle.tgz" | cut -d ' ' -f 1); fi; test "$actual" = ${shellQuote(asset.sha256)}; mkdir "$tmp/runtime"; tar xzf "$tmp/bundle.tgz" -C "$tmp/runtime"; test -x "$tmp/runtime/bin/bun"; test -x "$tmp/runtime/bin/node"; test -x "$tmp/runtime/bin/herdr"; "$tmp/runtime/bin/bun" --version; "$tmp/runtime/bin/herdr" --version; "$tmp/runtime/bin/node" "$tmp/runtime/server/pty/smoke.mjs"; release="$HOME/${BUNDLE_DIR}-${asset.sha256.slice(0, 16)}"; if test ! -d "$release"; then mv "$tmp/runtime" "$release"; fi; ln -s "$release" "$tmp/current"; if test -d "$HOME/${BUNDLE_DIR}" && test ! -L "$HOME/${BUNDLE_DIR}"; then mv "$HOME/${BUNDLE_DIR}" "$HOME/${BUNDLE_DIR}-legacy-$(date +%s)"; fi; "$release/bin/bun" -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' "$tmp/current" "$HOME/${BUNDLE_DIR}"`, input, 30 * 60_000);
   },
   stop: async (ssh, pid) => { await ssh.run(`kill -TERM ${pid}`); },
   async start(ssh, { session, herdrPath, inspection }) {
-    await ssh.run(REMOTE_PATH + `umask 077; mkdir -p "$HOME/.config/herdr-web-ui/bridges"; HERDR_REMOTE_SESSION=${shellQuote(session ?? "")} HERDR_WEB_HERDR_BIN=${shellQuote(herdrPath || `${inspection.home}/${BUNDLE_DIR}/bin/herdr`)} nohup "$HOME/${BUNDLE_DIR}/bin/bun" "$HOME/${BUNDLE_DIR}/server/remote-entry.ts" </dev/null >>"$HOME/.config/herdr-web-ui/bridges/bridge.log" 2>&1 &`);
+    await ssh.run(REMOTE_PATH + `umask 077; mkdir -p "$HOME/.config/t-rex/bridges"; HERDR_REMOTE_SESSION=${shellQuote(session ?? "")} HERDR_WEB_HERDR_BIN=${shellQuote(herdrPath || `${inspection.home}/${BUNDLE_DIR}/bin/herdr`)} nohup "$HOME/${BUNDLE_DIR}/bin/bun" "$HOME/${BUNDLE_DIR}/server/remote-entry.ts" </dev/null >>"$HOME/.config/t-rex/bridges/bridge.log" 2>&1 &`);
   },
   async descriptors(ssh) {
-    return parseDescriptors((await ssh.run(`for f in "$HOME/.config/herdr-web-ui/bridges/"*.json; do test ! -f "$f" || cat "$f"; printf '\\n'; done`)).split("\n"));
+    return parseDescriptors((await ssh.run(`for f in "$HOME/.config/t-rex/bridges/"*.json; do test ! -f "$f" || cat "$f"; printf '\\n'; done`)).split("\n"));
   },
 };
 
@@ -152,7 +152,7 @@ export function windowsBridgeFiles(session?: string): { log: string; launcher: s
 }
 
 const WINDOWS_BUNDLE = `${WINDOWS_BUNDLE_BASE}\\remote-v${REMOTE_BUNDLE_VERSION}`;
-const WINDOWS_REGISTRY = "$env:USERPROFILE\\.config\\herdr-web-ui\\bridges";
+const WINDOWS_REGISTRY = "$env:USERPROFILE\\.config\\t-rex\\bridges";
 // a script's exit code follows its last statement: a listing of a registry not there yet must
 // not count as a failure, so the directory is checked first
 const WINDOWS_DESCRIPTORS = `if (Test-Path ${WINDOWS_REGISTRY}) { Get-ChildItem ${WINDOWS_REGISTRY} -Filter *.json | ForEach-Object { Write-Output (Get-Content $_.FullName -Raw) } }; Write-Output ''`;
@@ -160,7 +160,7 @@ const WINDOWS_DESCRIPTORS = `if (Test-Path ${WINDOWS_REGISTRY}) { Get-ChildItem 
 export const windowsHost: RemoteHost = {
   kind: "windows",
   bundleDescription: "Private web bridge bundle (Bun only: herdr owns every terminal on Windows)",
-  logHint: "%USERPROFILE%\\.config\\herdr-web-ui\\bridges\\bridge.log (bridge-<session>.log for a named session)",
+  logHint: "%USERPROFILE%\\.config\\t-rex\\bridges\\bridge.log (bridge-<session>.log for a named session)",
   async inspect(ssh, session) {
     const inspection = await ssh.runPowerShell([
       "$ErrorActionPreference = 'Continue'",
@@ -187,7 +187,7 @@ export const windowsHost: RemoteHost = {
       expectedSocket: session ? win32.join(herdrDir, "sessions", session, "herdr.sock") : win32.join(herdrDir, "herdr.sock"),
       bundleReady: lines.includes("bundle-ready"), bundleOlder: lines.includes("bundle-older"),
       descriptors: parseDescriptors(lines),
-      runtimeDir: `${localAppData}\\herdr-web-ui\\remote-v${REMOTE_BUNDLE_VERSION}`, registryDir: `${home}\\.config\\herdr-web-ui\\bridges`,
+      runtimeDir: `${localAppData}\\t-rex\\remote-v${REMOTE_BUNDLE_VERSION}`, registryDir: `${home}\\.config\\t-rex\\bridges`,
     };
   },
   herdrVersion: (ssh, herdrPath) => ssh.runPowerShell(`& ${psQuote(herdrPath)} --version`),

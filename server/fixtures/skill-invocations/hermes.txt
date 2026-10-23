@@ -2,7 +2,7 @@
 
 ---
 name: probe-skill
-description: Probe skill for herdr-web-ui fixtures.
+description: Probe skill for t-rex fixtures.
 ---
 
 Reply with the single word PROBED.

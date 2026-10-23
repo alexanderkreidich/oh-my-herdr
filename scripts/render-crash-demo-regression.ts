@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { DEMO_FILE_PREVIEW_SCRIPT } from "./demo-file-preview.ts";
 import { chromePath } from "./chrome-path.ts";
@@ -25,14 +25,14 @@ async function open(browser: Browser, search: string, { phone = false, clipboard
   const context = await browser.newContext(phone
     ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" }
     : { viewport: { width: 1280, height: 800 }, locale: "en-US" });
-  await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", fileOpen: "panel" })));
+  await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", fileOpen: "panel" })));
   // a plain-HTTP LAN address: no clipboard API, and the old copy command refused too
   if (clipboardRefused) await context.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     document.execCommand = () => false;
   });
   const page = await context.newPage();
-  await page.goto(`http://127.0.0.1:${port}/herdr-web-ui/demo/app/${search}`);
+  await page.goto(`http://127.0.0.1:${port}/t-rex/demo/app/${search}`);
   return { page, close: () => context.close() };
 }
 
@@ -64,8 +64,8 @@ try {
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, `<script src="./demo-transport.js"></script>${DEMO_FILE_PREVIEW_SCRIPT}\n    <script type="module"`));
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
-    let file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length));
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
+    let file = decodeURIComponent(path.slice("/t-rex/demo/app/".length));
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
     const body = Bun.file(join(app, file));
@@ -204,7 +204,7 @@ try {
       for (const phone of [false, true]) {
         const { page, close } = await open(browser, pane, { phone });
         await page.locator(".pane-frame.is-current").waitFor();
-        await page.goto(`http://127.0.0.1:${port}/herdr-web-ui/demo/app/${pane}&settings=appearance&crash=settings`);
+        await page.goto(`http://127.0.0.1:${port}/t-rex/demo/app/${pane}&settings=appearance&crash=settings`);
         const dialog = page.getByRole("dialog", { name: "Settings" });
         await dialog.getByRole("alert").filter({ hasText: "Settings can't be shown." }).waitFor();
         await page.evaluate(() => { (window as unknown as { crashMarker: boolean }).crashMarker = true; });
@@ -221,7 +221,7 @@ try {
         const { page, close } = await open(browser, `${pane}&settings=appearance`, { phone: true });
         const dialog = page.getByRole("dialog", { name: "Settings" });
         await dialog.getByText("Density", { exact: true }).waitFor();
-        await page.waitForFunction(() => (window.history.state as Record<string, { depth?: number } | undefined> | null)?.["herdr-web-ui:settings"]?.depth === 2, undefined, { timeout: 5000 });
+        await page.waitForFunction(() => (window.history.state as Record<string, { depth?: number } | undefined> | null)?.["t-rex:settings"]?.depth === 2, undefined, { timeout: 5000 });
         const compact = dialog.getByText("Compact", { exact: true });
         // Arm the failure on the actual tap, before React handles the density change.
         // Setting the URL earlier lets a content-readiness or roster render replace the
@@ -234,7 +234,7 @@ try {
         }, { once: true, capture: true }));
         await compact.tap();
         await dialog.getByRole("alert").filter({ hasText: "Settings can't be shown." }).waitFor();
-        await page.waitForFunction(() => (window.history.state as Record<string, { depth?: number } | undefined> | null)?.["herdr-web-ui:settings"]?.depth === 1, undefined, { timeout: 5000 });
+        await page.waitForFunction(() => (window.history.state as Record<string, { depth?: number } | undefined> | null)?.["t-rex:settings"]?.depth === 1, undefined, { timeout: 5000 });
         await page.evaluate(() => window.history.back());
         await dialog.waitFor({ state: "detached", timeout: 5000 });
         assert.equal(await page.evaluate(() => "crashMarker" in window), true, "one Back closes the crashed nested page without navigating away");

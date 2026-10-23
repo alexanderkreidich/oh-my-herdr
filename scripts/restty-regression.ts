@@ -1,4 +1,4 @@
-/** Kept terminal scenarios, independent of upstream's removed chat/More-menu browser suite. */
+/** Kept terminal scenarios, independent of the removed chat/More-menu browser suite. */
 import "./test-herdr.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -60,7 +60,7 @@ try {
     let holdRoster = false;
     try {
       await context.addInitScript(() => {
-        if (!localStorage.getItem("herdr-web-ui:settings")) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalRenderer: "webgl2" }));
+        if (!localStorage.getItem("t-rex:settings")) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", terminalRenderer: "webgl2" }));
       });
       const page = await context.newPage();
       const errors: string[] = [];
@@ -83,7 +83,7 @@ try {
         assert.notEqual(await page.locator(".pane-frame.is-current .terminal-stack").evaluate((node) => getComputedStyle(node).getPropertyValue("--term-bg").trim()), "");
         await page.reload();
         await page.locator('.pane-frame.is-current .restty-terminal[data-ready="true"]').waitFor();
-        assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("herdr-web-ui:settings")!).terminalThemeName), theme);
+        assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("t-rex:settings")!).terminalThemeName), theme);
         console.log("PASS restty Appearance: WebGL2, font size, Ghostty theme and persistence");
       }
       if (only !== "appearance") {

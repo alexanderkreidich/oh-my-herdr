@@ -6,14 +6,14 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
-import panes from "../site/demo/fixtures/panes.json";
+import panes from "../demo/fixtures/panes.json";
 
 const app = mkdtempSync(join(tmpdir(), "herdr-input-focus-demo-"));
 try {
   await buildDemoApp(app);
   const index = join(app, "index.html");
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, '<script src="./demo-transport.js"></script>\n    <script type="module"'));
-  const prefix = "/herdr-web-ui/demo/app/";
+  const prefix = "/t-rex/demo/app/";
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
@@ -33,7 +33,7 @@ try {
         try {
           await context.addInitScript(() => {
             Object.defineProperty(navigator, "platform", { configurable: true, value: "iPad" });
-            if (localStorage.getItem("herdr-web-ui:settings") === null) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", terminalInputMode: "line", alertsOn: false,
+            if (localStorage.getItem("t-rex:settings") === null) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", terminalInputMode: "line", alertsOn: false,
               shortcutOverrides: { "previous-pane": "1", "next-pane": "2" } }));
           });
           const page = await context.newPage();
@@ -85,8 +85,8 @@ try {
           assert.equal(await line.evaluate(node => node === document.activeElement), true, "terminal line input can be focused");
           await page.keyboard.type("line draft"); assert.equal(await line.inputValue(), "line draft");
           await page.evaluate(() => {
-            const settings = JSON.parse(localStorage.getItem("herdr-web-ui:settings")!);
-            localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ ...settings, terminalInputMode: "direct" }));
+            const settings = JSON.parse(localStorage.getItem("t-rex:settings")!);
+            localStorage.setItem("t-rex:settings", JSON.stringify({ ...settings, terminalInputMode: "direct" }));
           });
           await page.reload(); await page.locator(".conn-live").waitFor();
           await frame.focus(); await page.keyboard.press("Meta+Shift+G");
