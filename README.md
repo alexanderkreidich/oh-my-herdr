@@ -17,7 +17,12 @@ typing local on a slow link. The plan is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Run
 
-Needs [Bun](https://bun.sh) 1.4+, Node 18+ and a running herdr.
+On a Mac, download T-Rex from [Releases](https://github.com/alexanderkreidich/t-rex/releases)
+(`arm64` for Apple silicon, `x64` for Intel). The app carries its bridge, Bun and Node, and uses
+your herdr or starts the one it carries. It is not signed yet, so clear its download mark once:
+`xattr -dr com.apple.quarantine /Applications/T-Rex.app` ([docs/desktop.md](docs/desktop.md)).
+
+As a herdr plugin it needs [Bun](https://bun.sh) 1.4+, Node 18+ and a running herdr.
 
 ```bash
 herdr plugin install alexanderkreidich/t-rex   # herdr builds it and starts it with itself

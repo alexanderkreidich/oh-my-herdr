@@ -1,0 +1,5 @@
+# bun run build, bun run bridge (and what a failed one left), electron-builder
+out/
+bundle/
+bundle-work/
+dist/

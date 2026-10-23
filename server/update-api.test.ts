@@ -2,10 +2,21 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { servedRevision } from "./update-api.ts";
+import { connectUpdater, DESKTOP_UPDATE_REASON, servedRevision } from "./update-api.ts";
 
 const directories: string[] = [];
-afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+  delete process.env["HERDR_WEB_DESKTOP"];
+});
+
+describe("an unmanaged bridge's update status", () => {
+  it("tells the Mac app's users to download the new version, not to start a checkout", () => {
+    expect(connectUpdater().status().blocked_reason).toContain("bun run start");
+    process.env["HERDR_WEB_DESKTOP"] = "1";
+    expect(connectUpdater().status()).toMatchObject({ managed: false, blocked_reason: DESKTOP_UPDATE_REASON });
+  });
+});
 
 describe("the served build's revision", () => {
   it("reads the commit dist/build.json names, as it is now", async () => {

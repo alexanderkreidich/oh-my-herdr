@@ -176,3 +176,21 @@ See [ssp.md](ssp.md).
 
 Done when: correctness tests (convergence under loss, reordering and reconnect) and the latency
 harness pass, and the old flow-control path is gone.
+
+## Phase 6 — Mac app and releases
+
+See [desktop.md](desktop.md).
+
+- [x] **Mac app** (`desktop/`): an Electron window on the bridge, with the bridge, Bun, Node and
+      herdr inside (the remote PC bundle). It uses a T-Rex already on the port, or starts herdr
+      when it is not running and its own bridge, and stops that bridge when it quits.
+- [x] **Release train**: a `vX.Y.Z` tag builds the app for Apple silicon and Intel, opens each
+      packaged app once, and publishes the GitHub release with checksums and its CHANGELOG.md
+      section.
+- [ ] Sign and notarize with a Developer ID, then let the app update itself (electron-updater).
+- [ ] The top bar in the window's title bar (`titleBarStyle: "hiddenInset"`, drag regions).
+- [ ] A smaller app: leave the client's npm packages out of the bundle, and run the PTY sidecar
+      on Electron's own Node instead of a second one.
+- [ ] Linux and Windows builds, if wanted.
+
+Done when: a tag publishes both `.dmg`s, and a downloaded one opens on the Mac's herdr.
