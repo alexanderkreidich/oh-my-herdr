@@ -89,9 +89,10 @@ docs, so the tree is as small as the product.
       (22 of its scripts are gone, most others assume the chat, the More menu, the lens switch or
       the agent list). Keep a script only if it passes against this UI; delete the rest, and the
       demo-only scripts with them. `docs/development.md` loses the deleted scripts in the same PR.
-      Done so far: the scripts for removed UI are gone; `ui-regression.ts` (with its folder
-      filter), the split view, mobile tabs and the render crash probe still reach kept UI through
-      removed paths and are next.
+      Done so far: the scripts for removed UI are gone, and so are their `run_script` lines and
+      docs; `ui-regression.ts` (with its folder filter), the split view, mobile tabs and the
+      render crash probe still reach kept UI through removed paths and are next. 17 of the 32
+      scripts left fail on main (`ca0c69e`, PR #28 lists them).
 - [ ] GJC's transcript lookup keeps a `purpose: "chat"` branch only status no longer takes;
       collapsing it touches the SDK timeouts and failure cache, so it is its own slice.
 

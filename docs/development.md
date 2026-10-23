@@ -138,11 +138,9 @@ bun run test:ui                 # browser regression against isolated test serve
 bun scripts/sticky-modifiers-regression.ts # mobile held keys through real legacy/Kitty PTYs
 bun scripts/key-bar-customization-demo-regression.ts # mobile key layout, saved combinations and migration on demo fixtures
 bun scripts/key-bar-hold-repeat-regression.ts # phone touch key-bar taps, holds (arrows and editing keys), swipes and sticky Ctrl on demo fixtures
-bun scripts/chat-browser-qa.ts  # chat lens end to end
 bun scripts/pane-input-focus-demo-regression.ts # the input focus shortcut against fictional panes
 bun scripts/shortcut-exact-modifiers-demo-regression.ts # recording exact-modifier chords: confirm, refusals, dispatch
 bun run check run bun scripts/ssp-latency.ts # local echo at a 200 ms round trip in a real browser
-bun scripts/math-browser-qa.ts  # chat math: KaTeX loads with the first expression
 bun scripts/phone-worktree-sheet-regression.ts # a phone's New worktree sheet: the agent list's own stroke, and a Shell checkout's terminal opening
 bun run test:ssh                # remote-PC integration over SSH
 ```
@@ -151,28 +149,17 @@ Tests run against a herdr session of their own, `t-rex-test`. The first run star
 
 Browser checks launch `CHROME_PATH` when it is set, else Google Chrome at `/opt/google/chrome/chrome` where that exists, else the lockfile's Playwright Chromium (`scripts/chrome-path.ts`; install it with `bun node_modules/playwright-core/cli.js install chromium`). After a herdr upgrade, refresh the generated wire types with `bun run generate:types --refresh` (and `--check` to verify).
 
-`HEADED=1 bun scripts/chat-browser-qa.ts` opens its owned native-transcript fixture in a
-visible Chrome window. Its detected Codex fixture process keeps the rollout open; no
-real model is invoked by this script. Set `CHROME_PATH` to the macOS Chrome binary there.
-
-For isolated phone viewer and keyboard layout regressions (no herdr session; the demo runner builds the real client locally):
+For isolated phone keyboard and layout regressions (no herdr session; the demo runner builds the real client locally):
 
 ```bash
-bun scripts/file-viewer-mobile-regression.ts  # 8 viewport cases × tall/wide images
 bun scripts/keyboard-viewport-regression.ts   # keyboard, rotation and measured standalone status inset
 bun scripts/keyboard-viewport-demo-regression.ts # original real-app viewport suite on disposable demo fixtures
-bun scripts/chat-greeting-demo-regression.ts  # an empty chat's greeting: centred on a desktop, docked on a phone
-bun scripts/composer-fit-demo-regression.ts   # one Send/Stop control, pending Send now actions, context/label fit and Chat font sizing
-bun scripts/held-rows-demo-regression.ts      # held messages: the fold under an approval card, its button, a row's error
-bun scripts/sidebar-activity-demo-regression.ts # Agents order Activity and pins: blocked pinned, recency, Pin agent / Unpin agent and Pin workspace / Unpin workspace from a right-click and the context-menu key, the ⋯ on a phone, and a finish opened here drawn as ready until the next one
 bun scripts/sidebar-branch-line-demo-regression.ts # herdr's branch line: a repository and an unmarked git folder say their branch under the name, worktrees and folders outside git stay one line, desktop and phone, dark and light
-bun scripts/prompt-dock-demo-regression.ts    # the prompt card docked over the input card: its place, its height on a short phone, the grip, a typed pick
 bun scripts/plugin-actions-demo-regression.ts # a plugin action that ends after the server stopped waiting: the late failure said, a traceback's height on a phone with its keyboard up
-bun scripts/agent-skill-menu-demo-regression.ts [agent …] # each agent's `/` (and `$`) skill menu, its origin groups and its skill chips at 1280 and 390px, one case file per agent in scripts/skill-menu-cases/, screenshots in evidence/agent-skill-menu/<agent>/
 bun scripts/install-state-demo-regression.ts  # Settings > Install against a real CDP install on a throwaway profile and HOME: the help or the prompt before, Installed in the app window and a tab of its origin, not after uninstall
 ```
 
-`FILE_VIEWER_CASE=landscape-notch` selects a viewer case; `FILE_VIEWER_CSS=/path/to/before.css` compares another stylesheet. These checks use Chromium mobile emulation and synthetic safe-area/keyboard geometry; they cannot verify actual iOS Safari keyboard dismissal or notch insets. The existing `bun scripts/file-viewer-regression.ts` separately checks history with an owned herdr pane. The original `scripts/mobile-viewport-regression.ts` exports `checkMobileViewport` for the real-app `bun run test:ui` suite; it also checks the command palette and xterm focus transitions. The demo runners build the real client into a temporary directory, inject the committed fictional-session transport and serve it only on loopback; they do not use a live herdr session or download website media. Run on its own, each builds the client itself (`scripts/demo-build.ts`); the browser lane builds it once and names the directory in `HERDR_DEMO_BUILD`, and each runner copies that instead. They exercise real-app viewport and alert geometry, but not live herdr connectivity.
+These checks use Chromium mobile emulation and synthetic safe-area/keyboard geometry; they cannot verify actual iOS Safari keyboard dismissal or notch insets. The original `scripts/mobile-viewport-regression.ts` exports `checkMobileViewport` for the real-app `bun run test:ui` suite; it also checks the command palette and xterm focus transitions. The demo runners build the real client into a temporary directory, inject the committed fictional-session transport and serve it only on loopback; they do not use a live herdr session or download website media. Run on its own, each builds the client itself (`scripts/demo-build.ts`); the browser lane builds it once and names the directory in `HERDR_DEMO_BUILD`, and each runner copies that instead. They exercise real-app viewport and alert geometry, but not live herdr connectivity.
 
 ## Codex Send now
 
@@ -192,7 +179,7 @@ are held for explicit review.
 
 GJC status follows the native transcript bound to that pane, rather than a provider child's stale status or session ID. A user message, tool result or tool call keeps the parent turn working; an explicit final answer ends it. Native background-result, monitor and scheduled-task notifications start another turn, and an open `ask` waits for input.
 
-This is parent-turn state, not a count of live background jobs. GJC's job manager keeps that live state in memory, so historical job starts are not treated as proof that a job still runs. Missing or unreadable native evidence leaves herdr's status in charge; interrupted old turns are not successful completions. The isolated `scripts/gjc-status-browser-regression.ts` fixture exercises the real server and browser without invoking a provider or touching existing sessions.
+This is parent-turn state, not a count of live background jobs. GJC's job manager keeps that live state in memory, so historical job starts are not treated as proof that a job still runs. Missing or unreadable native evidence leaves herdr's status in charge; interrupted old turns are not successful completions.
 
 ## OmO runtime recognition
 
@@ -492,13 +479,12 @@ the current one, or `--json` for counts and rows as JSON; running jobs and unava
 counted as skipped.
 
 Under `CI` or with `CHECK_DIR` set, both runners create `UI_EVIDENCE_DIR` at
-`${CHECK_DIR:-.ci}/browser-evidence`. Only the existing sticky-modifier and file-viewer captures
+`${CHECK_DIR:-.ci}/browser-evidence`. Only the existing sticky-modifier and terminal-viewport captures
 are enabled automatically: the UI suite and key-bar demo have evidence branches that add
 assertions, viewport changes or font waits, so those remain disabled in the lane. Outside
 `CI`/`CHECK_DIR`, an explicit `UI_EVIDENCE_DIR` still works as before.
 The lane also sets `CHECK_BROWSER_EVIDENCE_DIR` independently of those checkpoint options.
-Explicitly registered fixture pages in `ui-regression.ts` and `prompt-dock-demo-regression.ts`
-capture their failure screen and bounded console/page errors before cleanup. Set
+Explicitly registered fixture pages in `ui-regression.ts` capture their failure screen and bounded console/page errors before cleanup. Set
 `CHECK_BROWSER_EVIDENCE_TRACE=1` for Playwright traces with screenshots retained on failure;
 DOM snapshots and network recording are disabled, but action parameters and console events can
 still appear in the trace. Use only synthetic fixture data. Imported checks and other scripts are not
