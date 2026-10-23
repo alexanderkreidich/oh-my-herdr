@@ -86,7 +86,7 @@
   --term-cursor: #f0a830;
   --term-selection: #4a3d26;
 
-  /* syntax highlighting (components/HighlightedCode.css): the four derived roles follow the
+  /* the syntax roles (the PC marks take four, Machines.css): the four derived roles follow the
      palette because they are resolved on <html>, where data-theme and data-palette sit */
   /* the file viewer's line numbers: tertiary text, quieter than the code beside them */
   --line-number: var(--text-dim);

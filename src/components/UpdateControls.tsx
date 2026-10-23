@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { CHECKOUT_CHANGED_REASON, SUMMARY_GROUPS, type SummaryGroup, type UpdateNotes, type UpdateStatus } from "../../shared/update.ts";
 import { useHerdrUpdate } from "../lib/herdrUpdate.ts";
@@ -7,8 +7,6 @@ import { useSettings } from "../lib/settings.ts";
 import { announcesUpdate, readAnnounced, summaryFor, watchAnnounced, writeAnnounced } from "../lib/updateNotes.ts";
 import { describeUpdate } from "../lib/updateProgress.ts";
 import type { UpdatesModel } from "../lib/updates.ts";
-import { Markdown } from "./Markdown.tsx";
-import { RenderBoundary } from "./RenderBoundary.tsx";
 import "./Machines.css";
 import "./UpdateControls.css";
 import { useLocale, useT } from "../lib/i18n.ts";
@@ -20,12 +18,34 @@ const CHANGELOG = "https://github.com/alexanderkreidich/t-rex/blob/main/CHANGELO
 const RESTART_HELP = "https://github.com/alexanderkreidich/t-rex/blob/main/docs/guide.md#updates";
 
 /**
+ * A release's changelog section as it is written: its `###` headings over their `- ` lists, as the
+ * patch notes' groups are drawn, and any other line as a paragraph. Inline marks stay as text.
+ */
+function ChangelogSection({ text }: { text: string }) {
+  const blocks: ReactNode[] = [];
+  let items: string[] = [];
+  const flush = () => {
+    if (items.length > 0) blocks.push(<ul key={blocks.length}>{items.map((item, index) => <li key={index}>{item}</li>)}</ul>);
+    items = [];
+  };
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (/^[-*] /.test(trimmed)) { items.push(trimmed.slice(2)); continue; }
+    // an item's wrapped line, indented under it
+    if (items.length > 0 && trimmed !== "" && /^\s/.test(line)) { items[items.length - 1] += ` ${trimmed}`; continue; }
+    flush();
+    if (trimmed.startsWith("#")) blocks.push(<h5 key={blocks.length}>{trimmed.replace(/^#+\s*/, "")}</h5>);
+    else if (trimmed !== "") blocks.push(<p key={blocks.length}>{trimmed}</p>);
+  }
+  flush();
+  return <div className="update-summary">{blocks}</div>;
+}
+
+/**
  * What an update brings, or brought: each release it installs, newest first. A release is told
  * as patch notes, short lines in the app's language under what is new, improved and fixed, with
  * its changelog section folded under them; a release that wrote none shows the section as the
- * release wrote it (English). The box scrolls on its own, so the buttons under it stay in reach. The text comes
- * from the Git remote: a section that cannot be drawn says so and takes nothing else down
- * with it.
+ * release wrote it (English). The box scrolls on its own, so the buttons under it stay in reach.
  */
 function ReleaseNotes({ notes, label }: { notes: Pick<UpdateNotes, "releases" | "omitted">; label: string }) {
   const t = useT();
@@ -37,9 +57,7 @@ function ReleaseNotes({ notes, label }: { notes: Pick<UpdateNotes, "releases" | 
     <div className="update-notes" role="region" aria-label={label} tabIndex={0}>
       {notes.releases.map((release) => {
         const summary = summaryFor(release, resolvedLanguage);
-        const section = <RenderBoundary resetKey={release.notes} fallback={() => <p className="settings-hint">{t("These notes could not be shown.")} <a href={CHANGELOG} target="_blank" rel="noopener noreferrer">{t("Full changelog")}</a></p>}>
-          <Markdown>{release.notes}</Markdown>
-        </RenderBoundary>;
+        const section = <ChangelogSection text={release.notes} />;
         return <section key={release.version}>
           <h4>v{release.version}{release.date && <time>{release.date}</time>}</h4>
           {summary === null ? section : <>

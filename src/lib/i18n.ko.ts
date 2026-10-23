@@ -249,11 +249,6 @@ export const KO: Record<string, string> = {
   "{n} pane and {m} worktree workspaces close with it; the agents in them stop, and the checkouts stay.": "패널 {n}개와 워크트리 워크스페이스 {m}개가 함께 닫히고, 안의 에이전트가 멈춥니다. 체크아웃은 남습니다.",
   "{n} panes and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "패널 {n}개와 워크트리 워크스페이스 {m}개가 함께 닫히고, 안의 에이전트가 멈춥니다. 체크아웃은 남습니다.",
   "{n} pane and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "패널 {n}개와 워크트리 워크스페이스 {m}개가 함께 닫히고, 안의 에이전트가 멈춥니다. 체크아웃은 남습니다.",
-  "Enlarge diagram": "다이어그램 확대",
-  "Diagram": "다이어그램",
-  "Zoom in": "확대",
-  "Zoom out": "축소",
-  "Fit to screen": "화면에 맞춤",
   "Close": "닫기",
   "Close workspace {name}?": "{name} 워크스페이스를 닫을까요?",
   "{n} panes close with it, and the agents in them stop.": "패널 {n}개가 함께 닫히고, 안의 에이전트가 멈춥니다.",
@@ -404,7 +399,6 @@ export const KO: Record<string, string> = {
   "Bug fixes": "버그 수정",
   "Show every change": "모든 변경 사항 보기",
   "t-rex was updated to v{version}.": "t-rex가 v{version} 버전으로 업데이트되었습니다.",
-  "These notes could not be shown.": "이 노트를 표시할 수 없습니다.",
   "Up to date.": "최신 상태입니다.",
   "Waiting for an update check…": "업데이트 확인을 기다리는 중…",
   "Checks for new releases every 5 minutes.": "5분마다 새 릴리스를 확인합니다.",
@@ -483,12 +477,6 @@ export const KO: Record<string, string> = {
   // ---- prompt card ----
 
   // ---- markdown ----
-  "Code copied": "코드 복사됨",
-  "Copy code": "코드 복사",
-  "Show less": "접기",
-  "Show all {n} lines": "{n}줄 모두 보기",
-  "Too long to highlight": "너무 길어 강조 표시를 생략했습니다",
-  "Empty task": "빈 할 일",
 
   // ---- composer ----
   "Drag to resize · double-click to reset": "끌어서 크기 조절 · 두 번 클릭하면 초기화",
@@ -504,7 +492,6 @@ export const KO: Record<string, string> = {
 
   // ---- chat view ----
   "Copied": "복사됨",
-  "Couldn't copy. Select the text and copy it manually.": "복사하지 못했습니다. 텍스트를 선택해 직접 복사하세요.",
   "Worked for {duration}": "{duration} 작업",
   "Last checked {when}": "마지막 확인: {when}",
   "Clipboard from a pane": "패널에서 클립보드로 복사",

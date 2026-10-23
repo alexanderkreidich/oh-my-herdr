@@ -1,10 +1,29 @@
-import { trimUrl } from "./markdown.ts";
-
 /**
  * ssh's stderr as the setup dialog shows it. Tailscale SSH's browser check prints a URL and
  * waits until it is visited, so an address has to be clickable. Only https addresses link:
  * the text comes from a remote host, and nothing else it prints should become a control.
  */
+
+/** A bare URL without the punctuation that closes the sentence around it (GFM's autolink rule). */
+function trimUrl(url: string): string {
+  let end = url.length;
+  // counted once: an opening one is never cut, a closing one only from the end
+  let opened = 0;
+  let closed = 0;
+  for (let index = 0; index < end; index += 1) {
+    if (url[index] === "(") opened += 1;
+    else if (url[index] === ")") closed += 1;
+  }
+  for (;;) {
+    const last = url[end - 1];
+    if (last !== undefined && ".,:;!?'\"*_~".includes(last)) { end -= 1; continue; }
+    // a closing parenthesis stays only while it closes one opened inside the URL
+    if (last === ")" && closed > opened) { end -= 1; closed -= 1; continue; }
+    break;
+  }
+  return url.slice(0, end);
+}
+
 export type SshOutputPart = { type: "text"; value: string } | { type: "link"; href: string; value: string };
 
 export function sshOutputParts(text: string): SshOutputPart[] {

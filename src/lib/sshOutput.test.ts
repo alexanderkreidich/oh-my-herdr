@@ -26,4 +26,11 @@ describe("sshOutputParts", () => {
   it("returns nothing for empty output", () => {
     expect(sshOutputParts("")).toEqual([]);
   });
+
+  it("keeps the parentheses an address opened and drops the ones that close the sentence", () => {
+    expect(sshOutputParts("(see https://x.dev/wiki/A_(b))").filter((part) => part.type === "link")).toEqual([
+      { type: "link", href: "https://x.dev/wiki/A_(b)", value: "https://x.dev/wiki/A_(b)" },
+    ]);
+    expect(sshOutputParts(`https://x.dev/${")".repeat(48_000)}`)[0]).toEqual({ type: "link", href: "https://x.dev/", value: "https://x.dev/" });
+  });
 });

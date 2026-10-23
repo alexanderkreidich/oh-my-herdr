@@ -253,11 +253,6 @@ export const ZH: Record<string, string> = {
   "{n} pane and {m} worktree workspaces close with it; the agents in them stop, and the checkouts stay.": "{n} 个窗格和 {m} 个工作树工作区会一同关闭，其中的代理会停止；检出保留。",
   "{n} panes and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "{n} 个窗格和 {m} 个工作树工作区会一同关闭，其中的代理会停止；检出保留。",
   "{n} pane and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "{n} 个窗格和 {m} 个工作树工作区会一同关闭，其中的代理会停止；检出保留。",
-  "Enlarge diagram": "放大图表",
-  "Diagram": "图表",
-  "Zoom in": "放大",
-  "Zoom out": "缩小",
-  "Fit to screen": "适应屏幕",
   "Close": "关闭",
   "Close workspace {name}?": "关闭工作区 {name}？",
   "{n} panes close with it, and the agents in them stop.": "窗格 {n} 个会一同关闭，其中的代理会停止。",
@@ -408,7 +403,6 @@ export const ZH: Record<string, string> = {
   "Bug fixes": "问题修复",
   "Show every change": "查看全部更改",
   "t-rex was updated to v{version}.": "t-rex 已更新到 v{version}。",
-  "These notes could not be shown.": "无法显示这些说明。",
   "Up to date.": "已是最新版本。",
   "Waiting for an update check…": "正在等待检查更新…",
   "Checks for new releases every 5 minutes.": "每 5 分钟检查一次新版本。",
@@ -487,12 +481,6 @@ export const ZH: Record<string, string> = {
   // ---- prompt card ----
 
   // ---- markdown ----
-  "Code copied": "已复制代码",
-  "Copy code": "复制代码",
-  "Show less": "收起",
-  "Show all {n} lines": "显示全部 {n} 行",
-  "Too long to highlight": "内容过长，未做语法高亮",
-  "Empty task": "空任务",
 
   // ---- composer ----
   "Drag to resize · double-click to reset": "拖动以调整大小 · 双击重置",
@@ -508,7 +496,6 @@ export const ZH: Record<string, string> = {
 
   // ---- chat view ----
   "Copied": "已复制",
-  "Couldn't copy. Select the text and copy it manually.": "无法复制。请选中文本并手动复制。",
   "Worked for {duration}": "工作了 {duration}",
   "Last checked {when}": "上次检查：{when}",
   "Clipboard from a pane": "从窗格写入剪贴板",

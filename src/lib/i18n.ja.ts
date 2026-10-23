@@ -251,11 +251,6 @@ export const JA: Record<string, string> = {
   "{n} pane and {m} worktree workspaces close with it; the agents in them stop, and the checkouts stay.": "ペイン {n} 個とワークツリーのワークスペース {m} 個も一緒に閉じ、中のエージェントは停止します。チェックアウトは残ります。",
   "{n} panes and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "ペイン {n} 個とワークツリーのワークスペース {m} 個も一緒に閉じ、中のエージェントは停止します。チェックアウトは残ります。",
   "{n} pane and {m} worktree workspace close with it; the agents in them stop, and the checkout stays.": "ペイン {n} 個とワークツリーのワークスペース {m} 個も一緒に閉じ、中のエージェントは停止します。チェックアウトは残ります。",
-  "Enlarge diagram": "図を拡大",
-  "Diagram": "図",
-  "Zoom in": "拡大",
-  "Zoom out": "縮小",
-  "Fit to screen": "画面に合わせる",
   "Close": "閉じる",
   "Close workspace {name}?": "ワークスペース {name} を閉じますか？",
   "{n} panes close with it, and the agents in them stop.": "ペイン {n} 個も一緒に閉じ、中のエージェントは停止します。",
@@ -406,7 +401,6 @@ export const JA: Record<string, string> = {
   "Bug fixes": "バグ修正",
   "Show every change": "すべての変更を表示",
   "t-rex was updated to v{version}.": "t-rex を v{version} に更新しました。",
-  "These notes could not be shown.": "このノートを表示できませんでした。",
   "Up to date.": "最新の状態です。",
   "Waiting for an update check…": "更新の確認を待っています…",
   "Checks for new releases every 5 minutes.": "5 分ごとに新しいリリースを確認します。",
@@ -485,12 +479,6 @@ export const JA: Record<string, string> = {
   // ---- prompt card ----
 
   // ---- markdown ----
-  "Code copied": "コードをコピーしました",
-  "Copy code": "コードをコピー",
-  "Show less": "折りたたむ",
-  "Show all {n} lines": "{n} 行すべて表示",
-  "Too long to highlight": "長すぎるため構文ハイライトを省略しました",
-  "Empty task": "空のタスク",
 
   // ---- composer ----
   "Drag to resize · double-click to reset": "ドラッグでサイズ変更 · ダブルクリックでリセット",
@@ -506,7 +494,6 @@ export const JA: Record<string, string> = {
 
   // ---- chat view ----
   "Copied": "コピーしました",
-  "Couldn't copy. Select the text and copy it manually.": "コピーできませんでした。テキストを選択して手動でコピーしてください。",
   "Worked for {duration}": "{duration} 作業しました",
   "Last checked {when}": "最終確認: {when}",
   "Clipboard from a pane": "ペインからクリップボードへ",
