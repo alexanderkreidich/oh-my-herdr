@@ -17,26 +17,6 @@ typing local on a slow link. The plan is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Install
 
-### Mac app
-
-1. Download the `.dmg` for your Mac from the
-   [latest release](https://github.com/alexanderkreidich/t-rex/releases/latest): `arm64` for
-   Apple silicon, `x64` for Intel.
-2. Open it and drag T-Rex to Applications.
-
-> [!NOTE]
-> The app is not signed yet. After moving it to Applications, unblock it once, or macOS refuses
-> to open it:
->
-> ```bash
-> xattr -dr com.apple.quarantine /Applications/T-Rex.app
-> ```
-
-The app carries its bridge, Bun and Node. It uses your herdr, or starts the one it carries
-([docs/desktop.md](docs/desktop.md)).
-
-### herdr plugin
-
 Needs [Bun](https://bun.sh) 1.4+, Node 18+ and a running herdr.
 
 ```bash

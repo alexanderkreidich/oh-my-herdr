@@ -560,6 +560,20 @@ in the checkout.
 See [Terminal input](terminal-input.md) for input readiness, draft ownership and the mobile
 input regression matrix.
 
+## Releases
+
+A release is a `vX.Y.Z` tag on `main`. Installed herdr plugins are offered it in Settings
+([app updates](app-updates.md)), so tag only what is ready.
+
+1. A pull request sets the version in `package.json` and `herdr-plugin.toml`, and turns
+   `## [Unreleased]` in CHANGELOG.md into `## [X.Y.Z] - YYYY-MM-DD`, with a new empty
+   `## [Unreleased]` above it.
+2. Once it is merged: `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+3. `.github/workflows/release.yml` checks that the tag names both versions and publishes the
+   GitHub release, with that CHANGELOG.md section as its notes. GitHub adds the source archives.
+
+Remote PC bundles are versioned on their own, as `remote-vN` tags (`remote-bundles.yml`).
+
 ## Layout
 
 | Path | Contents |

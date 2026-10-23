@@ -6,6 +6,11 @@ installs update only to releases. Remote-PC runtime bundles are versioned separa
 
 ## [Unreleased]
 
+### Removed
+
+- The Electron Mac app. 0.1.0's `.dmg` and `.zip` downloads are withdrawn: T-Rex runs as a herdr
+  plugin or from a checkout. A release now carries its notes and GitHub's source archives only.
+
 ## [0.1.0] - 2026-10-23
 
 The first release of T-Rex as a product of its own: your herdr sessions in a Ghostty-like

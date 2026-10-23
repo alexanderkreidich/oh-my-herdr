@@ -6,8 +6,7 @@ attaches to it through a Ghostty-like terminal emulator and a State Synchronizat
 
 A browser client for the herdr terminal multiplexer: a React 19 client (`src/`), a Bun bridge
 (`server/`) that talks to herdr's unix-socket API, and the wire contract both import (`shared/`).
-herdr owns every pty, scrollback and agent state; this app is a bridge and a terminal. The Mac app
-(`desktop/`) carries the bridge into an Electron window: [docs/desktop.md](docs/desktop.md).
+herdr owns every pty, scrollback and agent state; this app is a bridge and a terminal.
 
 The plan, phase by phase, is in [docs/ROADMAP.md](docs/ROADMAP.md). Read it before starting work:
 it says what is being removed, what is being built, and what "done" means for each slice.
@@ -40,9 +39,9 @@ them back.
   `gh pr create -R alexanderkreidich/t-rex --base main`.
 - Commits and everything on GitHub are in English, Conventional Commits
   (`feat(tabs): …`, `refactor(chat): delete the transcript readers`).
-- A release is a `vX.Y.Z` tag on `main`, cut as [docs/desktop.md](docs/desktop.md#releases) says:
-  it publishes the Mac app, and every installed plugin's updater offers it, so tag only what is
-  ready. Its notes are its CHANGELOG.md section (no changelog fragments).
+- A release is a `vX.Y.Z` tag on `main`, cut as [docs/development.md](docs/development.md#releases)
+  says: every installed plugin's updater offers it, so tag only what is ready. Its notes are its
+  CHANGELOG.md section (no changelog fragments).
 
 The loop for a UI slice:
 
