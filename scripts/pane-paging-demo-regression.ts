@@ -72,7 +72,7 @@ try {
     for (const name of ["CONNECTING", "OPEN", "CLOSING", "CLOSED"]) Object.defineProperty(window.WebSocket, name, { value: Demo[name] });
   })();</script>`;
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, () => `<script src="./demo-transport.js"></script>\n${record}\n<script type="module"`));
-  const prefix = "/herdr-web-ui/demo/app/";
+  const prefix = "/t-rex/demo/app/";
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(prefix)) return new Response("not found", { status: 404 });
@@ -93,7 +93,7 @@ try {
       try {
         await fractional.addInitScript(() => {
           Object.defineProperty(navigator, "platform", { configurable: true, value: "iPad" });
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false }));
         });
         const page = await fractional.newPage();
         page.setDefaultTimeout(10000);
@@ -173,7 +173,7 @@ try {
         try {
           await context.addInitScript(() => {
             Object.defineProperty(navigator, "platform", { configurable: true, value: "iPad" });
-            if (localStorage.getItem("herdr-web-ui:settings") === null) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false, chatFontSize: 19 }));
+            if (localStorage.getItem("t-rex:settings") === null) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", defaultView: "chat", alertsOn: false, chatFontSize: 19 }));
           });
           const page = await context.newPage();
           page.setDefaultTimeout(10000);

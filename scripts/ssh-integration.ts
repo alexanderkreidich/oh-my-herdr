@@ -116,15 +116,15 @@ try {
   assert.equal(job.phase, "connected", job.error ?? "");
   const machineId = job.machine_id;
   assert.ok(existsSync(join(state, "ssh", machineId)), "dedicated key stored");
-  assert.ok(remoteFile(join(remoteHome, ".ssh/authorized_keys")).includes(`herdr-web-ui:${machineId}`));
+  assert.ok(remoteFile(join(remoteHome, ".ssh/authorized_keys")).includes(`t-rex:${machineId}`));
   assert.ok(!readFileSync(join(state, "machines.json"), "utf8").includes(password), "password is never persisted");
   console.log("PASS first install, fingerprint, secret authentication and dedicated-key registration");
   const second = await setup({ ...target, identity_file: join(state, "ssh", machineId), session: "ssh-second", name: "QA second PC" });
   assert.equal(second.phase, "connected", second.error ?? "");
   const secondPath = `/api/machines/${second.machine_id}`;
-  const secondCreated = await api<WorkspaceCreated>(secondPath + "/workspace/create", "POST", { cwd: remoteHome, label: "herdr-web-ui-test-ssh-second" });
+  const secondCreated = await api<WorkspaceCreated>(secondPath + "/workspace/create", "POST", { cwd: remoteHome, label: "t-rex-test-ssh-second" });
   const path = `/api/machines/${machineId}`;
-  const created = await api<WorkspaceCreated>(path + "/workspace/create", "POST", { cwd: remoteHome, label: "herdr-web-ui-test-ssh" });
+  const created = await api<WorkspaceCreated>(path + "/workspace/create", "POST", { cwd: remoteHome, label: "t-rex-test-ssh" });
   const paneId = created.pane_id;
   assert.equal(secondCreated.pane_id, paneId, "independent daemons intentionally produce equal pane IDs");
   const { ws, frames } = await connectWs(machineId);
@@ -221,7 +221,7 @@ try {
     const socket = join(remoteHome, ".config/herdr/sessions", name, "herdr.sock");
     try { await herdrRpc("server.stop", {}, socket, 1000); } catch {}
   }
-  const descriptors = join(remoteHome, ".config/herdr-web-ui/bridges");
+  const descriptors = join(remoteHome, ".config/t-rex/bridges");
   if (!passwordMode && existsSync(descriptors)) for (const file of readdirSync(descriptors).filter((f) => f.endsWith(".json"))) { try { const d = JSON.parse(readFileSync(join(descriptors, file), "utf8")); if (passwordMode) command(["sudo", "-n", "kill", String(d.pid)]); else process.kill(d.pid, "SIGTERM"); } catch {} }
   await stopSshd();
   if (passwordMode) { Bun.spawnSync(["sudo", "-n", "pkill", "-u", username]); Bun.spawnSync(["sudo", "-n", "userdel", username]); }

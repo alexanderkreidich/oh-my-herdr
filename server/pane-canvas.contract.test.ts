@@ -7,7 +7,7 @@ import { paneSplit, sessionSnapshot, tabCreate, workspaceClose, workspaceCreate 
 import type { ApiError, PaneLayoutSnapshot, PaneSwapped } from "../shared/protocol.ts";
 
 describe("pane canvas: focus, explicit swap and dragged split ratio", () => {
-  const state = mkdtempSync(join(tmpdir(), "herdr-web-ui-canvas-contract-"));
+  const state = mkdtempSync(join(tmpdir(), "t-rex-canvas-contract-"));
   let server: ReturnType<typeof createServer>;
   let workspaceId: string;
   let tabId: string;
@@ -35,7 +35,7 @@ describe("pane canvas: focus, explicit swap and dragged split ratio", () => {
 
   beforeAll(async () => {
     server = createServer({ port: 0, stateDir: state });
-    const created = await workspaceCreate({ cwd: state, label: "herdr-web-ui-test-canvas" });
+    const created = await workspaceCreate({ cwd: state, label: "t-rex-test-canvas" });
     workspaceId = created.workspace.workspace_id;
     root = created.root_pane.pane_id;
     tabId = created.root_pane.tab_id;

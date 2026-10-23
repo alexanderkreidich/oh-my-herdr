@@ -90,7 +90,7 @@ try {
     let ready = false;
     // a cold first start (fresh HOME, slow disk or CI runner) can take well over ten seconds
     for (let i = 0; i < 300; i++) { try { await bridgeIdentity(); ready = true; break; } catch { await Bun.sleep(100); } }
-    if (!ready) throw new Error("herdr did not start; inspect ~/.config/herdr-web-ui/bridges/herdr.log");
+    if (!ready) throw new Error("herdr did not start; inspect ~/.config/t-rex/bridges/herdr.log");
   }
   const info = await bridgeIdentity();
   if (info.herdr.protocol < 22) throw new Error("herdr 0.9+ is required; update it explicitly before connecting");

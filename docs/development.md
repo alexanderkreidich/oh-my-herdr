@@ -41,7 +41,7 @@ CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" bun r
 ```
 
 This builds and runs the kept terminal regressions on one isolated herdr, independently of
-upstream's obsolete chat/More-menu suite. It does not make the full legacy browser lane green.
+the obsolete chat/More-menu suite. It does not make the full legacy browser lane green.
 Use `scripts/terminal-screen.ts` to inspect SSP screen data in canvas tests, not renderer DOM rows.
 
 ## Checks
@@ -149,7 +149,7 @@ bun scripts/phone-worktree-sheet-regression.ts # a phone's New worktree sheet: t
 bun run test:ssh                # remote-PC integration over SSH
 ```
 
-Tests run against a herdr session of their own, `herdr-web-ui-test`. The first run starts a headless `herdr --session herdr-web-ui-test server` and later runs reuse it, so test workspaces never show in the herdr you work in (`scripts/test-herdr.ts`). Stop it with `herdr --session herdr-web-ui-test server stop`. `HERDR_TEST_SESSION` picks another name, and `HERDR_TEST_LIVE=1` runs against `HERDR_SOCKET` or your default session instead.
+Tests run against a herdr session of their own, `t-rex-test`. The first run starts a headless `herdr --session t-rex-test server` and later runs reuse it, so test workspaces never show in the herdr you work in (`scripts/test-herdr.ts`). Stop it with `herdr --session t-rex-test server stop`. `HERDR_TEST_SESSION` picks another name, and `HERDR_TEST_LIVE=1` runs against `HERDR_SOCKET` or your default session instead.
 
 Browser checks launch `CHROME_PATH` when it is set, else Google Chrome at `/opt/google/chrome/chrome` where that exists, else the lockfile's Playwright Chromium (`scripts/chrome-path.ts`; install it with `bun node_modules/playwright-core/cli.js install chromium`). After a herdr upgrade, refresh the generated wire types with `bun run generate:types --refresh` (and `--check` to verify).
 
@@ -337,7 +337,7 @@ to about 11.2% of its identity response; real tool output and conversations will
 
 ### Visible-Chat subscription and bounded-refresh resource measurement
 
-The push policy was compared with upstream 2 s polling on macOS in headed Chrome,
+The push policy was compared with the earlier 2 s polling on macOS in headed Chrome,
 using owned native Codex fixtures initially about 60 KB each. Each row is a paired
 20 s sample, excluding initial loading, with fresh bridge processes and the same
 16 owned workspaces present for both versions. Both versions retain the existing

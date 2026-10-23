@@ -1,14 +1,15 @@
 # Roadmap
 
-oh-my-herdr: an improved, minimal fork of herdr web UI with a Ghostty-like terminal emulator
-([restty](https://github.com/wiedymi/restty)) and a Mosh-style State Synchronization Protocol.
+t-rex: a browser terminal for the herdr multiplexer, built like Superlogical's Rex, with a
+Ghostty-like terminal emulator ([restty](https://github.com/wiedymi/restty)) and a Mosh-style
+State Synchronization Protocol.
 
 Each phase is a few slices; each slice is one branch and one PR (AGENTS.md, Development flow).
 A slice is done when its "Done when" holds, with evidence in the PR.
 
 ## Phase 0 — Development flow
 
-- [x] AGENTS.md for the fork: product, flow, UX and motion rules, traps.
+- [x] AGENTS.md: product, flow, UX and motion rules, traps.
 - [x] Emil Kowalski's design and animation skills in `.agents/skills/` (`.claude/skills` links).
 - [x] `bun run sandbox`: an isolated herdr and bridge for UI work, with `--shot` screenshots.
 - [x] This roadmap.
@@ -85,7 +86,7 @@ docs, so the tree is as small as the product.
 - [x] Server routes only the removed UI used (`/api/fs/favicon`, herdr's agent-row tokens, the
       folder listing's file and pane-relative modes).
 - [ ] A lean browser lane for what is left, grown from `scripts/minimal-ui-regression.ts`, run on
-      the system Chrome (`CHROME_PATH`): upstream's `scripts/ci-browser.sh` is already broken
+      the system Chrome (`CHROME_PATH`): the old `scripts/ci-browser.sh` is already broken
       (22 of its scripts are gone, most others assume the chat, the More menu, the lens switch or
       the agent list). Keep a script only if it passes against this UI; delete the rest, and the
       demo-only scripts with them. `docs/development.md` loses the deleted scripts in the same PR.
@@ -95,22 +96,27 @@ docs, so the tree is as small as the product.
 Done when: no `chat` lens or transcript route remains; `bun run check full` is green; the PR
 lists the bundle size and line count before and after.
 
-## Phase 3 — Fork identity and cleanup
+## Phase 3 — Own identity and cleanup
 
-- [ ] Own identity: plugin id, `package.json` repository, push subject, updater source.
-- [x] Remote PCs run this fork's bridge: the bundle URL names this repository and its versions
-      start at 1000, so a PC on upstream's bridge (no SSP, no local echo) is offered Update bridge.
+- [x] Own identity: t-rex, its pixel T-Rex icon (`scripts/generate-brand.ts`), plugin id
+      `alexanderkreidich.t-rex`, `package.json` repository, push subject, updater source (the
+      checkout's `origin`), MIT under its own copyright with the original client's notice in
+      THIRD_PARTY_NOTICES.md. Browser keys move from `herdr-web-ui:` to `t-rex:` on first load;
+      an existing `~/.config/herdr-web-ui` stays the state dir until moved to `~/.config/t-rex`.
+- [x] Remote PCs run t-rex's bridge: the bundle URL names this repository and its versions
+      start at 1000, so a PC on an older bridge (no SSP, no local echo) is offered Update bridge.
 - [ ] Publish `remote-v1000` from this repository; until then a remote PC needs a bundle built
       beside the server (`bun run build:remote <platform>`, docs/remote-pcs.md).
-- [x] Remove upstream usage telemetry: sender, daily visits, settings snapshots, API, UI, receiver
+- [x] Remove usage telemetry: sender, daily visits, settings snapshots, API, UI, receiver
       and reporting/deployment tooling.
-- [ ] README and INSTALL for the fork; DESIGN.md trimmed to what is left; `docs/guide.md`
-      rewritten without the chat (its Supported agents and Features sections describe it).
-- [ ] CI for the fork: one GitHub Actions workflow running `bun run check fast` on PRs; upstream's
-      Pages, growth, release and self-hosted-runner workflows go.
-- [ ] Decide, one by one, what else leaves (each a small PR or a "keep" note here): the website
-      (`site/`), native shells (`app/`), the film, usage meters and CLIProxy, voice input, Portal,
-      in-app alerts (Droplet), the sidebar's Install app button.
+- [x] README; the website, its film and README media, the one-line installers, the native shells
+      (`app/`) and the old changelog, release summaries and release workflow are gone.
+- [ ] DESIGN.md trimmed to what is left; `docs/guide.md` rewritten without the chat (its
+      Supported agents and Features sections describe it).
+- [ ] CI: one GitHub Actions workflow running `bun run check fast` on PRs; the self-hosted-runner
+      setup goes.
+- [ ] Decide, one by one, what else leaves (each a small PR or a "keep" note here): usage meters
+      and CLIProxy, voice input, Portal, in-app alerts (Droplet), the sidebar's Install app button.
 
 ## Phase 4 — restty terminal
 

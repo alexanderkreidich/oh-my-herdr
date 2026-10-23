@@ -17,7 +17,7 @@ terminal contents was identified in the reviewed first-party code. The terminal 
 runs with the server user's permissions: a person allowed to drive a terminal can execute commands
 and read that user's files. Do not treat web authentication as an OS sandbox.
 
-## Removed: upstream usage collection
+## Removed: usage collection
 
 The former default-on sender posted to
 `https://herdr-web-ui-telemetry.devswha.workers.dev/v1/events` and `/v1/active`.
@@ -34,8 +34,8 @@ collector. The removed API returns the normal not-found response. New privacy re
 check the absence of these shipping components and hooks.
 
 An older installation's `telemetry.json` is left untouched on disk and is no longer read. Removing
-code does not delete records previously received by the upstream operator. Already-running older
-processes/builds, installed upstream plugins and remote bridge bundles are not patched by a source
+code does not delete records previously received by the collector's operator. Already-running older
+processes/builds, installed older plugins and remote bridge bundles are not patched by a source
 edit; rebuild and restart the instance that should use this tree.
 
 ## Remaining findings, highest priority first
@@ -56,23 +56,23 @@ this change does not alter authorization policy.
 Evidence: `server/index.ts:createServer`, `server/access.ts:decideAccess`,
 `server/access.ts:cameThroughProxy`, `server/auth.ts`.
 
-### 2. Executable code still comes from upstream install/update channels
+### 2. Executable code comes from Git tags and release assets without signatures
 
 - Managed starts check Git tags after ten seconds and every five minutes. Checks use the
-  checkout's `origin`, not necessarily upstream. `HERDR_WEB_AUTO_UPDATE=1` enables automatic
+  checkout's `origin`. `HERDR_WEB_AUTO_UPDATE=1` enables automatic
   installation; otherwise checks offer updates. Dirty or non-main source checkouts are blocked.
   Installation checks out the selected revision, runs `bun install`, typecheck and build, then
   activates it. There is no independent signed-release verification in this path.
-- The default remote bundle manifest is still under
-  `github.com/devswha/herdr-web-ui/releases/download/remote-vN/manifest.json`. SSH setup downloads
+- The default remote bundle manifest is under
+  `github.com/alexanderkreidich/t-rex/releases/download/remote-vN/manifest.json`. SSH setup downloads
   and executes its bridge/runtime. Asset SHA-256 checks detect corruption but the checksum and
   download URL come from that same manifest; this is not independent publisher authentication.
   A local manifest/build or `HERDR_WEB_BUNDLE_MANIFEST` can override this source.
 - Registered remote bridges can update unattended when `auto_update_bridges` is enabled (the default) and the
   bridge is eligible for management. Initial installation/SSH approval is a separate user flow.
 
-This is the main remaining upstream trust boundary. Complete the roadmap's fork-identity slice
-before distributing the fork: choose owned sources and an explicit update/signature policy.
+This is the main remaining trust boundary: before distributing builds, choose an explicit
+update/signature policy.
 
 Evidence: `server/updater.ts:start`, `server/updater.ts:discover`, `server/updater.ts:request`,
 `server/supervisor.ts`, `server/remote-bundle.ts`, `server/machines.ts:lost`, `herdr-plugin.toml`.
@@ -121,7 +121,7 @@ Evidence: `server/machines.ts:prepare`, `server/remote-host.ts:authorizeKey`, `s
   stores it in plaintext with owner-only permissions; arbitrary HTTP(S) configuration is allowed.
   The default localhost URL alone does not activate it.
 - Web Push: subscribed devices receive encrypted notification payloads via their browser's push
-  endpoint. Titles can include pane/workspace or machine context. The upstream GitHub URL in the
+  endpoint. Titles can include pane/workspace or machine context. The repository URL in the
   VAPID subject is contact metadata, not an analytics destination. Keys/subscriptions persist on
   the server. Push providers can observe delivery metadata, but the application encrypts payloads.
 - Portal: an explicitly enabled, user-selected HTTPS relay exposes the web server publicly and
@@ -166,10 +166,10 @@ Evidence: `src/components/PaneTerminal.tsx` (OSC 52 handler), `src/lib/connectio
 
 ## Recommended follow-up order
 
-1. Finish fork identity and owned install/remote-bundle/update channels; choose whether periodic
-   update checks and remote auto-updates should exist at all.
+1. Publish the owned remote-bundle and update channels (`remote-v1000`, the first `v*` release);
+   choose whether periodic update checks and remote auto-updates should exist at all.
 2. Require explicit authentication before non-loopback exposure instead of relying on a warning.
 3. Decide whether plan meters/Keychain discovery, Hub, voice, push and Portal belong in this
-   terminal-first fork. Remove unused integrations in separate slices rather than silently
+   terminal-first app. Remove unused integrations in separate slices rather than silently
    disabling visible controls while retaining their backends.
 4. Consider independent release signatures and a stricter policy for HTTP provider/Hub URLs.

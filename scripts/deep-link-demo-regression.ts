@@ -25,7 +25,7 @@ const waitQuery = (page: Page, name: string, value: string | null) => page.waitF
 async function withPage(browser: Browser, search: string, run: (page: Page) => Promise<void>): Promise<void> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: "en-US" });
   try {
-    await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", fileOpen: "panel" })));
+    await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", fileOpen: "panel" })));
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -49,16 +49,16 @@ try {
   writeFileSync(index, html.replace(/<script type="module"/, `<script src="./demo-transport.js"></script>${DEMO_FILE_PREVIEW_SCRIPT}\n    <script type="module"`));
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
     let file: string;
-    try { file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length)); }
+    try { file = decodeURIComponent(path.slice("/t-rex/demo/app/".length)); }
     catch { return new Response("bad path", { status: 400 }); }
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
     const body = Bun.file(join(app, file));
     return (await body.exists()) ? new Response(body) : new Response("not found", { status: 404 });
   } });
-  url = `http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/`;
+  url = `http://127.0.0.1:${server.port}/t-rex/demo/app/`;
 
   try {
     const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
@@ -128,7 +128,7 @@ try {
       try {
         // after a reload marked to hold it, the PC list (its fetch and its stream) waits for __releaseRoster
         await heldContext.addInitScript(`
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
           const hold = sessionStorage.getItem("hold-roster") === "1";
           sessionStorage.removeItem("hold-roster");
           let release = () => {};
@@ -288,7 +288,7 @@ try {
       {
         const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" });
         try {
-          await phone.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+          await phone.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
           const page = await phone.newPage();
           await page.goto(`${url}?ws=${wsOf(INFRA)}&pane=${encodeURIComponent(INFRA)}&sidebar=shown`);
           await page.locator('.drawer-toggle[aria-expanded="true"]').waitFor();
@@ -322,7 +322,7 @@ try {
       const delayedContext = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: "en-US" });
       try {
         await delayedContext.addInitScript(`
-          localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
+          localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
           let released = false, fullMachines = null;
           const deliveries = [];
           const hold = machines => {
@@ -418,7 +418,7 @@ try {
       // Files offers no palette entry on a phone; resizing restores it.
       const palettePhone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" });
       try {
-        await palettePhone.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+        await palettePhone.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
         const page = await palettePhone.newPage();
         await page.goto(`${url}?pane=${encodeURIComponent(INFRA)}`);
         await waitSelected(page, INFRA);
@@ -463,7 +463,7 @@ try {
       // closed by Cancel or by an item leaves no entry behind, so the next Back goes to the pane before
       const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" });
       try {
-        await phone.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+        await phone.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
         const page = await phone.newPage();
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
@@ -487,7 +487,7 @@ try {
         await sheet.waitFor();
         await sheet.getByRole("button", { name: "Cancel", exact: true }).tap();
         await sheet.waitFor({ state: "detached" });
-        await page.waitForFunction(() => !Object.keys(history.state ?? {}).includes("herdr-web-ui:sheet"));
+        await page.waitForFunction(() => !Object.keys(history.state ?? {}).includes("t-rex:sheet"));
         await page.goBack();
         await waitSelected(page, INFRA);
         await page.goForward();

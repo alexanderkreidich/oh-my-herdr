@@ -10,8 +10,8 @@ export async function checkCommandBackspace(browser: Browser, origin: string, pa
   const context = await browser.newContext({ viewport: { width: 1100, height: 650 } });
   await context.addInitScript((id) => {
     Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
-    localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
-    localStorage.setItem(`herdr-web-ui:view:${id}`, "terminal");
+    localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
+    localStorage.setItem(`t-rex:view:${id}`, "terminal");
   }, paneId);
   try {
     const page = await context.newPage();
@@ -124,7 +124,7 @@ process.stdin.on("data", (data) => {
   const nonMac = await browser.newContext();
   await nonMac.addInitScript((id) => {
     Object.defineProperty(navigator, "platform", { get: () => "Linux x86_64" });
-    localStorage.setItem(`herdr-web-ui:view:${id}`, "terminal");
+    localStorage.setItem(`t-rex:view:${id}`, "terminal");
   }, paneId);
   try {
     const page = await nonMac.newPage();

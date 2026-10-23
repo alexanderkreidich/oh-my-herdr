@@ -1,5 +1,5 @@
 /*
- * Shell layout + shared primitives for oh-my-herdr.
+ * Shell layout + shared primitives for t-rex.
  *
  * Every color, size and space is a :root token; DESIGN.md is the human-readable
  * mirror of this block and the two must not drift. Dark is the default theme and
@@ -1795,11 +1795,6 @@ button {
 }
 
 /* ---------- header ---------- */
-
-.brand-sub {
-  color: var(--text-dim);
-  font-weight: var(--fw-medium);
-}
 
 /* the drawer's toggle in the bar below 769px; from 769px the sidebar's own top row (further
    down), the sidebar toggle right of it */

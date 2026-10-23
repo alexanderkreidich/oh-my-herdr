@@ -3,7 +3,7 @@
  * session (never the one you work in), the demo's two repositories under /tmp/herdr-demo with
  * their agent worktrees and the release shell tab. The real hostname never reaches the page.
  */
-process.env["HERDR_TEST_SESSION"] = "herdr-web-ui-demo";
+process.env["HERDR_TEST_SESSION"] = "t-rex-demo";
 await import("./test-herdr.ts");
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

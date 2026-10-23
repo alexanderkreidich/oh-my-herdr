@@ -94,7 +94,7 @@ async function checkPinned(page: Page, cdp?: CDPSession): Promise<void> {
   await childRow.focus();
   await page.keyboard.press("Alt+ArrowDown");
   assert.deepEqual(await restRows(), restBefore, "Alt+Down cannot move the repository's unpinned worktree");
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("herdr-web-ui:sidebar-agent-pins") ?? "[]") as string[]);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("t-rex:sidebar-agent-pins") ?? "[]") as string[]);
   assert.deepEqual(stored.filter((key) => key.includes(":workspace:")).map((key) => key.split(":workspace:")[1]), expected, "the pin list holds the new order");
   const unpinned = before[2]!;
   await drag(ids[0]!, unpinned);
@@ -127,9 +127,9 @@ try {
 
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
     let file: string;
-    try { file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length)); }
+    try { file = decodeURIComponent(path.slice("/t-rex/demo/app/".length)); }
     catch { return new Response("bad path", { status: 400 }); }
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
@@ -141,11 +141,11 @@ try {
     const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
     try {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-US" });
-      await context.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+      await context.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
       const page = await context.newPage();
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/`);
+      await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/`);
       await page.locator(".conn-live").waitFor({ state: "attached" });
       await page.locator('button[aria-controls="workspace-drawer"]').click();
       await page.locator(".machine-workspaces .workspace-group").first().waitFor();
@@ -205,9 +205,9 @@ try {
       assert.deepEqual(errors, []);
       await context.close();
       const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: "en-US" });
-      await desktop.addInitScript(() => localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" })));
+      await desktop.addInitScript(() => localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" })));
       const desktopPage = await desktop.newPage();
-      await desktopPage.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/`);
+      await desktopPage.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/`);
       await desktopPage.locator(".conn-live").waitFor({ state: "attached" });
       await desktopPage.locator(".machine-workspaces .workspace-group").first().waitFor();
       await checkPinned(desktopPage);

@@ -305,7 +305,7 @@ describe("lifecycle invalidations", () => {
   });
 
   it("replays a completion after a working pane moves and finishes before reconciliation", async () => {
-    // Verbatim herdr 0.9.3 frame captured on herdr-web-ui-qa-H4.
+    // Verbatim herdr 0.9.3 frame captured on t-rex-qa-H4.
     const moved: EventFrame = {
       data: {
         closed_tab_id: "w5:t1", closed_workspace_id: "w5",
@@ -313,8 +313,8 @@ describe("lifecycle invalidations", () => {
         created_workspace: { active_tab_id: "w6:t1", agent_status: "working", focused: false, label: "H4 working moved", number: 4, pane_count: 1, tab_count: 1, workspace_id: "w6" },
         pane: {
           agent: "codex", agent_status: "working",
-          cwd: "/home/devswha/workspace/herdr-web-ui-wt/fix-session-events-refresh",
-          focused: false, foreground_cwd: "/home/devswha/workspace/herdr-web-ui-wt/fix-session-events-refresh",
+          cwd: "/home/user/workspace/app-wt/fix-session-events-refresh",
+          focused: false, foreground_cwd: "/home/user/workspace/app-wt/fix-session-events-refresh",
           pane_id: "w6:p1", revision: 0,
           scroll: { max_offset_from_bottom: 0, offset_from_bottom: 0, viewport_rows: 40 },
           tab_id: "w6:t1", terminal_id: "term_65d72f77c76c24", workspace_id: "w6",

@@ -16,7 +16,7 @@ const paneInfo = (id: string) => ({
 });
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "herdr-web-ui-pane-routes-"));
+  root = mkdtempSync(join(tmpdir(), "t-rex-pane-routes-"));
   panes = {};
   socketBefore = process.env["HERDR_SOCKET"];
   const socket = join(root, "herdr.sock");

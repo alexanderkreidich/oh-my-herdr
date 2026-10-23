@@ -107,7 +107,7 @@ describe("preferences sync real send path", () => {
 
   async function open(raw: object = DEFAULT_SETTINGS): Promise<Client> {
     records.clear();
-    records.set("herdr-web-ui:settings", JSON.stringify(raw));
+    records.set("t-rex:settings", JSON.stringify(raw));
     const client: Client = { settings: sanitizeSettings(raw), rendered: { id: "amber", mode: "dark" }, update: () => { throw new Error("not mounted"); }, receive: () => { throw new Error("not mounted"); }, saveError: null };
     function Probe() {
       const context = useSettings();
@@ -200,7 +200,7 @@ describe("preferences sync real send path", () => {
     await act(async () => { store.set({ settings: { palette } }); });
     await windows(3);
     expect(client.settings.darkTheme).toBe(palette);
-    expect(JSON.parse(records.get("herdr-web-ui:themes") ?? "{}").darkTheme).toBe(palette);
+    expect(JSON.parse(records.get("t-rex:themes") ?? "{}").darkTheme).toBe(palette);
     expect(revisions).toEqual([1, 2]);
   });
 

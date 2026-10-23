@@ -13,16 +13,16 @@ import { UsageService } from "../server/usage.ts";
  * shows the same wait and the same button, its terminal not ended.
  */
 export async function checkTakeOver(browser: Browser, origin: string): Promise<void> {
-  const root = mkdtempSync(join(tmpdir(), "herdr-web-ui-take-over-"));
+  const root = mkdtempSync(join(tmpdir(), "t-rex-take-over-"));
   const cwd = join(root, "pane");
   mkdirSync(cwd);
-  const created = await workspaceCreate({ cwd, label: "herdr-web-ui-test-take-over" });
+  const created = await workspaceCreate({ cwd, label: "t-rex-test-take-over" });
   const paneId = created.root_pane.pane_id;
   const other = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), usage: new UsageService(undefined, []) });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "en-US" });
   try {
     await context.addInitScript(() => {
-      if (!localStorage.getItem("herdr-web-ui:settings")) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
+      if (!localStorage.getItem("t-rex:settings")) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
       // what this page's socket was told, to wait on the server's answers
       const frames: string[] = [];
       Object.assign(window, { takenText_: false });

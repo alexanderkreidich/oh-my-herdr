@@ -18,15 +18,15 @@ import type { MachineManager } from "./machines.ts";
 import { TailnetIdentitySource } from "./tailscale.ts";
 
 /**
- * Contract test for herdr-web-ui's HTTP + WS surface.
+ * Contract test for t-rex's HTTP + WS surface.
  * Runs against the REAL herdr server on the developer's machine: these are the
  * integration seams the browser UI depends on, so a mock here would prove nothing.
  * Tests never mutate a user's pane; mutation cases create labeled workspaces and close them in afterAll.
  * Every server here keeps its push state (VAPID key, subscriptions) in a temp dir: the
- * user's ~/.config/herdr-web-ui holds their real devices, which a test must never page.
+ * user's ~/.config/t-rex holds their real devices, which a test must never page.
  */
 let server: { port: number; stop: () => void };
-const stateDir = mkdtempSync(join(tmpdir(), "herdr-web-ui-contract-"));
+const stateDir = mkdtempSync(join(tmpdir(), "t-rex-contract-"));
 
 beforeAll(() => {
   server = createServer({ port: 0, stateDir, alertTiming: { short: 0, long: 0, longTurn: 0 }, pushLoopbackHttp: true });
@@ -452,7 +452,7 @@ describe("tab rename and close", () => {
   });
 
   it("renames a tab, closes one beside another, and takes the workspace with its last tab", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-rename-close" });
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab-rename-close" });
     const id = owned.workspace.workspace_id;
     let closed = false;
     try {
@@ -503,7 +503,7 @@ describe("tab reorder", () => {
     expect(((await missing.json()) as ApiError).error.code).toBe("tab_not_found");
   });
   it("uses boundaries before removal, preserves focus and IDs, and rejects out-of-range moves", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-reorder" });
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab-reorder" });
     const id = owned.workspace.workspace_id;
     try {
       const second = await tabCreate({ workspaceId: id, label: "build" });
@@ -541,7 +541,7 @@ describe("agent rename", () => {
     (await herdrRpc<{ agents: Array<{ pane_id: string; name?: string | null }> }>("agent.list", {})).agents.find((agent) => agent.pane_id === paneId)?.name ?? null;
 
   it("sets, reads back and clears a pane's agent name, and passes herdr's refusals through", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-agent-rename" });
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-agent-rename" });
     const id = owned.workspace.workspace_id;
     const paneId = owned.root_pane.pane_id;
     try {
@@ -550,7 +550,7 @@ describe("agent rename", () => {
       expect(shell.status).toBe(404);
       expect(((await shell.json()) as ApiError).error.code).toBe("agent_not_found");
 
-      await herdrRpc("pane.report_agent", { pane_id: paneId, source: "herdr-web-ui-test", agent: "claude", state: "idle" });
+      await herdrRpc("pane.report_agent", { pane_id: paneId, source: "t-rex-test", agent: "claude", state: "idle" });
       const set = await post({ pane_id: paneId, name: "webui-rename-a" });
       expect(set.status).toBe(200);
       expect(await set.json()).toEqual({ ok: true });
@@ -569,7 +569,7 @@ describe("agent rename", () => {
 
       // unique among the session's live agents
       const second = await tabCreate({ workspaceId: id });
-      await herdrRpc("pane.report_agent", { pane_id: second.root_pane.pane_id, source: "herdr-web-ui-test", agent: "codex", state: "working" });
+      await herdrRpc("pane.report_agent", { pane_id: second.root_pane.pane_id, source: "t-rex-test", agent: "codex", state: "working" });
       const taken = await post({ pane_id: second.root_pane.pane_id, name: "webui-rename-a" });
       expect(taken.status).toBe(404);
       expect(((await taken.json()) as ApiError).error.code).toBe("agent_name_taken");
@@ -586,9 +586,9 @@ describe("agent rename", () => {
   });
 
   it("forwards a remote rename with the registered bridge token, not the browser's", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-agent-rename-bridge" });
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-agent-rename-bridge" });
     const paneId = owned.root_pane.pane_id;
-    const state = mkdtempSync(join(tmpdir(), "herdr-web-ui-agent-rename-bridge-"));
+    const state = mkdtempSync(join(tmpdir(), "t-rex-agent-rename-bridge-"));
     // the other PC's bridge asks its browsers for a token of its own; the proxy holds only the bridge token it registered
     const bridge = createServer({ port: 0, hostname: "127.0.0.1", token: "test-browser-token", machines: false, registerBridge: true, stateDir: state, tailscaleOwner: null });
     const registered = JSON.parse(readFileSync(descriptorPath(), "utf8")) as BridgeDescriptor;
@@ -596,7 +596,7 @@ describe("agent rename", () => {
     const manager = { endpoint: (id: string) => id === "rename-remote" ? { url: endpoint, token: registered.token } : null, trackTerminal: () => () => {} } as unknown as MachineManager;
     try {
       expect(registered.token).not.toBe("test-browser-token");
-      await herdrRpc("pane.report_agent", { pane_id: paneId, source: "herdr-web-ui-test", agent: "claude", state: "idle" });
+      await herdrRpc("pane.report_agent", { pane_id: paneId, source: "t-rex-test", agent: "claude", state: "idle" });
       // the browser token is deliberately absent: the proxy must authenticate with the bridge token
       expect((await fetch(`${endpoint}/api/agent/rename`, { method: "POST", body: "{}" })).status).toBe(401);
       const res = await handleMachineRequest(new Request("http://127.0.0.1/api/machines/rename-remote/agent/rename", {
@@ -661,8 +661,8 @@ describe("tab creation", () => {
   });
 
   it("creates a sibling tab with its own cwd and label without adding a workspace", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab" });
-    const cwd = mkdtempSync(join(tmpdir(), "herdr-web-ui-tab-cwd-"));
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab" });
+    const cwd = mkdtempSync(join(tmpdir(), "t-rex-tab-cwd-"));
     try {
       const before = (await herdrRpc<{ snapshot: SessionSnapshot }>("session.snapshot", {})).snapshot;
       const res = await post({ workspace_id: owned.workspace.workspace_id, cwd, label: "second tab", agent: null });
@@ -699,7 +699,7 @@ describe("tab creation", () => {
   });
 
   it("supports the authenticated local-PC alias without allowing other tab routes", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-local-alias" });
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab-local-alias" });
     try {
       const res = await fetch(`${base()}/api/machines/local/tab/create`, {
         method: "POST", headers: { "content-type": "application/json", "x-herdr-machine": "1" },
@@ -714,8 +714,8 @@ describe("tab creation", () => {
   });
 
   it("forwards remote tab creation using the registered bridge token", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-bridge" });
-    const state = mkdtempSync(join(tmpdir(), "herdr-web-ui-tab-bridge-"));
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab-bridge" });
+    const state = mkdtempSync(join(tmpdir(), "t-rex-tab-bridge-"));
     const bridge = createServer({ port: 0, hostname: "127.0.0.1", token: "test-browser-token", machines: false, registerBridge: true, stateDir: state, tailscaleOwner: null });
     const registered = JSON.parse(readFileSync(descriptorPath(), "utf8")) as BridgeDescriptor;
     const endpoint = `http://127.0.0.1:${bridge.port}`;
@@ -752,7 +752,7 @@ describe("tab creation", () => {
   it("shares unique agent names across concurrent tabs and preserves a tab when an explicit name collides", async () => {
     const first = await fetch(`${base()}/api/workspace/create`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-agents", agent: { kind: "muse" } }),
+      body: JSON.stringify({ cwd: tmpdir(), label: "t-rex-test-tab-agents", agent: { kind: "muse" } }),
     });
     const owned = await first.json() as WorkspaceCreated;
     const nameOf = async (paneId: string) => (await herdrRpc<{ agent: { name: string } }>("agent.get", { target: paneId })).agent.name;
@@ -779,8 +779,8 @@ describe("tab creation", () => {
   }, 20_000);
 
   it("returns the created tab when a shell agent is unavailable", async () => {
-    const owned = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-tab-shell" });
-    const bin = mkdtempSync(join(tmpdir(), "herdr-web-ui-tab-empty-path-"));
+    const owned = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-tab-shell" });
+    const bin = mkdtempSync(join(tmpdir(), "t-rex-tab-empty-path-"));
     const path = process.env["PATH"];
     try {
       process.env["PATH"] = bin;
@@ -801,7 +801,7 @@ describe("tab creation", () => {
 describe("workspace and discovery endpoints", () => {
   let workspaceId: string | null = null;
   let paneId: string | null = null;
-  const label = `herdr-web-ui-test-${Math.random().toString(36).slice(2)}`;
+  const label = `t-rex-test-${Math.random().toString(36).slice(2)}`;
   const fileName = `${label}-mention.txt`;
   const filePath = join(tmpdir(), fileName);
 
@@ -834,7 +834,7 @@ describe("workspace and discovery endpoints", () => {
   });
 
   it("offers omo and gjc, which herdr cannot start, exactly when they are on PATH", async () => {
-    const bin = mkdtempSync(join(tmpdir(), "herdr-web-ui-shell-agents-"));
+    const bin = mkdtempSync(join(tmpdir(), "t-rex-shell-agents-"));
     const path = process.env["PATH"];
     const kinds = async () => ((await (await fetch(`${base()}/api/agents`)).json()) as { agents: AgentKind[] }).agents;
     try {
@@ -853,7 +853,7 @@ describe("workspace and discovery endpoints", () => {
   });
 
   it("makes one folder for the folder browser, and refuses names, folders and origins it must not", async () => {
-    const root = mkdtempSync(join(tmpdir(), "herdr-web-ui-mkdir-"));
+    const root = mkdtempSync(join(tmpdir(), "t-rex-mkdir-"));
     const make = (body: unknown, headers: Record<string, string> = {}) => fetch(`${base()}/api/workspace/directories`, {
       method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body),
     });
@@ -932,7 +932,7 @@ describe("workspace and discovery endpoints", () => {
   }, 20_000);
 
   it("pushes session-changed when POST /api/workspace/close answers, not after the collector's debounce", async () => {
-    const closing = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-close-push" });
+    const closing = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-close-push" });
     const socket = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
     try {
       // the creation's own frame, debounced, is not the close's
@@ -954,14 +954,14 @@ describe("workspace and discovery endpoints", () => {
   }, 20_000);
 
   it("says a repository has no commits yet instead of passing git's refusal on", async () => {
-    const repo = mkdtempSync(join(tmpdir(), "herdr-web-ui-worktree-empty-"));
+    const repo = mkdtempSync(join(tmpdir(), "t-rex-worktree-empty-"));
     expect(Bun.spawnSync(["git", "init", "-q", "-b", "main"], { cwd: repo, stdout: "pipe", stderr: "pipe" }).exitCode).toBe(0);
-    const parent = await workspaceCreate({ cwd: repo, label: "herdr-web-ui-test-worktree-empty" });
+    const parent = await workspaceCreate({ cwd: repo, label: "t-rex-test-worktree-empty" });
     const checkout = join(`${repo}-checkouts`, "feature");
     try {
       const create = await fetch(`${base()}/api/worktree/create`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ workspace_id: parent.workspace.workspace_id, branch: "herdr-web-ui-test-unborn", path: checkout }),
+        body: JSON.stringify({ workspace_id: parent.workspace.workspace_id, branch: "t-rex-test-unborn", path: checkout }),
       });
       expect(create.status).toBe(409);
       expect(((await create.json()) as ApiError).error.code).toBe("repository_without_commits");
@@ -975,13 +975,13 @@ describe("workspace and discovery endpoints", () => {
 
   it("creates a worktree of an owned repository as a grouped workspace, lists it, and opens it again", async () => {
     // a repository with one commit: a worktree needs a branch to start from
-    const repo = mkdtempSync(join(tmpdir(), "herdr-web-ui-worktree-"));
-    const git = (...args: string[]) => Bun.spawnSync(["git", "-c", "user.name=herdr-web-ui test", "-c", "user.email=test@example.invalid", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe" });
+    const repo = mkdtempSync(join(tmpdir(), "t-rex-worktree-"));
+    const git = (...args: string[]) => Bun.spawnSync(["git", "-c", "user.name=t-rex test", "-c", "user.email=test@example.invalid", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe" });
     expect(git("init", "-q", "-b", "main").exitCode).toBe(0);
     writeFileSync(join(repo, "README.md"), "worktree fixture\n");
     expect(git("add", "README.md").exitCode).toBe(0);
     expect(git("commit", "-q", "-m", "fixture").exitCode).toBe(0);
-    const parent = await workspaceCreate({ cwd: repo, label: "herdr-web-ui-test-worktree-parent" });
+    const parent = await workspaceCreate({ cwd: repo, label: "t-rex-test-worktree-parent" });
     const owned = [parent.workspace.workspace_id];
     // the checkout lives under the test's own folders, never under the user's worktree directory
     const checkouts = `${repo}-checkouts`;
@@ -991,19 +991,19 @@ describe("workspace and discovery endpoints", () => {
       const missing = await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id });
       expect(missing.status).toBe(400);
       expect(((await missing.json()) as ApiError).error.code).toBe("missing_branch");
-      const badAgent = await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "herdr-web-ui-test-feature", path: checkout, agent: { kind: "muse", args: "--help" } });
+      const badAgent = await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "t-rex-test-feature", path: checkout, agent: { kind: "muse", args: "--help" } });
       expect(badAgent.status).toBe(400);
       expect(((await badAgent.json()) as ApiError).error.code).toBe("invalid_agent");
       expect(existsSync(checkout)).toBeFalse();
 
-      const create = await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "herdr-web-ui-test-feature", base: null, label: null, path: checkout });
+      const create = await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "t-rex-test-feature", base: null, label: null, path: checkout });
       expect(create.status).toBe(200);
       const opened = (await create.json()) as WorktreeOpened;
       owned.push(opened.workspace_id);
       expect(opened.already_open).toBeFalse();
       // no agent was asked for: the answer says nothing about one
       expect(opened.agent_started).toBeUndefined();
-      expect(opened.branch).toBe("herdr-web-ui-test-feature");
+      expect(opened.branch).toBe("t-rex-test-feature");
       expect(realpathSync(opened.path)).toBe(realpathSync(checkout));
       const child = (await sessionSnapshot()).workspaces.find((workspace) => workspace.workspace_id === opened.workspace_id);
       expect(child?.worktree?.is_linked_worktree).toBeTrue();
@@ -1011,7 +1011,7 @@ describe("workspace and discovery endpoints", () => {
       const list = await fetch(`${base()}/api/worktree/list?workspace_id=${encodeURIComponent(parent.workspace.workspace_id)}`);
       expect(list.status).toBe(200);
       const listing = (await list.json()) as WorktreeListing;
-      expect(listing.worktrees.some((entry) => entry.branch === "herdr-web-ui-test-feature" && entry.open_workspace_id === opened.workspace_id)).toBeTrue();
+      expect(listing.worktrees.some((entry) => entry.branch === "t-rex-test-feature" && entry.open_workspace_id === opened.workspace_id)).toBeTrue();
 
       const again = await post("/api/worktree/open", { workspace_id: parent.workspace.workspace_id, path: checkout });
       expect(again.status).toBe(200);
@@ -1036,7 +1036,7 @@ describe("workspace and discovery endpoints", () => {
 
       // a clean worktree closes with its repository's workspace when the group is meant; its checkout stays.
       // An agent asked for with the checkout starts in its pane, as one asked for with a workspace does.
-      const second = (await (await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "herdr-web-ui-test-second", path: join(checkouts, "second"), agent: { kind: "muse" } })).json()) as WorktreeOpened;
+      const second = (await (await post("/api/worktree/create", { workspace_id: parent.workspace.workspace_id, branch: "t-rex-test-second", path: join(checkouts, "second"), agent: { kind: "muse" } })).json()) as WorktreeOpened;
       owned.push(second.workspace_id);
       expect(second.error).toBeUndefined();
       expect(second.agent_started).toBeTrue();
@@ -1063,33 +1063,33 @@ describe("workspace and discovery endpoints", () => {
   }, 30_000);
 
   it("starts a worktree asked from a workspace on a linked checkout at the repository's own workspace", async () => {
-    const repo = mkdtempSync(join(tmpdir(), "herdr-web-ui-worktree-linked-"));
-    const git = (...args: string[]) => Bun.spawnSync(["git", "-c", "user.name=herdr-web-ui test", "-c", "user.email=test@example.invalid", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe" });
+    const repo = mkdtempSync(join(tmpdir(), "t-rex-worktree-linked-"));
+    const git = (...args: string[]) => Bun.spawnSync(["git", "-c", "user.name=t-rex test", "-c", "user.email=test@example.invalid", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe" });
     expect(git("init", "-q", "-b", "main").exitCode).toBe(0);
     writeFileSync(join(repo, "README.md"), "worktree fixture\n");
     expect(git("add", "README.md").exitCode).toBe(0);
     expect(git("commit", "-q", "-m", "fixture").exitCode).toBe(0);
     const checkouts = `${repo}-checkouts`;
     // a checkout git made, opened as a plain workspace: herdr does not mark it as a worktree
-    expect(git("worktree", "add", "-q", "-b", "herdr-web-ui-test-linked", join(checkouts, "linked")).exitCode).toBe(0);
-    const linked = await workspaceCreate({ cwd: join(checkouts, "linked"), label: "herdr-web-ui-test-worktree-linked" });
+    expect(git("worktree", "add", "-q", "-b", "t-rex-test-linked", join(checkouts, "linked")).exitCode).toBe(0);
+    const linked = await workspaceCreate({ cwd: join(checkouts, "linked"), label: "t-rex-test-worktree-linked" });
     const owned = [linked.workspace.workspace_id];
     const post = (path: string, body: unknown) => fetch(`${base()}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     try {
       expect((await sessionSnapshot()).workspaces.find((workspace) => workspace.workspace_id === linked.workspace.workspace_id)?.worktree?.is_linked_worktree).not.toBeTrue();
       // the repository's own workspace is not open: herdr's refusal is the answer
-      const alone = await post("/api/worktree/create", { workspace_id: linked.workspace.workspace_id, branch: "herdr-web-ui-test-alone", path: join(checkouts, "alone") });
+      const alone = await post("/api/worktree/create", { workspace_id: linked.workspace.workspace_id, branch: "t-rex-test-alone", path: join(checkouts, "alone") });
       expect(alone.status).toBe(404);
       expect(((await alone.json()) as ApiError).error.code).toBe("linked_worktree_source");
       expect(existsSync(join(checkouts, "alone"))).toBeFalse();
 
-      const parent = await workspaceCreate({ cwd: repo, label: "herdr-web-ui-test-worktree-linked-parent" });
+      const parent = await workspaceCreate({ cwd: repo, label: "t-rex-test-worktree-linked-parent" });
       owned.push(parent.workspace.workspace_id);
-      const create = await post("/api/worktree/create", { workspace_id: linked.workspace.workspace_id, branch: "herdr-web-ui-test-from-linked", path: join(checkouts, "from-linked") });
+      const create = await post("/api/worktree/create", { workspace_id: linked.workspace.workspace_id, branch: "t-rex-test-from-linked", path: join(checkouts, "from-linked") });
       expect(create.status).toBe(200);
       const opened = (await create.json()) as WorktreeOpened;
       owned.push(opened.workspace_id);
-      expect(opened.branch).toBe("herdr-web-ui-test-from-linked");
+      expect(opened.branch).toBe("t-rex-test-from-linked");
       expect(existsSync(join(checkouts, "from-linked"))).toBeTrue();
       expect((await sessionSnapshot()).workspaces.find((workspace) => workspace.workspace_id === opened.workspace_id)?.worktree?.is_linked_worktree).toBeTrue();
 
@@ -1196,7 +1196,7 @@ describe("POST /api/pane/find viewport results", () => {
   let workspaceId: string;
   let paneId: string;
   beforeAll(async () => {
-    const created = await workspaceCreate({ cwd: stateDir, label: "herdr-web-ui-test-find-response" });
+    const created = await workspaceCreate({ cwd: stateDir, label: "t-rex-test-find-response" });
     workspaceId = created.workspace.workspace_id;
     paneId = created.root_pane.pane_id;
     const ready = herdrRpc("pane.wait_for_output", {
@@ -1320,7 +1320,7 @@ describe("POST /api/pane/close", () => {
   beforeAll(async () => {
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-close", cwd: "/tmp", focus: false },
+      { label: "t-rex-test-close", cwd: "/tmp", focus: false },
     );
     workspaceId = created.workspace.workspace_id;
     paneId = created.root_pane.pane_id;
@@ -1392,10 +1392,10 @@ describe("POST /api/pane/image", () => {
     });
 
   beforeAll(async () => {
-    qaCwd = mkdtempSync(join(tmpdir(), "herdr-web-ui-image-"));
+    qaCwd = mkdtempSync(join(tmpdir(), "t-rex-image-"));
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-image", cwd: qaCwd, focus: false },
+      { label: "t-rex-test-image", cwd: qaCwd, focus: false },
     );
     qaWorkspaceId = created.workspace.workspace_id;
     qaPaneId = created.root_pane.pane_id;
@@ -1413,7 +1413,7 @@ describe("POST /api/pane/image", () => {
     expect(body.ok).toBe(true);
     // the prompt must reference a file the agent can read without leaving its project
     expect(body.path.startsWith(qaCwd!)).toBe(true);
-    expect(body.path.includes(".herdr-web-ui")).toBe(true);
+    expect(body.path.includes(".t-rex")).toBe(true);
     expect(body.path.endsWith(".png")).toBe(true);
     const stored = statSync(body.path);
     expect(stored.size).toBeGreaterThan(0);
@@ -1432,7 +1432,7 @@ describe("POST /api/pane/image", () => {
     const res = await post({ pane_id: qaPaneId, content_type: "image/svg+xml", data_base64: svg, name: "../omo icon.SVG" });
     expect(res.status).toBe(200);
     const { path } = (await res.json()) as { path: string };
-    expect(path.startsWith(join(qaCwd!, ".herdr-web-ui") + "/")).toBe(true);
+    expect(path.startsWith(join(qaCwd!, ".t-rex") + "/")).toBe(true);
     expect(basename(path)).toMatch(/^omo_icon-\d{8}-\d{6}-[0-9a-f]{8}\.svg$/);
     expect(readFileSync(path, "utf8")).toBe('<svg xmlns="http://www.w3.org/2000/svg"/>');
     // no name, or one without a usable extension: still stored, as .bin
@@ -1519,7 +1519,7 @@ describe("WebSocket /ws", () => {
   beforeAll(async () => {
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test", cwd: "/tmp", focus: false },
+      { label: "t-rex-test", cwd: "/tmp", focus: false },
     );
     qaWorkspaceId = created.workspace.workspace_id;
     qaPaneId = created.root_pane.pane_id;
@@ -1646,7 +1646,7 @@ describe("WebSocket roles and status push", () => {
   beforeAll(async () => {
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-roles", cwd: "/tmp", focus: false },
+      { label: "t-rex-test-roles", cwd: "/tmp", focus: false },
     );
     qaWorkspaceId = created.workspace.workspace_id;
     qaPaneId = created.root_pane.pane_id;
@@ -1726,7 +1726,7 @@ describe("WebSocket roles and status push", () => {
   }, 40_000);
 
   it("leaves the shared pty's size alone for an attach whose grid the chat lens covers", async () => {
-    const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-keep-size" });
+    const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-keep-size" });
     const paneId = created.root_pane.pane_id;
     const chat = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
     const otherChat = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
@@ -1766,7 +1766,7 @@ describe("WebSocket roles and status push", () => {
   }, 60_000);
 
   it("applies a resize that arrives while a covered attach is still creating the pty", async () => {
-    const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-keep-size-switch" });
+    const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-keep-size-switch" });
     const paneId = created.root_pane.pane_id;
     const phone = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
     try {
@@ -1811,7 +1811,7 @@ describe("WebSocket roles and status push", () => {
       const want = size.replace("x", " ");
       let last = "";
       for (const deadline = Date.now() + 15_000; Date.now() < deadline;) {
-        const file = join(tmpdir(), `herdr-web-ui-release-size-${process.pid}-${++asks}`);
+        const file = join(tmpdir(), `t-rex-release-size-${process.pid}-${++asks}`);
         socket.send({ type: "input", pane_id: paneId, text: `stty size > ${file}.part && mv ${file}.part ${file}\r` });
         for (const answered = Date.now() + 1000; Date.now() < answered && !existsSync(file);) await Bun.sleep(25);
         if (!existsSync(file)) continue;
@@ -1827,7 +1827,7 @@ describe("WebSocket roles and status push", () => {
     };
 
     it("returns the pty to the desktop's grid when the phone leaves the terminal lens", async () => {
-      const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-release-size" });
+      const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-release-size" });
       const paneId = created.root_pane.pane_id;
       const desktop = await ws();
       const phone = await ws();
@@ -1854,7 +1854,7 @@ describe("WebSocket roles and status push", () => {
     }, 60_000);
 
     it("skips a hidden client's grid when another client releases, leaving the size if nobody shows a terminal", async () => {
-      const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-release-size-hidden" });
+      const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-release-size-hidden" });
       const paneId = created.root_pane.pane_id;
       const desktop = await ws();
       const phone = await ws();
@@ -1912,7 +1912,7 @@ describe("WebSocket roles and status push", () => {
     }, 60_000);
 
     it("keeps a grid released during attach creation out of the fallback candidates", async () => {
-      const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-release-size-creating" });
+      const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-release-size-creating" });
       const paneId = created.root_pane.pane_id;
       const hidden = await ws();
       const phone = await ws();
@@ -1941,7 +1941,7 @@ describe("WebSocket roles and status push", () => {
     }, 60_000);
 
     it("never overwrites a resize another client sends after the release", async () => {
-      const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-release-size-race" });
+      const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-release-size-race" });
       const paneId = created.root_pane.pane_id;
       const desktop = await ws();
       const phone = await ws();
@@ -1971,7 +1971,7 @@ describe("WebSocket roles and status push", () => {
     }, 60_000);
 
     it("ignores a release from a client that never drove the grid, as an older server ignores the frame", async () => {
-      const created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-release-size-noop" });
+      const created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-release-size-noop" });
       const paneId = created.root_pane.pane_id;
       const desktop = await ws();
       const chat = await ws();
@@ -2041,7 +2041,7 @@ describe("WebSocket roles and status push", () => {
       // a pane ending while unattached pushes pane-exited
       const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
         "workspace.create",
-        { label: "herdr-web-ui-test-exit", cwd: "/tmp", focus: false },
+        { label: "t-rex-test-exit", cwd: "/tmp", focus: false },
       );
       exitWorkspaceId = created.workspace.workspace_id;
       const exitPaneId = created.root_pane.pane_id;
@@ -2083,7 +2083,7 @@ describe("WebSocket observer-first attach", () => {
   beforeAll(async () => {
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-observe", cwd: "/tmp", focus: false },
+      { label: "t-rex-test-observe", cwd: "/tmp", focus: false },
     );
     observeWorkspaceId = created.workspace.workspace_id;
     observePaneId = created.root_pane.pane_id;
@@ -2134,7 +2134,7 @@ describe("WebSocket concurrent attach", () => {
   beforeAll(async () => {
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-race", cwd: "/tmp", focus: false },
+      { label: "t-rex-test-race", cwd: "/tmp", focus: false },
     );
     raceWorkspaceId = created.workspace.workspace_id;
     racePaneId = created.root_pane.pane_id;
@@ -2205,7 +2205,7 @@ describe("WebSocket client leaving mid-attach", () => {
   });
 
   it("never pins the pty for a client that disconnects before its attach is ready", async () => {
-    const { paneId, terminalId } = await createLeavePane("herdr-web-ui-test-leave-close");
+    const { paneId, terminalId } = await createLeavePane("t-rex-test-leave-close");
     expect(attachProcessCount(terminalId)).toBe(0);
     const leaver = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
     const stayer = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
@@ -2224,7 +2224,7 @@ describe("WebSocket client leaving mid-attach", () => {
   }, 40_000);
 
   it("never pins the pty for a client that detaches before its attach is ready", async () => {
-    const { paneId, terminalId } = await createLeavePane("herdr-web-ui-test-leave-detach");
+    const { paneId, terminalId } = await createLeavePane("t-rex-test-leave-detach");
     expect(attachProcessCount(terminalId)).toBe(0);
     const switcher = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
     const stayer = await RecordingSocket.connect(`ws://localhost:${server.port}/ws`);
@@ -2276,7 +2276,7 @@ describe("web push", () => {
     fake = await startFakePushService();
     const created = await herdrRpc<{ workspace: { workspace_id: string }; root_pane: { pane_id: string } }>(
       "workspace.create",
-      { label: "herdr-web-ui-test-push", cwd: "/tmp", focus: false },
+      { label: "t-rex-test-push", cwd: "/tmp", focus: false },
     );
     pushWorkspaceId = created.workspace.workspace_id;
     pushPaneId = created.root_pane.pane_id;
@@ -2368,9 +2368,9 @@ describe("web push", () => {
     let bridge: ReturnType<typeof createServer> | undefined;
     let page: RecordingSocket | undefined;
     try {
-      created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-push-presence" });
+      created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-push-presence" });
       const paneId = created.root_pane.pane_id;
-      dir = mkdtempSync(join(tmpdir(), "herdr-web-ui-push-presence-"));
+      dir = mkdtempSync(join(tmpdir(), "t-rex-push-presence-"));
       device = await startFakePushService();
       bridge = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: dir, machines: false, pushLoopbackHttp: true,
         alertTiming: { short: 0, long: 0, longTurn: 0 } });
@@ -2447,11 +2447,11 @@ describe("web push", () => {
     let bridge: ReturnType<typeof createServer> | undefined;
     let watcher: RecordingSocket | undefined;
     try {
-      created = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-codex-finish" });
-      probe = await workspaceCreate({ cwd: tmpdir(), label: "herdr-web-ui-test-codex-probe" });
+      created = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-codex-finish" });
+      probe = await workspaceCreate({ cwd: tmpdir(), label: "t-rex-test-codex-probe" });
       const paneId = created.root_pane.pane_id;
       const probeId = probe.root_pane.pane_id;
-      dir = mkdtempSync(join(tmpdir(), "herdr-web-ui-codex-finish-"));
+      dir = mkdtempSync(join(tmpdir(), "t-rex-codex-finish-"));
       const device = await startFakePushService();
       cleanupDevice = device;
       await herdrRpc("pane.report_agent", { pane_id: paneId, source: "manual", agent: "codex", state: "unknown" });
@@ -2545,11 +2545,11 @@ describe("web push", () => {
         cwd: "/tmp",
         focus: false,
       });
-    const watched = await createPane("herdr-web-ui-test-push-restart");
-    const probe = await createPane("herdr-web-ui-test-push-probe");
+    const watched = await createPane("t-rex-test-push-restart");
+    const probe = await createPane("t-rex-test-push-probe");
     const watchedId = watched.root_pane.pane_id;
     const probeId = probe.root_pane.pane_id;
-    const restartDir = mkdtempSync(join(tmpdir(), "herdr-web-ui-restart-"));
+    const restartDir = mkdtempSync(join(tmpdir(), "t-rex-restart-"));
     const device = await startFakePushService();
     let restarted: { port: number; stop: () => void } | null = null;
     let watcher: RecordingSocket | null = null;
@@ -3111,7 +3111,7 @@ describe("terminal of a bridge without the PTY sidecar", () => {
   const TOKEN = "sidecar-test-secret";
   /** what /api/health and /api/bridge tell of herdr, from a bridge whose runtime has the sidecar or lacks it */
   const told = async (sidecar: boolean) => {
-    const dir = mkdtempSync(join(tmpdir(), "herdr-web-ui-sidecar-"));
+    const dir = mkdtempSync(join(tmpdir(), "t-rex-sidecar-"));
     const bridge = createServer({ port: 0, stateDir: dir, token: TOKEN, machines: false, sidecar });
     try {
       const get = async (path: string) => {
@@ -3139,10 +3139,10 @@ describe("terminal of a bridge without the PTY sidecar", () => {
 });
 
 it("refuses cross-origin changes while allowing same-origin and CLI requests", async () => {
-  const root = mkdtempSync(join(tmpdir(), "herdr-web-ui-origin-"));
+  const root = mkdtempSync(join(tmpdir(), "t-rex-origin-"));
   const instance = createServer({ port: 0, stateDir: root, token: "", tailscaleOwner: null, machines: false });
   const base = `http://127.0.0.1:${instance.port}`;
-  const created = await workspaceCreate({ cwd: root, label: "herdr-web-ui-test-origin" });
+  const created = await workspaceCreate({ cwd: root, label: "t-rex-test-origin" });
   try {
     for (const path of ["pane/input", "pane/keys", "pane/close", "pane/focus", "layout/ratio", "workspace/create", "tab/create", "tab/rename", "tab/close", "tab/move", "push/subscribe"]) {
       const response = await fetch(`${base}/api/${path}`, { method: "POST", headers: { origin: "http://other.example", "content-type": "text/plain" }, body: JSON.stringify({ pane_id: created.root_pane.pane_id, text: "must not type", keys: ["Enter"] }) });

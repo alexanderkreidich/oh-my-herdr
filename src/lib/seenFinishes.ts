@@ -1,7 +1,7 @@
 import type { SeenRecord } from "./sidebarOrder.ts";
 
-export const SEEN_PREFIX = "herdr-web-ui:finish:";
-const OLD_PREFIX = "herdr-web-ui:seen:";
+export const SEEN_PREFIX = "t-rex:finish:";
+const OLD_PREFIX = "t-rex:seen:";
 export const SEEN_LIMIT = 2000;
 const scope = (pc: string, epoch: string) => `${SEEN_PREFIX}${encodeURIComponent(pc)}:${encodeURIComponent(epoch)}:`;
 export const seenKey = (pc: string, epoch: string, pane: string): string => scope(pc, epoch) + encodeURIComponent(pane);

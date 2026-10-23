@@ -17,16 +17,16 @@ describe("Browser failure sites", () => {
                                     ^
 AssertionError: input regression timed out
  generatedMessage: false,
-      at /w/herdr-web-ui/herdr-web-ui/scripts/terminal-input-regression.ts:65:32
-      at checkTerminalInput (/w/herdr-web-ui/herdr-web-ui/scripts/terminal-input-regression.ts:81:11)`;
+      at /w/t-rex/t-rex/scripts/terminal-input-regression.ts:65:32
+      at checkTerminalInput (/w/t-rex/t-rex/scripts/terminal-input-regression.ts:81:11)`;
     expect(failureSite(log)).toEqual({ site: "scripts/terminal-input-regression.ts:65", message: "AssertionError: input regression timed out" });
   });
   it("skips Playwright frames for the first script frame", () => {
     const log = `  TimeoutError: waitFor: Timeout 30000ms exceeded.
 Call log:
   - waiting for locator('.prompt-card') to be detached
-      at /w/herdr-web-ui/herdr-web-ui/node_modules/playwright-core/lib/coreBundle.js:57694:13
-      at checkSplitView (/w/herdr-web-ui/herdr-web-ui/scripts/split-view-regression.ts:509:13)`;
+      at /w/t-rex/t-rex/node_modules/playwright-core/lib/coreBundle.js:57694:13
+      at checkSplitView (/w/t-rex/t-rex/scripts/split-view-regression.ts:509:13)`;
     expect(failureSite(log)).toEqual({ site: "scripts/split-view-regression.ts:509", message: "TimeoutError: waitFor: Timeout 30000ms exceeded." });
   });
   it("keeps an error with no script frame", () => {

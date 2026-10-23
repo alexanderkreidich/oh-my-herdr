@@ -117,7 +117,7 @@ try {
   assert.ok(snapshot.workspaces.some((w) => w.label === "existing-default"), "inherited default is the existing server");
   assert.equal(remote("test ! -e /home/fixture/.config/herdr/sessions/default/herdr.sock && echo correct"), "correct");
   console.log("PASS discovery, fingerprint/password approval, bundle install, existing Herdr reuse and default session identity");
-  const created = await api<WorkspaceCreated>(path + "/workspace/create", "POST", { cwd: "/home/fixture", label: "herdr-web-ui-test-ssh-profile" });
+  const created = await api<WorkspaceCreated>(path + "/workspace/create", "POST", { cwd: "/home/fixture", label: "t-rex-test-ssh-profile" });
   const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws?machine_id=${machine.id}`); sockets.push(ws);
   const frames: ServerMessage[] = [];
   ws.onmessage = (event) => { const m = JSON.parse(String(event.data)) as ServerMessage; frames.push(m); if (m.type === "ssp") ws.send(JSON.stringify({ type: "ssp-ack", pane_id: m.pane_id, stream: m.stream, num: m.num })); };
@@ -134,7 +134,7 @@ try {
   console.log("PASS real remote terminal attach, resize and input");
   server.stop(); server = start();
   await until(machines, (ms) => ms.some((m) => m.id === machine.id && m.state === "connected"), "manager restart");
-  const descriptors = JSON.parse(remote("cat /home/fixture/.config/herdr-web-ui/bridges/*.json"));
+  const descriptors = JSON.parse(remote("cat /home/fixture/.config/t-rex/bridges/*.json"));
   remote(`kill -TERM ${Number(descriptors.pid)}`);
   await until(machines, (ms) => ms.some((m) => m.id === machine.id && m.state !== "connected"), "bridge stopped");
   await until(machines, (ms) => ms.some((m) => m.id === machine.id && m.state === "connected"), "approved bridge auto-restart");
@@ -152,7 +152,7 @@ try {
   const connectionPermission = JSON.parse(readFileSync(join(connectionState, "herdr-profile-state.json"), "utf8"))[0];
   assert.equal(connectionPermission.connectionApproved, true);
   assert.equal(connectionPermission.approved, false);
-  const running = JSON.parse(remote("cat /home/fixture/.config/herdr-web-ui/bridges/*.json"));
+  const running = JSON.parse(remote("cat /home/fixture/.config/t-rex/bridges/*.json"));
   remote(`kill -TERM ${Number(running.pid)}`);
   await until(machines, (ms) => ms.some((m) => m.id === machine.id && m.action_required === "setup"), "connection-only permission cannot restart the bridge");
   server.stop(); server = start();

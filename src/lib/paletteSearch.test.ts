@@ -83,9 +83,9 @@ describe("rankPanes", () => {
   });
 
   it("finds a pane by any part of its path and by the agent kind herdr shows", () => {
-    const shown = [...panes, pane("delta", { agent: "omo", display_agent: "OmO", foreground_cwd: "/home/me/repos/herdr-web-ui/server", workspace_id: "w2", tab_id: "t2" })];
+    const shown = [...panes, pane("delta", { agent: "omo", display_agent: "OmO", foreground_cwd: "/home/me/repos/t-rex/server", workspace_id: "w2", tab_id: "t2" })];
     expect(ids(rankPanes("/work/", shown, workspaces))).toEqual(["alpha", "beta", "gamma"]);
-    expect(ids(rankPanes("repos/herdr", shown, workspaces))).toEqual(["delta"]);
+    expect(ids(rankPanes("repos/t-rex", shown, workspaces))).toEqual(["delta"]);
     expect(ids(rankPanes("omo", shown, workspaces))).toEqual(["delta"]);
   });
 });

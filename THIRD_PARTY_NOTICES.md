@@ -1,6 +1,16 @@
 # Third-party notices
 
-herdr web ui includes material from the projects below, under their own licenses.
+t-rex includes material from the projects below, under their own licenses.
+
+## Original web client
+
+t-rex began as a modified copy of an MIT-licensed browser client for herdr, and much of `src/`,
+`server/`, `shared/` and `scripts/` still derives from it. That code is used under the MIT
+License (its text is printed with TanStack Highlight below), with this copyright notice:
+
+```
+Copyright (c) 2026 devswha
+```
 
 ## Theme palettes
 
@@ -30,7 +40,7 @@ licenses follow. Tokyo Night Day uses folke's Apache-2.0 port, not the original 
 
 ## T3 Code
 
-These herdr web ui files adapt logic from [t3code](https://github.com/pingdotgg/t3code) at revision
+These t-rex files adapt logic from [t3code](https://github.com/pingdotgg/t3code) at revision
 `e82a1ce3f369f113b0b33dff8249569c345e30e8`, under the MIT License (its text is printed with
 TanStack Highlight below), with this copyright notice:
 

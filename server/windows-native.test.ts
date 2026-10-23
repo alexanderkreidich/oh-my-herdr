@@ -23,7 +23,7 @@ const onWindows = process.platform === "win32";
 it.skipIf(!onWindows)("installs with native tar when PATH shadows tar, and preserves the runtime after bad extraction", async () => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "herdr-bundle-native-")));
   const before = process.env["HERDR_WEB_BUNDLE_MANIFEST"];
-  const runtime = join(home, "herdr-web-ui", `remote-v${REMOTE_BUNDLE_VERSION}`);
+  const runtime = join(home, "t-rex", `remote-v${REMOTE_BUNDLE_VERSION}`);
   const runPowerShell = async (script: string) => {
     const prefixed = `$env:LOCALAPPDATA=${psQuote(home)}; $env:PATH=${psQuote(join(home, "shadow"))}+';'+$env:PATH; ${script}`;
     // started from PowerShell 7 (the CI step), the child inherits its module path, and Windows
@@ -53,8 +53,8 @@ it.skipIf(!onWindows)("installs with native tar when PATH shadows tar, and prese
     await writeManifest();
     await expect(windowsHost.installBundle(ssh, "win32-x64", AbortSignal.timeout(60_000))).rejects.toThrow();
     expect(realpathSync(runtime)).toBe(target);
-    expect(existsSync(join(home, "herdr-web-ui", "install.lock"))).toBe(false);
-    expect(existsSync(join(home, "herdr-web-ui", `install.${process.pid}`))).toBe(false);
+    expect(existsSync(join(home, "t-rex", "install.lock"))).toBe(false);
+    expect(existsSync(join(home, "t-rex", `install.${process.pid}`))).toBe(false);
   } finally {
     if (before === undefined) delete process.env["HERDR_WEB_BUNDLE_MANIFEST"]; else process.env["HERDR_WEB_BUNDLE_MANIFEST"] = before;
     // Remove the junction separately: the immutable release is cleaned with the fixture.

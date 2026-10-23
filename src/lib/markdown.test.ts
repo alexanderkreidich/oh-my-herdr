@@ -165,8 +165,8 @@ describe("autolinks", () => {
   const link = (href: string): InlineNode => ({ type: "link", href, children: [{ type: "text", value: href }] });
 
   it("links a bare http(s) URL and keeps the text around it", () => {
-    expect(parseInline("https://github.com/devswha/herdr-web-ui/pull/36 이런거")).toEqual([
-      link("https://github.com/devswha/herdr-web-ui/pull/36"),
+    expect(parseInline("https://github.com/alexanderkreidich/t-rex/pull/36 이런거")).toEqual([
+      link("https://github.com/alexanderkreidich/t-rex/pull/36"),
       { type: "text", value: " 이런거" },
     ]);
     // no space before Korean: the address ends at the first non-ASCII character

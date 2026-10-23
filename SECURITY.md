@@ -1,12 +1,12 @@
 # Security
 
-herdr web ui gives a browser the terminals of the PC it runs on. Anyone who gets past its access
+t-rex gives a browser the terminals of the PC it runs on. Anyone who gets past its access
 check can type into them, so a flaw in who gets in is as serious as it gets here.
 
 ## Reporting a vulnerability
 
 Report it privately through
-[GitHub's private vulnerability reporting](https://github.com/devswha/herdr-web-ui/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/alexanderkreidich/t-rex/security/advisories/new).
 Do not open a public issue, pull request or discussion about it.
 
 Include what you can of:

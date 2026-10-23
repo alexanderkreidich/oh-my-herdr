@@ -1,23 +1,33 @@
-# oh-my-herdr
+# t-rex
 
 <p align="center">
-  <img src="public/icons/icon-192.png" alt="oh-my-herdr" width="100">
+  <img src="public/icons/icon-192.png" alt="t-rex" width="100">
 </p>
 
-A minimal browser terminal for [herdr](https://github.com/herdrdev/herdr): your herdr workspaces,
-tabs and panes in a browser or on your phone, as an installable PWA.
+Your [herdr](https://github.com/herdrdev/herdr) sessions in a Ghostty-like terminal, in a browser
+or on your phone, as an installable PWA.
 
-A fork of [herdr web ui](https://github.com/devswha/herdr-web-ui) with a Ghostty-like terminal
-([restty](https://github.com/wiedymi/restty)) and a Mosh-style state synchronization protocol with
-predictive local echo. The plan is in [docs/ROADMAP.md](docs/ROADMAP.md).
+t-rex is built like Superlogical's [Rex](https://www.superlogical.com): a server keeps every
+session running, and any window attaches to it and lets go without stopping the work. Here the
+server is the [herdr](https://github.com/herdrdev/herdr) multiplexer, which owns every pty,
+scrollback and agent state, and the window is [restty](https://github.com/wiedymi/restty),
+Ghostty's terminal emulator for the web (libghostty-vt in WASM, WebGPU with a WebGL2 fallback).
+Between the two, a Mosh-style state synchronization protocol with predictive local echo keeps
+typing local on a slow link. The plan is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Run
 
 Needs [Bun](https://bun.sh) 1.4+, Node 18+ and a running herdr.
 
 ```bash
-git clone https://github.com/alexanderkreidich/oh-my-herdr.git
-cd oh-my-herdr
+herdr plugin install alexanderkreidich/t-rex   # herdr builds it and starts it with itself
+```
+
+Or from a checkout:
+
+```bash
+git clone https://github.com/alexanderkreidich/t-rex.git
+cd t-rex
 bun install
 bun run start       # builds, then serves on http://127.0.0.1:7317
 ```
@@ -35,4 +45,5 @@ Report security problems privately: [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE). Copyright © 2026 devswha.
+[MIT](LICENSE). Copyright © 2026 Alexander Kreidich. Third-party code and assets keep their own
+licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -25,16 +25,16 @@ const env = { ...process.env, ...(windows ? {} : { SHELL: "/bin/sh" }), PATH: pa
 if (!windows) assert.equal(Bun.which("node", { PATH: path }), null, "the smoke runs with no Node on PATH");
 let child: ReturnType<typeof Bun.spawn> | undefined;
 try {
-  const archive = resolve(`remote-bundles/herdr-web-ui-${process.platform}-${process.arch}.tgz`);
+  const archive = resolve(`remote-bundles/t-rex-${process.platform}-${process.arch}.tgz`);
   assert.equal(Bun.spawnSync(["tar", "xzf", archive, "-C", bundle]).exitCode, 0);
   child = Bun.spawn([bun, join(bundle, "server/remote-entry.ts")], { env, stdout: "inherit", stderr: "inherit" });
   const { createHash } = await import("node:crypto");
   const socket = join(xdg, "herdr/sessions/smoke/herdr.sock");
-  const described = join(home, ".config/herdr-web-ui/bridges", createHash("sha256").update(socket).digest("hex") + ".json");
+  const described = join(home, ".config/t-rex/bridges", createHash("sha256").update(socket).digest("hex") + ".json");
   let descriptor: { port: number; token: string } | undefined;
   for (let i = 0; i < 400; i++) { try { descriptor = JSON.parse(readFileSync(described, "utf8")); break; } catch { await Bun.sleep(100); } }
   if (!descriptor) {
-    for (const log of [join(home, ".config/herdr-web-ui/bridges/herdr.log"), join(xdg, "herdr/sessions/smoke/herdr-server.log")]) {
+    for (const log of [join(home, ".config/t-rex/bridges/herdr.log"), join(xdg, "herdr/sessions/smoke/herdr-server.log")]) {
       console.error(`--- ${log}\n${existsSync(log) ? readFileSync(log, "utf8").slice(-4000) : "(missing)"}`);
     }
   }
@@ -52,7 +52,7 @@ try {
   // bundle carries Node, a mirror of the pane's screen on Windows. Typing reaches the shell
   // either way, and what it prints comes back.
   const headers = { authorization: `Bearer ${descriptor.token}`, "content-type": "application/json" };
-  const created = await fetch(`http://127.0.0.1:${descriptor.port}/api/workspace/create`, { method: "POST", headers, body: JSON.stringify({ cwd: home, label: "herdr-web-ui-test-bundle-smoke" }) });
+  const created = await fetch(`http://127.0.0.1:${descriptor.port}/api/workspace/create`, { method: "POST", headers, body: JSON.stringify({ cwd: home, label: "t-rex-test-bundle-smoke" }) });
   assert.equal(created.status, 200, await created.clone().text());
   const paneId = (await created.json() as { pane_id: string }).pane_id;
   const frames: { type: string; pane_id?: string; data?: string; fixed?: boolean; code?: string; message?: string }[] = [];

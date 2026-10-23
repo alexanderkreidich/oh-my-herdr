@@ -32,8 +32,8 @@ describe("saved theme migration", () => {
     if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
     else Reflect.deleteProperty(globalThis, "document");
   });
-  const main = "herdr-web-ui:settings";
-  const protectedThemes = "herdr-web-ui:themes";
+  const main = "t-rex:settings";
+  const protectedThemes = "t-rex:themes";
   const putOld = (record: object) => records.set(main, JSON.stringify(record));
   const readOld = () => oldSanitizeSettings(JSON.parse(records.get(main) ?? "{}"));
 

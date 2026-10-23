@@ -34,9 +34,9 @@ let madeId: string | null = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await context.addInitScript((paneId) => {
-    localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
-    // a lens remembered from before the fork: the pane still opens in its terminal
-    localStorage.setItem(`herdr-web-ui:view:${paneId}`, "chat");
+    localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
+    // a lens an older version remembered: the pane still opens in its terminal
+    localStorage.setItem(`t-rex:view:${paneId}`, "chat");
   }, created.root_pane.pane_id);
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.port}/`);

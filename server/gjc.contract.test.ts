@@ -97,7 +97,7 @@ async function withSdkFixture<T>(run: () => Promise<T>): Promise<T> {
 
 it("starts the gjc this server found on its PATH, by absolute path, and waits until it runs in the pane", async () => withSdkFixture(async () => {
   const shell = async () => {
-    const created = await workspaceCreate({ cwd: home, label: "herdr-web-ui-test-gjc-start" });
+    const created = await workspaceCreate({ cwd: home, label: "t-rex-test-gjc-start" });
     workspaces.push(created.workspace.workspace_id);
     return created.root_pane.pane_id;
   };

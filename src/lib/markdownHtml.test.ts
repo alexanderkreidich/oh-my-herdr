@@ -18,7 +18,7 @@ describe("HTML blocks in a markdown file", () => {
     const logo = blocks.find((block) => block.type === "paragraph" && block.lines.flat().some((node) => node.type === "image"));
     expect(logo).toMatchObject({ type: "paragraph", align: "center" });
     const image = logo?.type === "paragraph" ? logo.lines.flat().find((node) => node.type === "image") : undefined;
-    expect(image).toMatchObject({ type: "image", src: "public/icons/icon-192.png", alt: "oh-my-herdr", width: 100 });
+    expect(image).toMatchObject({ type: "image", src: "public/icons/icon-192.png", alt: "t-rex", width: 100 });
   });
 
   it("keeps text, drops comments and unknown tags, and reads headings, breaks, emphasis and entities", () => {

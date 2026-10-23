@@ -66,8 +66,8 @@ try {
   writeFileSync(index, readFileSync(index, "utf8").replace(/<script type="module"/, () => `<script src="./demo-transport.js"></script>\n    ${record}\n    <script type="module"`));
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/herdr-web-ui/demo/app/")) return new Response("not found", { status: 404 });
-    let file = decodeURIComponent(path.slice("/herdr-web-ui/demo/app/".length));
+    if (!path.startsWith("/t-rex/demo/app/")) return new Response("not found", { status: 404 });
+    let file = decodeURIComponent(path.slice("/t-rex/demo/app/".length));
     if (!file || file.endsWith("/")) file += "index.html";
     if (file.split("/").includes("..") || file.includes("\\")) return new Response("bad path", { status: 400 });
     const body = Bun.file(join(app, file));
@@ -80,14 +80,14 @@ try {
       await context.addInitScript(() => {
         // These viewport thresholds require fixed font metrics: the default terminal stack uses
         // installed fonts, and Noto Sans Mono CJK KR already fits 84 columns at 1450px and 13px.
-        if (!localStorage.getItem("herdr-web-ui:settings")) localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en", terminalFontFamily: "JetBrains Mono Web" }));
+        if (!localStorage.getItem("t-rex:settings")) localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en", terminalFontFamily: "JetBrains Mono Web" }));
       });
       const page = await context.newPage();
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`http://127.0.0.1:${server.port}/herdr-web-ui/demo/app/?pane=${encodeURIComponent(panes.shell)}`);
+      await page.goto(`http://127.0.0.1:${server.port}/t-rex/demo/app/?pane=${encodeURIComponent(panes.shell)}`);
       await page.locator(".conn-live").waitFor({ state: "attached" });
-      const saved = (): Promise<number | undefined> => page.evaluate(() => JSON.parse(localStorage.getItem("herdr-web-ui:settings") ?? "{}").terminalFontSize as number | undefined);
+      const saved = (): Promise<number | undefined> => page.evaluate(() => JSON.parse(localStorage.getItem("t-rex:settings") ?? "{}").terminalFontSize as number | undefined);
 
       await settled(page, { panes: 1, font: "base", cols: "fits" }, "a pane alone");
       await layout(page, "/api/pane/split", { pane_id: panes.shell, direction: "right", focus: true });

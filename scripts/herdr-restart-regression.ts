@@ -9,7 +9,7 @@ import { chromePath } from "./chrome-path.ts";
 
 // This script stops its herdr, so it must not share even the browser lane's test session.
 const root = mkdtempSync(join(tmpdir(), "herdr-restart-"));
-const session = "herdr-web-ui-test-restart";
+const session = "t-rex-test-restart";
 const config = join(root, "config");
 const state = join(root, "state");
 mkdirSync(config);
@@ -80,8 +80,8 @@ try {
   browser = await chromium.launch({ executablePath: chromePath(), headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.addInitScript(({ pane }) => {
-    localStorage.setItem("herdr-web-ui:settings", JSON.stringify({ language: "en" }));
-    localStorage.setItem(`herdr-web-ui:view:${pane}`, "terminal");
+    localStorage.setItem("t-rex:settings", JSON.stringify({ language: "en" }));
+    localStorage.setItem(`t-rex:view:${pane}`, "terminal");
   }, { pane });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
