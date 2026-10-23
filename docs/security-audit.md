@@ -118,12 +118,8 @@ Evidence: `server/machines.ts:prepare`, `server/remote-host.ts:authorizeKey`, `s
   endpoint. Titles can include pane/workspace or machine context. The repository URL in the
   VAPID subject is contact metadata, not an analytics destination. Keys/subscriptions persist on
   the server. Push providers can observe delivery metadata, but the application encrypts payloads.
-- Portal: an explicitly enabled, user-selected HTTPS relay exposes the web server publicly and
-  resumes on restart while enabled. This is routed reverse-proxy traffic, not a promise that the
-  relay cannot see terminal traffic. The code requires a token and strips sensitive inherited
-  environment variables from the Portal child. Tailscale is a separate optional transport.
 
-Evidence: `server/cliproxy.ts`, `server/push.ts:deliver`, `server/portal.ts:resume`.
+Evidence: `server/cliproxy.ts`, `server/push.ts:deliver`.
 
 ### 6. Browser clipboard writes and local diagnostics are automatic
 
