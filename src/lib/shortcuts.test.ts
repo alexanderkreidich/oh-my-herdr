@@ -227,7 +227,7 @@ it("pages the selected pane with fixed Mod+Shift bindings, remapping and disabli
 
 describe("new tab and split pane", () => {
   it("have no key until one is chosen in Settings, and then work like any other binding", () => {
-    for (const id of ["new-tab", "split-right", "split-down"] as const) {
+    for (const id of ["new-tab", "split-down"] as const) {
       expect(shortcutKeys(id, {})).toEqual([]);
       expect(shortcutDisplayKeys(id, {})).toEqual([]);
     }
@@ -240,6 +240,41 @@ describe("new tab and split pane", () => {
     expect(shortcutDisplayKeys("new-tab", overrides)).toEqual(["Mod", "Shift", "Y"]);
     expect(shortcutConflict("split-down", ["y"], overrides)).toBe(true);
     expect(shortcutConflict("new-tab", ["k"], {})).toBe(true);
+  });
+});
+
+describe("Mod+B and Mod+D", () => {
+  const press = (key: string, apple: boolean, patch: Partial<ShortcutEventLike> = {}) => matchShortcut(keyEvent(key, { metaKey: apple, ctrlKey: !apple, shiftKey: false, ...patch }), apple);
+
+  it("toggle the sidebar and split the pane right, with ⌘ on a Mac and Ctrl elsewhere", () => {
+    for (const apple of [true, false]) {
+      expect(press("b", apple)).toBe("toggle-sidebar");
+      expect(press("d", apple)).toBe("split-right");
+      expect(press("d", apple, { altKey: true })).toBeNull();
+      expect(press("D", apple, { shiftKey: true })).toBeNull();
+      // Mod+Shift+B, the old default, still toggles
+      expect(press("B", apple, { shiftKey: true })).toBe("toggle-sidebar");
+    }
+    // on a Mac Ctrl+B and Ctrl+D stay the terminal's
+    expect(matchShortcut(keyEvent("d", { ctrlKey: true, shiftKey: false }), true)).toBeNull();
+    expect(matchShortcut(keyEvent("b", { ctrlKey: true, shiftKey: false }), true)).toBeNull();
+    expect(shortcutDisplayKeys("toggle-sidebar", {})).toEqual(["Mod", "B"]);
+    expect(shortcutDisplayKeys("split-right", {})).toEqual(["Mod", "D"]);
+  });
+
+  it("read the key by its position on a non-Latin layout", () => {
+    expect(press("в", true, { code: "KeyD" })).toBe("split-right");
+    expect(press("и", false, { code: "KeyB" })).toBe("toggle-sidebar");
+  });
+
+  it("are freed or moved in Settings, and conflict as this platform's chord", () => {
+    expect(matchShortcut(keyEvent("d", { ctrlKey: true, shiftKey: false }), false, { "split-right": null })).toBeNull();
+    expect(matchShortcut(keyEvent("b", { metaKey: true, shiftKey: false }), true, { "toggle-sidebar": "x" })).toBeNull();
+    expect(shortcutKeys("split-right", {}, true)).toEqual(["meta+d"]);
+    expect(shortcutKeys("split-right", {}, false)).toEqual(["ctrl+d"]);
+    expect(shortcutConflict("find", ["meta+d"], {}, true)).toBe(true);
+    expect(shortcutConflict("find", ["ctrl+d"], {}, true)).toBe(false);
+    expect(shortcutConflict("find", ["ctrl+b"], {}, false)).toBe(true);
   });
 });
 

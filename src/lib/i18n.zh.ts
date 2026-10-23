@@ -159,7 +159,7 @@ export const ZH: Record<string, string> = {
   "Close this half": "关闭这一半",
   "Drop on the left": "放到左侧",
   "Drop on the right": "放到右侧",
-  "Toggle sidebar (⌘⇧B)": "切换侧边栏 (⌘⇧B)",
+  "Toggle sidebar ({keys})": "切换侧边栏 ({keys})",
   "Live terminal is coming to Windows PCs: herdr cannot attach a terminal there yet.": "Windows PC 的实时终端即将推出：herdr 目前还不能在 Windows 上附加终端。",
   "Terminal": "终端",
   "Terminal for {title}": "{title} 终端",

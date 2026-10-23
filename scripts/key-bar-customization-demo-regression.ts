@@ -339,11 +339,11 @@ try {
           await palette.waitFor({ state: "hidden", timeout: 5_000 });
         };
         const modifierLabel = await page.evaluate(() => /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl");
-        const expectSidebarHint = async (action: Locator, key: string): Promise<void> => {
+        const expectSidebarHint = async (action: Locator, keys: string[]): Promise<void> => {
           const hint = action.locator(".palette-shortcut");
           await hint.waitFor({ state: "visible", timeout: 5_000 });
-          assert.equal(await hint.getAttribute("aria-label"), `${modifierLabel} + Shift + ${key}`);
-          assert.deepEqual(await hint.locator("kbd").allTextContents(), [modifierLabel, "Shift", key]);
+          assert.equal(await hint.getAttribute("aria-label"), [modifierLabel, ...keys].join(" + "));
+          assert.deepEqual(await hint.locator("kbd").allTextContents(), [modifierLabel, ...keys]);
         };
         const openShortcutSettings = async (): Promise<Locator> => {
           await page.keyboard.press("ControlOrMeta+Shift+Comma");
@@ -353,7 +353,7 @@ try {
           return settings;
         };
         let action = await openSidebarAction();
-        await expectSidebarHint(action, "B");
+        await expectSidebarHint(action, ["B"]);
         await closePalette();
 
         dialog = await openShortcutSettings();
@@ -362,14 +362,14 @@ try {
         await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key)!).shortcutOverrides["toggle-sidebar"] === "x", SETTINGS_KEY, { timeout: 5_000 });
         await closeSettings(page, dialog);
         action = await openSidebarAction();
-        await expectSidebarHint(action, "X");
+        await expectSidebarHint(action, ["Shift", "X"]);
         await closePalette();
         await page.reload();
         await ready(page);
         const savedOverrides = (await settingsOf(page)).shortcutOverrides as Record<string, string | null>;
         assert.equal(savedOverrides["toggle-sidebar"], "x", "a shortcut rebinding survives reload");
         action = await openSidebarAction();
-        await expectSidebarHint(action, "X");
+        await expectSidebarHint(action, ["Shift", "X"]);
         await closePalette();
 
         dialog = await openShortcutSettings();
@@ -405,7 +405,7 @@ try {
         }
         await closeSettings(page, dialog);
         action = await openSidebarAction();
-        await expectSidebarHint(action, "B");
+        await expectSidebarHint(action, ["B"]);
         if (evidence) {
           await appFaces(page);
           await page.screenshot({ path: join(evidence, "command-palette-shortcut-defaults.png") });

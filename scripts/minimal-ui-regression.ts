@@ -3,10 +3,12 @@
  * holds the sidebar toggle and the tabs as pills and nothing else; the sidebar lists workspaces
  * only, under its top row's PC switcher and +; Ctrl+F opens the palette from the terminal; no pane opens a chat, even one that asked to;
  * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU). Focus mode
- * (Mod+Shift+.) moves the tabs under their workspace, and a hidden sidebar hands them back to the bar.
+ * (Mod+Shift+.) moves the tabs under their workspace, and a sidebar hidden with Mod+B hands them back to
+ * the bar.
  * The top row's + makes a workspace at once, a shell in the PC's home, with no dialog.
  * Each pane is a rounded card whose title bar carries Split right, Split down, Zoom and Close; a
- * card dragged by its title onto another of its tab trades places with it in herdr.
+ * card dragged by its title onto another of its tab trades places with it in herdr. Mod+D from the
+ * terminal splits its pane right.
  *
  *   bun run build && bun run check run bun scripts/minimal-ui-regression.ts
  */
@@ -106,10 +108,10 @@ try {
   await page.locator(`.workspace-group[data-workspace="${workspaceId}"] .workspace-tab.is-selected .workspace-tab-select`).nth(0).waitFor();
   assert.equal(await rows.nth(1).getAttribute("aria-current"), "true", "a row opens its tab's pane");
   // a hidden sidebar hands the tabs back to the bar, and showing it takes them again
-  await page.keyboard.press(`${mod}+Shift+B`);
+  await page.keyboard.press(`${mod}+b`);
   await tabs.nth(1).waitFor({ timeout: 5_000 });
   assert.equal(await page.locator(".app-header [role=tab][aria-selected=true] .tab-strip-label").textContent(), await rows.nth(1).locator(".workspace-tab-name").textContent(), "the bar opens on the same tab");
-  await page.keyboard.press(`${mod}+Shift+B`);
+  await page.keyboard.press(`${mod}+b`);
   await tabs.first().waitFor({ state: "detached", timeout: 5_000 });
   // and the same chord leaves focus mode
   await page.keyboard.press(`${mod}+Shift+Period`);
@@ -147,6 +149,10 @@ try {
   }
   assert.equal(swapped.get(left!), split.get(right!), "the dragged pane took the other's place");
   assert.equal(swapped.get(right!), split.get(left!), "and the other took its place");
+  // Mod+D from inside the terminal splits the pane right: off a Mac Ctrl+D is the app's, not the shell's EOF
+  await cards.nth(0).locator(".terminal-ime").focus();
+  await page.keyboard.press(`${mod}+d`);
+  await cards.nth(2).waitFor({ timeout: 10_000 });
 
   // the top row's + makes a workspace at once and opens it: a shell in home, no dialog asking for an agent or a folder
   const known = await page.locator(".workspace-group[data-workspace]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workspace")));
