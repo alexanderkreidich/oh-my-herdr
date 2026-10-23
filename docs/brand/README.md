@@ -1,13 +1,14 @@
 # Project artwork
 
-The icon is a pixel-art T-Rex in the manner of Chrome's offline game, drawn from the pixel map in
-[`scripts/generate-brand.ts`](../../scripts/generate-brand.ts): ink `#535353` on paper `#f7f7f7`,
-each art pixel a whole number of image pixels so every size stays sharp.
+The icon is the T-Rex of Chrome's offline game redrawn as pixel art: its head and chest in the
+app's amber `#f0a830` rising from the bottom of a dark `#181613` tile, drawn from the pixel map in
+[`scripts/generate-brand.ts`](../../scripts/generate-brand.ts). Every size is the 192 px drawing
+scaled (sampled eight times per pixel), so the favicon is the same picture as the home-screen icon.
 
 Run `bun scripts/generate-brand.ts` after changing the art. It writes the app icons (plain and
 maskable, the maskable ones inside the 80% safe circle), the white-on-transparent notification
 badge Android draws from alpha alone, the Apple touch icon, `favicon.png`, `favicon.ico` and the
-1280 × 640 social preview with the pixel word "t-rex". New icons need a new `?v=` query and
+1280 × 640 social preview with the pixel word "t-rex" and a cursor. New icons need a new `?v=` query and
 `CACHE_NAME` (`src/conventions.test.ts` says which).
 
 GitHub's repository preview is a separate setting: open

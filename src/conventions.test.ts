@@ -119,7 +119,7 @@ describe("DESIGN.md", () => {
  */
 const ICON_VERSIONS: Record<string, { sha256: string; cacheName: string }> = {
   ram1: { sha256: "ed82342db3ec3ed2151ddd2d0d77805233e9251758e29972b4f09aa95602041e", cacheName: "herdr-web-ui-v4-ram" },
-  rex1: { sha256: "19c396da13c5e35599b40865b121b3699742b67caa403346bfd175e82bde102c", cacheName: "t-rex-v5-rex" },
+  rex1: { sha256: "312f5f2ff7f0d73806295776ca38c4aea812c54f6e88fab717be91645d0455ec", cacheName: "t-rex-v5-rex" },
 };
 const CURRENT_ICONS = "rex1";
 

@@ -1,7 +1,9 @@
 /**
- * Draws the app's icons, favicon, Apple touch icon, notification badge and social preview from
- * the pixel art below: a T-Rex in the manner of Chrome's offline game, every pixel a whole number
- * of image pixels so each size stays sharp. Needs nothing beyond Bun.
+ * Draws the app's icons, favicon, Apple touch icon, notification badge and social preview: the
+ * T-Rex of Chrome's offline game redrawn as pixel art, its head and chest in the app's amber
+ * rising from the bottom of a dark tile. Every size is the 192 px drawing scaled: it is sampled
+ * eight times per pixel and averaged, so the favicon is the same picture as the home-screen icon.
+ * Needs nothing beyond Bun.
  *
  *   bun scripts/generate-brand.ts
  */
@@ -32,9 +34,10 @@ const DINO = [
   ".....#....#...........",
   ".....##...##..........",
 ];
-
-/** The ground the dino runs on: a line with a few pebbles under it, as in the game. */
-const GROUND_PEBBLES = [[3, 2], [9, 1], [16, 2], [24, 1], [29, 2]];
+/** The icon's part of the dino: head, neck, chest and arm. */
+const BUST = DINO.slice(0, 14).map((row) => row.slice(4));
+/** Where the bust sits on the 192 px icon, in fractions of its side: 11 px art pixels, running off the left and bottom edges. */
+const CELL = 11 / 192, LEFT = -14 / 192, TOP = 49 / 192;
 
 const WORD: Record<string, string[]> = {
   t: [".#...", ".#...", "###..", ".#...", ".#...", ".#..#", "..##."],
@@ -45,10 +48,11 @@ const WORD: Record<string, string[]> = {
 };
 
 type Rgba = [number, number, number, number];
-const INK: Rgba = [0x53, 0x53, 0x53, 255];
-const PAPER: Rgba = [0xf7, 0xf7, 0xf7, 255];
+// the app's dark panel, its accent and its strong text (src/styles.css)
+const TILE: Rgba = [0x18, 0x16, 0x13, 255];
+const AMBER: Rgba = [0xf0, 0xa8, 0x30, 255];
+const CREAM: Rgba = [0xf2, 0xeb, 0xdf, 255];
 const WHITE: Rgba = [255, 255, 255, 255];
-const CLEAR: Rgba = [0, 0, 0, 0];
 
 class Canvas {
   readonly pixels: Uint8Array;
@@ -66,23 +70,66 @@ class Canvas {
   }
 }
 
-const artWidth = (rows: string[]) => rows[0]!.length;
+const inArt = (rows: string[], u: number, v: number) => rows[Math.floor(v)]?.[Math.floor(u)] === "#";
 
-/** The dino centred on a square, standing on the ground line when there is one. */
-function icon(size: number, scale: number, { background = PAPER, ink = INK, ground = true } = {}): Canvas {
-  const canvas = new Canvas(size, size, background);
-  const w = artWidth(DINO) * scale, h = DINO.length * scale;
-  // the pebbles reach two pixels of the art under the feet
-  const x = Math.round((size - w) / 2 + scale);
-  const y = Math.round((size - h - (ground ? 2 * scale : 0)) / 2);
-  canvas.art(DINO, x, y, scale, ink);
-  if (ground) {
-    const thickness = Math.max(1, Math.round(scale / 2));
-    const line = y + h - thickness;
-    const from = Math.round(size * 0.14), to = size - from;
-    canvas.rect(from, line, to - from, thickness, ink);
-    for (const [at, depth] of GROUND_PEBBLES) canvas.rect(from + Math.round(((to - from) * at) / 32), line + depth * scale, scale, thickness, ink);
+/** Whether (x, y) is inside a square of side `size` whose corners are rounded by `radius`. */
+function inTile(x: number, y: number, size: number, radius: number): boolean {
+  const dx = Math.max(radius - x, x - (size - radius), 0);
+  const dy = Math.max(radius - y, y - (size - radius), 0);
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+interface IconOptions {
+  /** null: the ink alone on transparent */
+  background?: Rgba | null;
+  ink?: Rgba;
+  /** the corner radius, a fraction of the side; 0 for a square the platform masks itself */
+  corner?: number;
+  /** the bust scaled about the bottom centre, so it still rises from the bottom edge */
+  zoom?: number;
+}
+
+function icon(size: number, { background = TILE, ink = AMBER, corner = 0.22, zoom = 1 }: IconOptions = {}): Canvas {
+  const canvas = new Canvas(size, size, [0, 0, 0, 0]);
+  const cell = CELL * size * zoom;
+  const left = size / 2 + (LEFT * size - size / 2) * zoom;
+  const top = size + (TOP * size - size) * zoom;
+  const radius = corner * size;
+  const k = 8;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let tile = 0, inked = 0;
+      for (let sy = 0; sy < k; sy++) {
+        for (let sx = 0; sx < k; sx++) {
+          const px = x + (sx + 0.5) / k, py = y + (sy + 0.5) / k;
+          if (!inTile(px, py, size, radius)) continue;
+          tile++;
+          if (inArt(BUST, (px - left) / cell, (py - top) / cell)) inked++;
+        }
+      }
+      const samples = k * k;
+      let color: Rgba;
+      if (background === null) color = [ink[0], ink[1], ink[2], Math.round((255 * inked) / samples)];
+      else if (tile === 0) color = [0, 0, 0, 0];
+      else {
+        const mix = (channel: 0 | 1 | 2) => Math.round((background[channel] * (tile - inked) + ink[channel] * inked) / tile);
+        color = [mix(0), mix(1), mix(2), Math.round((255 * tile) / samples)];
+      }
+      canvas.pixels.set(color, (y * size + x) * 4);
+    }
   }
+  return canvas;
+}
+
+/** The bust rising from the bottom left, the word to its right with a cursor after it. */
+function socialPreview(): Canvas {
+  const canvas = new Canvas(1280, 640, TILE);
+  const dino = 30, letter = 14;
+  canvas.art(BUST, 110, 640 - (BUST.length - 1) * dino, dino, AMBER);
+  const word = ["t", "-", "r", "e", "x"];
+  const left = 740, top = 300;
+  word.forEach((glyph, i) => canvas.art(WORD[glyph]!, left + i * 6 * letter, top, letter, CREAM));
+  canvas.rect(left + word.length * 6 * letter, top + 2 * letter, 3 * letter, 5 * letter, AMBER);
   return canvas;
 }
 
@@ -131,33 +178,18 @@ function ico(canvas: Canvas): Buffer {
   return Buffer.concat([header, image]);
 }
 
-function socialPreview(): Canvas {
-  const canvas = new Canvas(1280, 640, PAPER);
-  const dino = 14, letter = 18, gap = 112;
-  const word = ["t", "-", "r", "e", "x"];
-  const wordWidth = (word.length * 6 - 1) * letter;
-  const dinoWidth = artWidth(DINO) * dino;
-  const left = Math.round((1280 - dinoWidth - gap - wordWidth) / 2);
-  const groundY = 470, thickness = 7;
-  canvas.art(DINO, left, groundY + thickness - DINO.length * dino, dino, INK);
-  canvas.rect(80, groundY, 1120, thickness, INK);
-  for (const [at, depth] of GROUND_PEBBLES) canvas.rect(80 + Math.round((1120 * at) / 32), groundY + depth * 12, 14, thickness, INK);
-  // the word stands on the ground too
-  word.forEach((glyph, i) => canvas.art(WORD[glyph]!, left + dinoWidth + gap + i * 6 * letter, groundY - 8 * letter, letter, INK));
-  return canvas;
-}
-
 const root = join(import.meta.dir, "..");
 const out = (path: string, bytes: Buffer) => { writeFileSync(join(root, path), bytes); console.log(path); };
 
-out("public/icons/icon-192.png", png(icon(192, 6)));
-out("public/icons/icon-512.png", png(icon(512, 16)));
-// maskable: the dino and its ground inside the inner 80% circle that every mask keeps
-out("public/icons/icon-maskable-192.png", png(icon(192, 4)));
-out("public/icons/icon-maskable-512.png", png(icon(512, 11)));
-// Android draws a notification's small icon from its alpha alone: white on transparent, no ground
-out("public/icons/badge-96.png", png(icon(96, 4, { background: CLEAR, ink: WHITE, ground: false })));
-out("public/apple-touch-icon.png", png(icon(180, 6)));
-out("public/favicon.png", png(icon(64, 2, { ground: false })));
-out("public/favicon.ico", ico(icon(32, 1, { ground: false })));
+out("public/icons/icon-192.png", png(icon(192)));
+out("public/icons/icon-512.png", png(icon(512)));
+// maskable: square, the platform rounds it; the head inside the inner 80% circle every mask keeps
+out("public/icons/icon-maskable-192.png", png(icon(192, { corner: 0, zoom: 0.8 })));
+out("public/icons/icon-maskable-512.png", png(icon(512, { corner: 0, zoom: 0.8 })));
+// Android draws a notification's small icon from its alpha alone: the bust white on transparent
+out("public/icons/badge-96.png", png(icon(96, { background: null, ink: WHITE, corner: 0 })));
+// iOS rounds the home-screen icon itself and fills transparent corners with black
+out("public/apple-touch-icon.png", png(icon(180, { corner: 0 })));
+out("public/favicon.png", png(icon(64)));
+out("public/favicon.ico", ico(icon(32)));
 out("public/social-preview.png", png(socialPreview()));
