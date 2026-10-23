@@ -1278,7 +1278,7 @@ export function PaneTerminal({
           return;
         }
         // said in the grid itself, over the view's drawing: the next frame is drawn whole
-        term.write(`\r\n\u001b[31m[t-rex] ${message.code}: ${message.message}\u001b[0m\r\n`);
+        term.write(`\r\n\u001b[31m[T-Rex] ${message.code}: ${message.message}\u001b[0m\r\n`);
         view.invalidate();
       }
       setConnected(socket.connected);
@@ -2410,7 +2410,7 @@ export function PaneTerminal({
         )}
         {paneId !== null && !ended && !connected && (
           <div className="terminal-banner terminal-banner-warning" role="status">
-            {t(connectedBefore ? "Reconnecting to t-rex…" : "Connecting to t-rex…")}
+            {t(connectedBefore ? "Reconnecting to T-Rex…" : "Connecting to T-Rex…")}
             {/* one line, cut with an ellipsis: a command is never broken inside a word; the title holds it whole */}
             {draft.text.length > 0 && <span className="draft-held" title={draft.text}> {t("Input held:")} <code>“{draft.text}”</code></span>}
           </div>

@@ -1,4 +1,4 @@
-# t-rex
+# T-Rex
 
 A browser terminal for the [herdr](https://github.com/herdrdev/herdr) multiplexer, built like
 Superlogical's [Rex](https://www.superlogical.com): herdr keeps every session, and the browser
@@ -39,7 +39,7 @@ them back.
   `gh pr create -R alexanderkreidich/t-rex --base main`.
 - Commits and everything on GitHub are in English, Conventional Commits
   (`feat(tabs): …`, `refactor(chat): delete the transcript readers`).
-- No changelog fragments and no `v*` tags until t-rex has its own release train (roadmap):
+- No changelog fragments and no `v*` tags until T-Rex has its own release train (roadmap):
   installed updaters act on tags alone.
 
 The loop for a UI slice:

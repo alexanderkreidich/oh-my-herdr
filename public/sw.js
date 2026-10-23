@@ -1,4 +1,4 @@
-// Service worker for t-rex. Policy: navigations are network-first (so a
+// Service worker for T-Rex. Policy: navigations are network-first (so a
 // fresh build always wins when online) falling back to the cached shell when
 // offline; static assets (hashed bundles, icons, favicons) are cache-first since
 // they are content-addressed or rarely change. The web manifest is not: its URL
@@ -205,7 +205,7 @@ self.addEventListener("push", (event) => {
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       const watching = windows.some((client) => client.visibilityState === "visible");
-      await self.registration.showNotification(payload.title || "t-rex", {
+      await self.registration.showNotification(payload.title || "T-Rex", {
         body: payload.body || "",
         tag: payload.tag || "herdr",
         renotify: !watching,

@@ -29,8 +29,8 @@ describe("userErrorMessage", () => {
   });
 
   it("says the PC could not do it for any other 5xx", () => {
-    expect(userErrorMessage(api(500))).toEqual({ message: "The PC could not do that. Try again; if it keeps failing, restart t-rex on the PC.", detail: "herdr said no" });
-    expect(userErrorMessage(api(502)).message).toBe("The PC could not do that. Try again; if it keeps failing, restart t-rex on the PC.");
+    expect(userErrorMessage(api(500))).toEqual({ message: "The PC could not do that. Try again; if it keeps failing, restart T-Rex on the PC.", detail: "herdr said no" });
+    expect(userErrorMessage(api(502)).message).toBe("The PC could not do that. Try again; if it keeps failing, restart T-Rex on the PC.");
   });
 
   it("names the next step when the server's code says its state folder refused the save", () => {

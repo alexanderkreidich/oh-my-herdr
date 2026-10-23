@@ -100,12 +100,12 @@ lists the bundle size and line count before and after.
 
 ## Phase 3 — Own identity and cleanup
 
-- [x] Own identity: t-rex, its pixel T-Rex icon (`scripts/generate-brand.ts`), plugin id
+- [x] Own identity: T-Rex, its pixel T-Rex icon (`scripts/generate-brand.ts`), plugin id
       `alexanderkreidich.t-rex`, `package.json` repository, push subject, updater source (the
       checkout's `origin`), MIT under its own copyright with the original client's notice in
       THIRD_PARTY_NOTICES.md. Browser keys move from `herdr-web-ui:` to `t-rex:` on first load;
       an existing `~/.config/herdr-web-ui` stays the state dir until moved to `~/.config/t-rex`.
-- [x] Remote PCs run t-rex's bridge: the bundle URL names this repository and its versions
+- [x] Remote PCs run T-Rex's bridge: the bundle URL names this repository and its versions
       start at 1000, so a PC on an older bridge (no SSP, no local echo) is offered Update bridge.
 - [ ] Publish `remote-v1000` from this repository; until then a remote PC needs a bundle built
       beside the server (`bun run build:remote <platform>`, docs/remote-pcs.md).

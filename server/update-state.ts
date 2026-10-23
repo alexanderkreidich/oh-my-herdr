@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 
 /**
  * HERDR_WEB_STATE_DIR, else `t-rex` in the config dir. The dir the app used before it was named
- * t-rex is kept while it exists: nothing moves it under a server that may still run from it.
+ * T-Rex is kept while it exists: nothing moves it under a server that may still run from it.
  * Moving its files into `t-rex` with the app stopped retires it.
  */
 export function stateDirFor(env: Record<string, string | undefined>): string {

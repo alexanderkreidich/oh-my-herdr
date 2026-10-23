@@ -3,7 +3,7 @@
  * `fetch("/api/…")`, `new EventSource("/api/machines/events")` and `new WebSocket("…/ws")` from
  * fixtures (demo/fixtures/, captured by scripts/demo-fixtures.ts from the staged fictional
  * session) instead of the network. The app's own code is unchanged: it believes it talks to a
- * t-rex server on a PC called "workstation".
+ * T-Rex server on a PC called "workstation".
  *
  * What works: the sidebar (two repositories, each with two agent worktrees) and its live statuses,
  * the command palette, settings, and the terminal: the release shell tab replays a recording of

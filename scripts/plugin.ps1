@@ -13,9 +13,9 @@ if ($Command -eq 'start') {
         # The hidden console took the start's own words; server.log holds them and the server's.
         $log = Join-Path $env:HERDR_PLUGIN_STATE_DIR 'server.log'
         $tail = if (Test-Path -LiteralPath $log) { (Get-Content -LiteralPath $log -Tail 15) -join "`n" } else { '(no log)' }
-        throw "Could not start t-rex. $log ends with:`n$tail"
+        throw "Could not start T-Rex. $log ends with:`n$tail"
     }
-    Write-Output 't-rex started'
+    Write-Output 'T-Rex started'
     exit 0
 }
 & bun (Join-Path $PSScriptRoot 'plugin.ts') $Command

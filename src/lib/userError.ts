@@ -46,7 +46,7 @@ const SENTENCE: Record<FailureKind, () => string> = {
   changed: () => t("It changed on the PC while you were acting. Check it and try again."),
   slow: () => t("The PC took too long to answer. Try again."),
   unreachable: () => t("Can't reach the PC. Check your connection, then try again."),
-  refused: () => t("The PC could not do that. Try again; if it keeps failing, restart t-rex on the PC."),
+  refused: () => t("The PC could not do that. Try again; if it keeps failing, restart T-Rex on the PC."),
   unknown: () => t("Something went wrong. Try again."),
 };
 

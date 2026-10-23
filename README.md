@@ -1,13 +1,13 @@
-# t-rex
+# T-Rex
 
 <p align="center">
-  <img src="public/icons/icon-192.png" alt="t-rex" width="100">
+  <img src="public/icons/icon-192.png" alt="T-Rex" width="100">
 </p>
 
 Your [herdr](https://github.com/herdrdev/herdr) sessions in a Ghostty-like terminal, in a browser
 or on your phone, as an installable PWA.
 
-t-rex is built like Superlogical's [Rex](https://www.superlogical.com): a server keeps every
+T-Rex is built like Superlogical's [Rex](https://www.superlogical.com): a server keeps every
 session running, and any window attaches to it and lets go without stopping the work. Here the
 server is the [herdr](https://github.com/herdrdev/herdr) multiplexer, which owns every pty,
 scrollback and agent state, and the window is [restty](https://github.com/wiedymi/restty),

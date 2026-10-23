@@ -1,5 +1,5 @@
 /**
- * Before the app was named t-rex its keys in localStorage and sessionStorage started with
+ * Before the app was named T-Rex its keys in localStorage and sessionStorage started with
  * `herdr-web-ui:`. Each moves once to the same name under `t-rex:` (settings, drafts, layout), before
  * any module reads one: main.tsx imports this first. A value already under the new name wins.
  */

@@ -40,9 +40,9 @@ const BUST = DINO.slice(0, 14).map((row) => row.slice(4));
 const CELL = 11 / 192, LEFT = -14 / 192, TOP = 49 / 192;
 
 const WORD: Record<string, string[]> = {
-  t: [".#...", ".#...", "###..", ".#...", ".#...", ".#..#", "..##."],
+  T: ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
   "-": [".....", ".....", ".....", "####.", ".....", ".....", "....."],
-  r: [".....", ".....", "#.##.", "##..#", "#....", "#....", "#...."],
+  R: ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
   e: [".....", ".....", ".###.", "#...#", "#####", "#....", ".###."],
   x: [".....", ".....", "#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
 };
@@ -126,7 +126,7 @@ function socialPreview(): Canvas {
   const canvas = new Canvas(1280, 640, TILE);
   const dino = 30, letter = 14;
   canvas.art(BUST, 110, 640 - (BUST.length - 1) * dino, dino, AMBER);
-  const word = ["t", "-", "r", "e", "x"];
+  const word = ["T", "-", "R", "e", "x"];
   const left = 740, top = 300;
   word.forEach((glyph, i) => canvas.art(WORD[glyph]!, left + i * 6 * letter, top, letter, CREAM));
   canvas.rect(left + word.length * 6 * letter, top + 2 * letter, 3 * letter, 5 * letter, AMBER);

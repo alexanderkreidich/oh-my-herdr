@@ -1,6 +1,6 @@
 # Security
 
-t-rex gives a browser the terminals of the PC it runs on. Anyone who gets past its access
+T-Rex gives a browser the terminals of the PC it runs on. Anyone who gets past its access
 check can type into them, so a flaw in who gets in is as serious as it gets here.
 
 ## Reporting a vulnerability

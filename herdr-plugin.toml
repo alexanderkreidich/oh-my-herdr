@@ -1,5 +1,5 @@
 id = "alexanderkreidich.t-rex"
-name = "t-rex"
+name = "T-Rex"
 version = "0.4.12"
 min_herdr_version = "0.9.0"
 description = "Your herdr sessions in a Ghostty-like terminal, in the browser and on your phone. Built like Superlogical's Rex, on the herdr multiplexer and restty."
@@ -41,42 +41,42 @@ platforms = ["windows"]
 
 [[actions]]
 id = "start"
-title = "Start t-rex"
+title = "Start T-Rex"
 contexts = ["workspace"]
 command = ["sh", "scripts/with-bun.sh", "scripts/plugin.ts", "start"]
 platforms = ["linux", "macos"]
 
 [[actions]]
 id = "start-windows"
-title = "Start t-rex"
+title = "Start T-Rex"
 contexts = ["workspace"]
 command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/plugin.ps1", "start"]
 platforms = ["windows"]
 
 [[actions]]
 id = "stop"
-title = "Stop t-rex"
+title = "Stop T-Rex"
 contexts = ["workspace"]
 command = ["sh", "scripts/with-bun.sh", "scripts/plugin.ts", "stop"]
 platforms = ["linux", "macos"]
 
 [[actions]]
 id = "stop-windows"
-title = "Stop t-rex"
+title = "Stop T-Rex"
 contexts = ["workspace"]
 command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/plugin.ps1", "stop"]
 platforms = ["windows"]
 
 [[actions]]
 id = "status"
-title = "t-rex status"
+title = "T-Rex status"
 contexts = ["workspace"]
 command = ["sh", "scripts/with-bun.sh", "scripts/plugin.ts", "status"]
 platforms = ["linux", "macos"]
 
 [[actions]]
 id = "status-windows"
-title = "t-rex status"
+title = "T-Rex status"
 contexts = ["workspace"]
 command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/plugin.ps1", "status"]
 platforms = ["windows"]

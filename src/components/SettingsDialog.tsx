@@ -730,7 +730,7 @@ function AboutPage({ updates, herdrVersion, bridgesFollow }: { updates: UpdatesM
       <SettingsGroup title={t("About")} className="settings-about" section="about">
         <div className="settings-row">
           <div className="settings-row-text">
-            <span className="settings-label">t-rex</span>
+            <span className="settings-label">T-Rex</span>
             <span className="settings-description">{t("Built like Superlogical's Rex, on herdr and restty.")}</span>
           </div>
           <a className="btn" href="https://github.com/alexanderkreidich/t-rex" target="_blank" rel="noreferrer"><Star aria-hidden="true" />{t("Star on GitHub")}</a>

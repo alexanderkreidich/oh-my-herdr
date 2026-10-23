@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "t-rex",
-  "short_name": "t-rex",
+  "name": "T-Rex",
+  "short_name": "T-Rex",
   "description": "Your herdr sessions in a Ghostty-like terminal, in the browser and on your phone. Built like Superlogical's Rex, on the herdr multiplexer and restty.",
   "start_url": "/",
   "scope": "/",
