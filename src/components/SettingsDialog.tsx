@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { ArrowLeft, Bell, Check, ChevronRight, Gauge, Info, Keyboard, Mic, Monitor, Palette, Plug, Search, Smartphone, SquareTerminal, Star, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Bell, Check, ChevronRight, Info, Keyboard, Monitor, Palette, Plug, Search, Smartphone, SquareTerminal, Star, X, type LucideIcon } from "lucide-react";
 
 import "./SettingsDialog.css";
 
@@ -9,10 +9,10 @@ import { SHORTCUTS, bindingDisplayKeys, formatKeys, isMacPlatform, setShortcutRe
 import { MENU_SHORTCUT_KEYS, recordShortcut, shortcutMatchesQuery } from "../lib/shortcutRecorder.ts";
 import { exactChordRisk, isReservedShortcutKey, parseExactChord } from "../lib/shortcutBindings.ts";
 import { CLAUDE_LAUNCH_MODES, CODEX_LAUNCH_MODES, type ClaudeLaunchMode, type CodexLaunchMode } from "../lib/agentLaunchMode.ts";
-import { TERMINAL_FONT_MAX, TERMINAL_FONT_MIN, TERMINAL_WHEEL_SPEED_MAX, TERMINAL_WHEEL_SPEED_MIN, DICTATION_LANGUAGES, VOICE_BUTTONS, useSettings, uiFontSize, type DictationLanguage, type TerminalRenderer, type VoiceButton } from "../lib/settings.ts";
+import { TERMINAL_FONT_MAX, TERMINAL_FONT_MIN, TERMINAL_WHEEL_SPEED_MAX, TERMINAL_WHEEL_SPEED_MIN, useSettings, uiFontSize, type TerminalRenderer } from "../lib/settings.ts";
 import { ghosttyThemeNames } from "../lib/restty/theme.ts";
 import { pickTheme, rowFor, THEME_IDS, type Mode, type ThemeId } from "../lib/themes.ts";
-import { LANGUAGE_NAMES, LANGUAGE_SETTINGS, useLocale, useT } from "../lib/i18n.ts";
+import { LANGUAGE_NAMES, LANGUAGE_SETTINGS, useT } from "../lib/i18n.ts";
 import { useFocusTrap } from "../lib/useFocusTrap.ts";
 import { KeyBarSettings } from "./KeyBarSettings.tsx";
 import { onSettingsHistory, recordSettings, settingsEntry, settingsLevels, type SettingsLevel } from "../lib/settingsHistory.ts";
@@ -23,22 +23,17 @@ import { canListInstalledFonts, filterFamilies, isMonospaceFamily, queryInstalle
 import type { UpdatesModel } from "../lib/updates.ts";
 import type { UserError } from "../lib/userError.ts";
 import type { MachineSettings } from "../../shared/machines.ts";
-import { fetchRemoteAccess, fetchVoiceStatus, machineRequest, saveVoiceConfig } from "../lib/api.ts";
+import { fetchRemoteAccess, machineRequest } from "../lib/api.ts";
 import { isLoopbackHost, phonePlan } from "../lib/phone.ts";
 import type { AgentIntegration, HealthAuth, PluginActions, RemoteAccess } from "../../shared/protocol.ts";
 import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
 import { loadIntegrations, outcomeFor, type IntegrationsResult } from "../lib/integrations.ts";
-import type { VoiceStatus } from "../../shared/voice.ts";
-import { dictationLocale, VOICE_CONFIG_EVENT } from "../lib/voice.ts";
 import { DevicesPanel } from "./DevicesPanel.tsx";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { PhonePanel } from "./PhonePanel.tsx";
-import { PortalPanel } from "./PortalPanel.tsx";
 import { copyText } from "../lib/clipboard.ts";
 import { PushTestControls } from "./PushTestControls.tsx";
-import { previewAlertSound, unlockAlertSound } from "../lib/alertSound.ts";
 import { HerdrUpdateControls, UpdateControls } from "./UpdateControls.tsx";
-import { UsageSettings } from "./UsageSettings.tsx";
 import { useSheetSwipe } from "../lib/sheets.ts";
 import { CrashProbe, RegionCrash } from "./AppCrash.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
@@ -56,7 +51,6 @@ export interface SettingsDialogProps {
   onPage?: (page: string | null) => void;
   onClose: () => void;
   /** Account login runs on this server's PC, even while another PC is selected. */
-  onUsageLogin: (paneId: string) => void;
   actions: AppActions;
   updates: UpdatesModel;
   /** how this browser got in, from the last health check */
@@ -204,8 +198,6 @@ export const PAGES: readonly { id: SettingsPage; icon: LucideIcon }[] = [
   { id: "appearance", icon: Palette },
   { id: "terminal", icon: SquareTerminal },
   { id: "alerts", icon: Bell },
-  { id: "voice", icon: Mic },
-  { id: "usage", icon: Gauge },
   { id: "shortcuts", icon: Keyboard },
   { id: "devices", icon: Smartphone },
   { id: "remote", icon: Monitor },
@@ -398,8 +390,6 @@ function TerminalPage({ keyBarButtonRef, onEditKeyBar }: { keyBarButtonRef: RefO
 function AlertsPage({ onEnableNotifications }: { onEnableNotifications: () => Promise<boolean> }) {
   const { settings, update } = useSettings();
   const t = useT();
-  // the Sound switch as last set: the preview waits for the audio, and must not play once it is off
-  const alertSoundWanted = useRef(settings.alertSound);
   return (
     <SettingsGroup note={t("For this device. An alert waits a little first, and none comes when the pane changes meanwhile, as when you answer at the PC.")}>
       <PushTestControls onEnable={onEnableNotifications} />
@@ -409,128 +399,7 @@ function AlertsPage({ onEnableNotifications }: { onEnableNotifications: () => Pr
       <SettingsRow label={t("Finished")} description={t("Long turns: only work that took a minute or more")} wide>
         <Segmented label={t("Finished")} value={settings.alertDone} onChange={(alertDone) => update({ alertDone })} options={[{ value: "off", label: t("Off") }, { value: "long", label: t("Long turns") }, { value: "always", label: t("Every turn") }]} />
       </SettingsRow>
-      <SettingsRow label={t("In the app")} description={t("While the app is open, these drop in from the top of the screen at once. Tap one to open its pane.")}>
-        <Toggle label={t("In the app")} checked={settings.alertInApp} onChange={(alertInApp) => update({ alertInApp })} />
-      </SettingsRow>
-      <SettingsRow label={t("Sound")} description={t("While a tab of the app is open, it chimes for these alerts, also when a Focus or Do Not Disturb silences notifications.")}>
-        <Toggle label={t("Sound")} checked={settings.alertSound} onChange={(alertSound) => {
-          update({ alertSound });
-          alertSoundWanted.current = alertSound;
-          // this tap is the gesture the page needs to play audio; the chime is the preview,
-          // unless the switch went off again while the audio was getting ready
-          if (alertSound) void unlockAlertSound().then((ready) => { if (ready && alertSoundWanted.current) previewAlertSound(); });
-        }} />
-      </SettingsRow>
     </SettingsGroup>
-  );
-}
-
-/** A language tag's name in the UI language (`hu-HU` is "Hungarian (Hungary)"), or the tag where the browser cannot name it. */
-function languageName(names: Intl.DisplayNames | null, tag: string): string {
-  try { return names?.of(tag) ?? tag; } catch { return tag; }
-}
-
-function DictationLanguageSelect() {
-  const { settings, resolvedLanguage, update } = useSettings();
-  const t = useT();
-  const locale = useLocale();
-  const names = useMemo(() => { try { return new Intl.DisplayNames([locale], { type: "language" }); } catch { return null; } }, [locale]);
-  const auto = languageName(names, dictationLocale("auto", settings.language, resolvedLanguage, navigator.languages));
-  const choices = useMemo(() => DICTATION_LANGUAGES.map((tag) => ({ tag, name: languageName(names, tag) })).sort((a, b) => a.name.localeCompare(b.name, locale)), [names, locale]);
-  return (
-    <select id="settings-voice-language" className="select settings-select" value={settings.voiceLanguage} onChange={(event) => update({ voiceLanguage: event.target.value as DictationLanguage })}>
-      <option value="auto">{t("Auto ({language})", { language: auto })}</option>
-      {choices.map(({ tag, name }) => <option key={tag} value={tag}>{name}</option>)}
-    </select>
-  );
-}
-
-function VoicePage() {
-  const { settings, update } = useSettings();
-  const t = useT();
-  // the server only says whether it holds a key; the key typed here is never kept past a save
-  const [voice, setVoice] = useState<VoiceStatus | null>(null);
-  const [voiceKey, setVoiceKey] = useState("");
-  const [voiceBusy, setVoiceBusy] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [micDenied, setMicDenied] = useState(false);
-  useEffect(() => { fetchVoiceStatus().then(setVoice, () => setVoice(null)); }, []);
-  /** On asks now, so the first dictation does not stop at the browser's permission prompt */
-  const chooseVoiceInput = async (voiceInput: VoiceButton) => {
-    update({ voiceInput });
-    setMicDenied(false);
-    if (voiceInput !== "on" || !window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return;
-    try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((track) => track.stop()); }
-    catch { setMicDenied(true); }
-  };
-  const changeVoiceKey = async (api_key: string | null) => {
-    setVoiceBusy(true);
-    try {
-      // the save answers the new status itself: no second request that could fail after it
-      const saved = await saveVoiceConfig({ api_key });
-      setVoiceKey("");
-      setVoiceError(null);
-      setVoice(saved);
-      window.dispatchEvent(new Event(VOICE_CONFIG_EVENT));
-    } catch (e) { setVoiceError(e instanceof Error ? e.message : String(e)); }
-    finally { setVoiceBusy(false); }
-  };
-  const micProblem = settings.voiceInput === "off" ? null : !window.isSecureContext ? t("Voice input needs HTTPS") : micDenied ? t("Microphone permission was denied") : null;
-  return (
-    <>
-      <SettingsGroup>
-        <SettingsRow label={t("Microphone button")} description={<>{t("On: in the terminal input line, where dictation can work.")}{micProblem !== null && <span className="voice-error">{micProblem}</span>}</>} wide>
-          <Segmented label={t("Microphone button")} value={settings.voiceInput} onChange={(voiceInput) => void chooseVoiceInput(voiceInput)} options={VOICE_BUTTONS.map((voiceInput) => ({ value: voiceInput, label: t(voiceInput === "auto" ? "Auto" : voiceInput === "on" ? "On" : "Off") }))} />
-        </SettingsRow>
-        {settings.voiceInput !== "off" && (
-          <SettingsRow label={t("Dictation language")} description={t("Auto listens for the app's language, or for the browser's when the app is not translated into it")} htmlFor="settings-voice-language">
-            <DictationLanguageSelect />
-          </SettingsRow>
-        )}
-      </SettingsGroup>
-
-      {settings.voiceInput !== "off" && (
-        <SettingsGroup title={t("Tidy dictated text")} section="tidy-dictation">
-          <SettingsRow label={t("In the terminal")} description={t("Off keeps a command exactly as transcribed")}>
-            <Toggle label={t("Tidy dictated text in the terminal")} checked={settings.voicePolishTerminal} onChange={(voicePolishTerminal) => update({ voicePolishTerminal })} />
-          </SettingsRow>
-        </SettingsGroup>
-      )}
-
-      <SettingsGroup title={t("OpenAI API key")} section="openai-key">
-        <div className="settings-item">
-          {voice && (
-            <p className="settings-label voice-status">
-              {voice.configured ? t(voice.source === "env" ? "OpenAI key set by HERDR_WEB_OPENAI_API_KEY" : "OpenAI key saved on this PC") : t("No OpenAI key: the browser's speech recognition is used")}
-            </p>
-          )}
-          {voice && voice.source !== "env" && (
-            <form className="voice-key" onSubmit={(event) => { event.preventDefault(); if (voiceKey.trim()) void changeVoiceKey(voiceKey.trim()); }}>
-              <input
-                className="input voice-key-input"
-                type="password"
-                value={voiceKey}
-                placeholder="sk-..."
-                aria-label={t("OpenAI API key")}
-                autoComplete="off"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
-                onChange={(event) => setVoiceKey(event.target.value)}
-              />
-              <button type="submit" className="btn voice-key-save" disabled={voiceBusy || !voiceKey.trim()}>{t("Save key")}</button>
-              <button type="button" className="btn btn-ghost voice-key-remove" disabled={voiceBusy || !voice.configured} onClick={() => void changeVoiceKey(null)}>{t("Remove key")}</button>
-            </form>
-          )}
-          {voiceError && <p className="settings-hint voice-error" role="alert">{voiceError}</p>}
-          <p className="settings-hint voice-privacy">
-            {voice && !voice.configured
-              ? t("Without a key the browser recognizes the speech: Chrome and Edge send the audio to Google or Microsoft. Nothing is recorded until you press the mic.")
-              : t("Audio is sent to OpenAI with your key. Nothing is recorded until you press the mic.")}
-          </p>
-        </div>
-      </SettingsGroup>
-    </>
   );
 }
 
@@ -716,8 +585,7 @@ function ShortcutsPage() {
           const unbound = defaultKeys.length === 0;
           const rowText = recording?.id === shortcut.id ? (recording.problem ?? t("Press the new shortcut, or Escape to cancel.")) : confirming ? riskText(confirming.risk, compactKeys(bindingDisplayKeys(confirming.value))) : selectedRisk ? riskText(selectedRisk, compactKeys(displayedKeys)) : undefined;
           return (
-            <SettingsRow key={shortcut.id} label={t(shortcut.label)} wide={shortcut.id !== "voice"} description={rowText === undefined ? undefined : <span role="status">{rowText}</span>}>
-              {shortcut.id === "voice" ? <span className="settings-keys">{formatKeys(shortcut.keys).map((key) => <kbd className="kbd" key={key}>{key}</kbd>)}</span> : (
+            <SettingsRow key={shortcut.id} label={t(shortcut.label)} wide description={rowText === undefined ? undefined : <span role="status">{rowText}</span>}>
                 <span className="settings-shortcut-control">
                 <button type="button" className="btn settings-shortcut-record" ref={(button) => { if (button) recordButtons.current.set(shortcut.id, button); else recordButtons.current.delete(shortcut.id); }} aria-pressed={recording?.id === shortcut.id} aria-label={t("Record shortcut for {name}", { name: t(shortcut.label) })} onClick={() => { setPending(null); setRecording(recording?.id === shortcut.id ? null : { id: shortcut.id, problem: null }); }}>{recording?.id === shortcut.id ? t("Press keys…") : t("Record")}</button>
                 {confirming ? <>
@@ -743,7 +611,6 @@ function ShortcutsPage() {
                   })}
                 </select>}
                 </span>
-              )}
             </SettingsRow>
           );
         })}
@@ -788,7 +655,6 @@ function DevicesPage({ auth, onSignOut }: { auth: HealthAuth | null; onSignOut: 
         </SettingsRow>
       </SettingsGroup>
 
-      <PortalPanel readOnly={auth?.role === "watch"} />
 
       <SettingsGroup title={t("Devices")} section="devices">
         <div className="settings-item"><DevicesPanel pairUrl={pairUrl} auth={auth} /></div>
@@ -928,7 +794,7 @@ function SaveFailure({ error }: { error: UserError }) {
   </div>;
 }
 
-function OpenSettingsDialog({ section = null, linkPage = null, linkSection = null, onPage, onClose, onUsageLogin, actions, updates, auth, herdrVersion, onEnableNotifications, saveError, overPreview = false }: SettingsDialogProps) {
+function OpenSettingsDialog({ section = null, linkPage = null, linkSection = null, onPage, onClose, actions, updates, auth, herdrVersion, onEnableNotifications, saveError, overPreview = false }: SettingsDialogProps) {
   const t = useT();
   const narrow = useNarrow();
   // opened by Forward, the dialog shows what that entry of the history showed
@@ -961,8 +827,8 @@ function OpenSettingsDialog({ section = null, linkPage = null, linkSection = nul
   const surface = useFocusTrap<HTMLElement>(true, { initialFocus: backRef });
   useSheetSwipe(surface, onClose);
   const shown = useRef<{ page: SettingsPage | null; keyBar: boolean } | null>(null);
-  const label = (id: SettingsPage): string => t(id === "appearance" ? "Appearance" : id === "terminal" ? "Terminal" : id === "alerts" ? "Alerts" : id === "voice" ? "Voice input"
-    : id === "usage" ? "Subscription usage" : id === "shortcuts" ? "Shortcuts" : id === "devices" ? "Phone & devices" : id === "remote" ? "Remote PCs" : id === "integrations" ? "Agent integrations" : "About");
+  const label = (id: SettingsPage): string => t(id === "appearance" ? "Appearance" : id === "terminal" ? "Terminal" : id === "alerts" ? "Alerts"
+    : id === "shortcuts" ? "Shortcuts" : id === "devices" ? "Phone & devices" : id === "remote" ? "Remote PCs" : id === "integrations" ? "Agent integrations" : "About");
   const openPage = (id: SettingsPage): void => { setKeyBarOpen(false); setChosen(id); };
   const openKeyBar = (): void => {
     settingsScrollRef.current = settingsBodyRef.current?.scrollTop ?? 0;
@@ -1035,8 +901,6 @@ function OpenSettingsDialog({ section = null, linkPage = null, linkSection = nul
       case "appearance": return <AppearancePage />;
       case "terminal": return <TerminalPage keyBarButtonRef={keyBarButtonRef} onEditKeyBar={openKeyBar} />;
       case "alerts": return <AlertsPage onEnableNotifications={onEnableNotifications} />;
-      case "voice": return <VoicePage />;
-      case "usage": return <UsageSettings onLocalLogin={onUsageLogin} />;
       case "shortcuts": return <ShortcutsPage />;
       case "devices": return <DevicesPage auth={auth} onSignOut={actions.lock} />;
       case "remote": return <RemotePcsPage actions={actions} pcSettings={pcSettings} pcSettingsError={pcSettingsError} onPcSettings={(patch) => void updatePcSettings(patch)} />;

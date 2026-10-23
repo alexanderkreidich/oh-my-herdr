@@ -145,7 +145,7 @@ describe("demo transport", () => {
   it("answers every /api route the server handles", () => {
     const routes = new Set(files("server/**/*.ts").filter((file) => !/\.test\.ts$|\.fake\.ts$/.test(file))
       .flatMap((file) => [...stripComments(read(file)).matchAll(/["'`](\/api\/[\w./-]*[\w.-])["'`]/g)].map((match) => match[1]!)));
-    expect(routes.size).toBeGreaterThan(60);
+    expect(routes.size).toBeGreaterThan(30);
     fail([...routes].filter((route) => !answered(route) && !(route in DEMO_404)).sort(),
       "Answer these routes in route() in demo/transport.ts (with fixtures from demo/fixtures.ts), so the demo does not 404. Only a route the browser never asks the demo for (server to server, or behind a state the demo never reaches) goes into DEMO_404 in scripts/conventions.test.ts instead, with its reason.");
     fail(Object.keys(DEMO_404).filter((route) => answered(route) || !routes.has(route)),

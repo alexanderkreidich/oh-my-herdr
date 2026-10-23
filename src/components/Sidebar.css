@@ -555,7 +555,7 @@
   .sidebar-footer-action:hover:not(:disabled) { background: var(--side-hover); }
 }
 
-/* the gear first, the plan meters filling the rest */
+/* the footer row: the gear */
 .sidebar-footer-row {
   display: flex;
   align-items: center;
@@ -563,7 +563,7 @@
   min-width: 0;
 }
 
-/* Settings is its gear alone, so the plan meters beside it get the rest of the row */
+/* Settings is its gear alone */
 .sidebar-footer-row > .sidebar-footer-settings {
   flex: 0 0 auto;
   width: var(--side-box);
@@ -571,13 +571,6 @@
 }
 
 .sidebar-footer-settings svg { margin-inline: auto; }
-
-.sidebar-install-help {
-  margin: 0;
-  padding: 0 var(--space-2) var(--space-1) var(--side-box);
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-}
 
 @media (pointer: coarse) {
   .sidebar-shell {

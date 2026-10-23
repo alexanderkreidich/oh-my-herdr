@@ -87,7 +87,6 @@ describe("Browser lane script lists", () => {
     expect(serial).toEqual(runs);
     expect(serial).toContain("scripts/ui-regression.ts");
     expect(serial).toContain("scripts/ui-contexts-regression.ts");
-    expect(serial).toContain("scripts/sidebar-spacing-demo-regression.ts");
     expect(new Set(serial).size).toBe(serial.length);
   });
 
@@ -164,16 +163,16 @@ describe("Extracted UI checks", () => {
 
   const moved = [
     "checkPushSettings", "checkWakeLock", "checkSecretInput", "checkTerminalCopy", "checkPaneFind",
-    "checkUsageMeters", "checkNotificationStartup", "checkNotificationView", "checkMobileViewport",
+    "checkNotificationStartup", "checkNotificationView", "checkMobileViewport",
     "checkTerminalPinch", "checkMobileTabs", "checkTabMenu", "checkDefaultView",
-    "checkComposerReconnect", "checkDroplet", "checkSplitView", "checkTakeOver", "checkAlertSound",
+    "checkComposerReconnect", "checkSplitView", "checkTakeOver",
     "checkChatKeepsTerminalSize", "checkPaneSwitchKeepsTerminalSize",
     "checkBackgroundTabKeepsTerminalSize", "checkFocusedWindowReclaimsTerminalSize",
     "checkUpdateNotice",
   ];
   const calls = (source: string) => [...source.matchAll(/\b(check[A-Z]\w*)\(/g)].map((match) => match[1]!);
 
-  it("moves all 24 existing checks exactly once, in order, without removing core input checks", () => {
+  it("moves all 21 existing checks exactly once, in order, without removing core input checks", () => {
     const core = calls(readFileSync(new URL("./ui-regression.ts", import.meta.url), "utf8"));
     const contexts = calls(readFileSync(new URL("./ui-contexts-checks.ts", import.meta.url), "utf8"));
     expect(contexts.filter((name) => moved.includes(name))).toEqual(moved);

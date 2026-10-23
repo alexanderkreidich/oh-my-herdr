@@ -2469,7 +2469,7 @@ export function PaneTerminal({
           height resizes the shared pty. Without the line (typing straight into the grid) the masked
           input sits in a box-less slot (TerminalInput.css) */}
       {(lineSlot || secretInput) && <div ref={setInputSlot} className={`terminal-input-slot${lineSlot ? "" : " is-empty"}`}>
-        {secretInput ?? (lineSlot && !secretActive && <TerminalInput key={paneId} active={active} owner={paneStorageId(machineId, paneId)} onComposing={setLineComposing} connected={connected && !held} onSend={sendTerminalLine} onEnter={pressEnter} onFocus={reassertGrid} />)}
+        {secretInput ?? (lineSlot && !secretActive && <TerminalInput key={paneId} owner={paneStorageId(machineId, paneId)} onComposing={setLineComposing} connected={connected && !held} onSend={sendTerminalLine} onEnter={pressEnter} onFocus={reassertGrid} />)}
       </div>}
       {presented && paneId !== null && !secretActive && !observing && <KeyBar disabled={composing || !connected || !inputReady || held || ended} onKey={pressKey}
         holdScope={`${paneStorageId(machineId, paneId)}:terminal`}

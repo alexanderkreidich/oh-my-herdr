@@ -60,10 +60,7 @@ import { markSelection, selectionStill, type SelectionMark } from "./lib/selecti
 import { userErrorMessage } from "./lib/userError.ts";
 import { useScreenWakeLock } from "./lib/wakeLock.ts";
 import { watchDrawerSwipe } from "./lib/edgeSwipe.ts";
-import { Droplet } from "./components/Droplet.tsx";
-import { dropletAllows, endedTurn, seedStatuses, showDroplet, trackTurn, type DropletKind } from "./lib/droplet.ts";
-import { canPlayAlertSound, playAlertSound, unlockAlertSound, type AlertSoundKind } from "./lib/alertSound.ts";
-import { createAlertTurnPlayer } from "./lib/alertTurns.ts";
+import { seedStatuses } from "./lib/statusBaseline.ts";
 import { dockPane, draggedPane, paneDragData, dropSide, otherSlot, PANE_DRAG_TYPE, sameTarget, slotSide, storedSplit, storeSplit, type SplitSide, type SplitSlot, type SplitState, type SplitTarget } from "./lib/split.ts";
 import { paneDrag } from "./lib/paneDrag.ts";
 import { PaneFollowContext } from "./lib/paneSubmitContext.ts";
@@ -409,14 +406,6 @@ export function App() {
   lockedRef.current = locked;
   // last-seen agent status per pane: the baseline that decides whether a push is news
   const statusRef = useRef<Map<string, AgentStatus>>(new Map());
-  // when each pane's turn began, so an in-app alert knows a long turn from a quick one
-  const turnStartRef = useRef<Map<string, number>>(new Map());
-  // how long each pane's last finished turn took: a pane that ends is told by it too
-  const lastTurnRef = useRef<Map<string, number>>(new Map());
-  const alertInAppRef = useRef(settings.alertInApp);
-  alertInAppRef.current = settings.alertInApp;
-  const alertSoundRef = useRef(settings.alertSound);
-  alertSoundRef.current = settings.alertSound;
   const refetchTimer = useRef<number | null>(null);
   const snapshotRef = useRef<typeof snapshot>(null);
   snapshotRef.current = snapshot;
@@ -488,51 +477,6 @@ export function App() {
     if (refetchTimer.current !== null) window.clearTimeout(refetchTimer.current);
   }, []);
 
-  // In-app alerts (components/Droplet.tsx): only while the app is on screen - a hidden app has
-  // its system notifications - and never for the pane already open in front of the user.
-  const dropIn = useCallback((machine: Machine, pane: HerdrPane, kind: DropletKind) => {
-    if (!alertsOnRef.current || !alertInAppRef.current || document.visibilityState !== "visible") return;
-    const open = selectionRef.current;
-    if (open.machineId === machine.id && open.paneId === pane.pane_id && !drawerOpenRef.current) return;
-    if (splitShownRef.current && sameTarget(splitRef.current?.other ?? null, { machineId: machine.id, paneId: pane.pane_id }) && !drawerOpenRef.current) return;
-    showDroplet({
-      machineId: machine.id,
-      paneId: pane.pane_id,
-      agent: pane.agent ?? null,
-      title: alertPaneTitle(pane),
-      machine: machinesRef.current.length > 1 ? machine.name : null,
-      kind,
-    });
-  }, []);
-
-  // The alert sound (lib/alertSound.ts): heard also while the tab is hidden and a Focus silences
-  // system notifications; never for the pane open in front of the user.
-  const alertTurns = useRef<ReturnType<typeof createAlertTurnPlayer> | null>(null);
-  useEffect(() => {
-    const player = createAlertTurnPlayer({
-      play: (kind) => alertsOnRef.current && alertSoundRef.current && playAlertSound(kind),
-    });
-    alertTurns.current = player;
-    return () => { player.dispose(); alertTurns.current = null; };
-  }, []);
-  const chime = useCallback((machine: Machine, pane: HerdrPane, kind: AlertSoundKind) => {
-    if (!alertsOnRef.current || !alertSoundRef.current || !canPlayAlertSound()) return;
-    const open = selectionRef.current;
-    if (document.visibilityState === "visible" && open.machineId === machine.id && open.paneId === pane.pane_id && !drawerOpenRef.current) return;
-    if (document.visibilityState === "visible" && splitShownRef.current && sameTarget(splitRef.current?.other ?? null, { machineId: machine.id, paneId: pane.pane_id }) && !drawerOpenRef.current) return;
-    alertTurns.current?.chime(JSON.stringify([machine.id, pane.pane_id, kind]), kind);
-  }, []);
-
-  // a page plays audio only after a tap or key on it: each one lets the next chime play. A mouse
-  // activates the page on press, a touch only on release, so both ends of a tap try
-  useEffect(() => {
-    if (!settings.alertSound) return;
-    const unlock = () => { void unlockAlertSound(); };
-    const events = ["pointerdown", "pointerup", "keydown"] as const;
-    for (const event of events) window.addEventListener(event, unlock, true);
-    return () => { for (const event of events) window.removeEventListener(event, unlock, true); };
-  }, [settings.alertSound]);
-
   // One SSE subscription watches every PC, even when no terminal is selected.
   useEffect(() => {
     if (locked !== false) return;
@@ -549,7 +493,7 @@ export function App() {
       // A poll started before this event can carry an older roster or pane status.
       snapshotRequests.current.invalidate();
       if (payload.type === "machines") {
-        seedStatuses(statusRef.current, alerting(payload.machines), { started: turnStartRef.current, lasted: lastTurnRef.current });
+        seedStatuses(statusRef.current, alerting(payload.machines));
         const next = createdTabs.current.apply(payload.machines);
         setMachines((previous) => sameData(previous, next) ? previous : next);
         rosterIn();
@@ -566,13 +510,6 @@ export function App() {
         const status = alertStatus(message.agent_status, message.background_wait);
         statusRef.current.set(key, status);
         const pane = machine.snapshot?.panes.find((p) => p.pane_id === message.pane_id);
-        const worked = trackTurn(turnStartRef.current, key, previous, status, Date.now());
-        if (worked !== null) lastTurnRef.current.set(key, worked);
-        if (pane && shouldNotifyStatus(previous, status) && dropletAllows(alertsRef.current, status, worked)) {
-          const kind = status === "blocked" ? "blocked" : "done";
-          dropIn(machine, pane, kind);
-          chime(machine, pane, kind);
-        }
         if (pane && shouldNotifyStatus(previous, status) && alertsOnRef.current && !pushOnRef.current && alertsAllow(alertsRef.current, status)) showPaneStatusNotification(message.pane_id, `${machine.name} · ${alertPaneTitle(pane)}`, status, () => takeNotificationTargetRef.current({ machine_id: machine.id, pane_id: message.pane_id, workspace_id: pane.workspace_id }), machine.id, pane.workspace_id);
         setMachines((list) => {
           let changed = false;
@@ -587,13 +524,6 @@ export function App() {
         });
       }
       if (message.type === "pane-exited") {
-        if (machine.id === "local") window.dispatchEvent(new Event("herdr-usage-changed"));
-        const pane = machine.snapshot?.panes.find((p) => p.pane_id === message.pane_id);
-        const worked = endedTurn(turnStartRef.current, lastTurnRef.current, paneStorageId(machine.id, message.pane_id), Date.now());
-        if (pane && dropletAllows(alertsRef.current, "done", worked)) {
-          dropIn(machine, pane, "ended");
-          chime(machine, pane, "done");
-        }
       }
       if (message.type === "pane-exited" && alertsOnRef.current && !pushOnRef.current && alertsRef.current.done !== "off") {
         const pane = machine.snapshot?.panes.find((p) => p.pane_id === message.pane_id);
@@ -602,19 +532,19 @@ export function App() {
       if (message.type === "session-changed" || message.type === "pane-exited") scheduleRefetch();
     };
     return () => events.close();
-  }, [locked, scheduleRefetch, dropIn, chime]);
+  }, [locked, scheduleRefetch]);
 
   const handleServerMessage = useCallback((message: ServerMessage) => {
     if (message.type === "error" && message.code === "output_stalled") setOutputStopped(true);
   }, []);
 
   const enableNotifications = useCallback(async () => {
-    // in-app alerts need no permission: the switch goes on whatever the browser answers
-    updateSettings({ alertsOn: true });
     const current = notificationState();
     const next = current === "default" ? await requestNotificationPermission() : current;
     setNotifications(next);
+    // alerts are notifications: without the browser's permission the switch stays off
     if (next !== "granted") return false;
+    updateSettings({ alertsOn: true });
     try {
       const endpoint = await ensurePushSubscription(alertsRef.current);
       setPushOn(endpoint !== null);
@@ -1110,18 +1040,13 @@ export function App() {
   }, []);
 
 
-  // The Alerts item says what this device does, whatever the browser's permission: in-app alerts
-  // need none, so they count as on. A device that has not answered the permission question is
-  // asked by the item; one that has answered gets a plain switch.
+  // The Alerts item says what this device does: alerts need the browser's permission, so without
+  // it they are off, and the item asks for it.
   const bell: { state: string; title: string; on: boolean; run: () => Promise<unknown> } =
     !alertsOn
       ? { state: t("Off on this device"), title: t("Alerts off on this device. Tap to turn them on"), on: false, run: enableNotifications }
       : notifications !== "granted"
-        ? !settings.alertInApp
-          ? { state: t("Off on this device"), title: t("Notify me when a pane needs input or finishes"), on: false, run: enableNotifications }
-          : notifications === "default"
-            ? { state: t("On in the app"), title: t("Alerts on in the app. Tap to allow them when it is closed too"), on: true, run: enableNotifications }
-            : { state: t("On in the app"), title: t("Alerts on in the app. Tap to turn them off"), on: true, run: disableNotifications }
+        ? { state: t("Off on this device"), title: t("Notify me when a pane needs input or finishes"), on: false, run: enableNotifications }
         : pushOn
           ? { state: t("On, pushed to this device"), title: t("Alerts on, pushed to this device, even with the app closed. Tap to turn them off"), on: true, run: disableNotifications }
           : {
@@ -1133,8 +1058,8 @@ export function App() {
               on: true,
               run: disableNotifications,
             };
-  // hidden only where it could do nothing: no system notifications and in-app alerts off
-  const bellVisible = notifications === "default" || notifications === "granted" || settings.alertInApp;
+  // hidden where it could do nothing: the browser refused notifications or has none
+  const bellVisible = notifications === "default" || notifications === "granted";
   const connWord = t(connected ? "live" : outputStopped ? "disconnected" : connectedBefore ? "reconnecting" : "connecting");
 
   useEffect(() => {
@@ -1492,12 +1417,7 @@ export function App() {
       </div>
 
       {machineDialog && <MachineDialog updateRemote={updateRemote} machine={machineDialog === "new" ? undefined : machineDialog} onClose={closeMachineDialog} onConnected={(id) => { closeMachineDialog(); selectTarget(id, null); void load(); }} />}
-      <Droplet onOpen={(machineId, paneId) => {
-        // an ended pane's card outlives the pane: the refetch has dropped it, and selecting it attaches nothing
-        if (!machinesRef.current.find((m) => m.id === machineId)?.snapshot?.panes.some((p) => p.pane_id === paneId)) return;
-        selectTargetRef.current(machineId, paneId);
-      }} />
-      <SettingsDialog auth={auth} herdrVersion={health?.herdr?.version ?? null} open={settingsOpen} section={settingsSection} linkPage={settingsLinkPage} linkSection={settingsLinkSection} onPage={onSettingsPage} onClose={closeSettings} onUsageLogin={(paneId) => { closeSettings(); selectTarget("local", paneId); void load(); }} actions={actions} updates={updates} onEnableNotifications={enableNotifications} saveError={settingsSaveError} />
+      <SettingsDialog auth={auth} herdrVersion={health?.herdr?.version ?? null} open={settingsOpen} section={settingsSection} linkPage={settingsLinkPage} linkSection={settingsLinkSection} onPage={onSettingsPage} onClose={closeSettings} actions={actions} updates={updates} onEnableNotifications={enableNotifications} saveError={settingsSaveError} />
       <CommandPalette key={selectedMachineId} machines={machines} onSelect={selectTarget} open={paletteOpen} initialQuery={paletteQuery} onClose={() => setPaletteOpen(false)} snapshot={snapshot} online={selectedMachine?.state === "connected"} selectedPaneId={selectedPaneId} actions={actions} />
     </div></MachineContext.Provider></MachineSessionsProvider>
   );

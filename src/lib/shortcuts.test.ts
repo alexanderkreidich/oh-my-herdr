@@ -107,11 +107,10 @@ it("matches shifted digits and detects alias and default-restoration conflicts",
 });
 
 describe("shortcutDisplayKeys", () => {
-  it("shows the default chord, custom chord, disabled state, and uncustomizable voice chord", () => {
+  it("shows the default chord, custom chord and disabled state", () => {
     expect(shortcutDisplayKeys("palette", {})).toEqual(["Ctrl", "F"]);
     expect(shortcutDisplayKeys("find", { find: "p" })).toEqual(["Mod", "Shift", "P"]);
     expect(shortcutDisplayKeys("settings", { settings: null })).toEqual([]);
-    expect(shortcutDisplayKeys("voice", { voice: "p" })).toEqual(["Mod", "Shift", "Space"]);
   });
 });
 

@@ -59,24 +59,20 @@ function cacheControlFor(pathname: string): string {
  *   proxy rather than from the browser.
  * - `script-src 'self' 'wasm-unsafe-eval'`: both entry points are Vite modules (index.html),
  *   nothing in the app evaluates a string, and there is no inline handler attribute. This is
- *   the directive that matters: KaTeX output and the agent marks are the two places that put
- *   third-party HTML into the page. 'wasm-unsafe-eval' lets the terminal compile its
+ *   the directive that matters: the agent marks are the one place that puts third-party
+ *   markup into the page. 'wasm-unsafe-eval' lets the terminal compile its
  *   WebAssembly core (restty's libghostty-vt, bundled in the app's own script); it allows no
  *   JavaScript evaluation.
  * - `style-src 'self' 'unsafe-inline'`: inline style attributes are how measured layout
- *   reaches the DOM (AgentPicker, RowMenu, Droplet, UsageMeters), and KaTeX writes one on
- *   every expression it cannot render. The terminal's box takes its measured size the same
- *   way. The unsafe part is styles, not script.
+ *   reaches the DOM (AgentPicker, RowMenu). The terminal's box takes its measured size the
+ *   same way. The unsafe part is styles, not script.
  * - `img-src 'self' data: blob:`: same-origin icons and pane images;
  *   `blob:` for a pasted image previewed before it is uploaded; `data:` for the inline
  *   agent marks.
- * - `font-src 'self' data:`: every face is bundled (the app's own and KaTeX's, both
- *   through Vite; the terminal fetches its own as bytes, under connect-src). No font CDN. The `data:` is Vite's own inlining: an asset under ~4 KB
- *   is emitted as a data: URL inside the CSS rather than as a file, and KaTeX_Size3's
- *   3 KB woff2 is one of them. That data: is app-bundled bytes, never anything an agent
- *   or a transcript can reach. Measured in Chromium: without it the load reports one
- *   `font-src` violation per maths-bearing page, and the browser falls through to the
- *   same-origin .woff of the same face, so the maths still draws.
+ * - `font-src 'self' data:`: every face is bundled through Vite (the terminal
+ *   fetches its own as bytes, under connect-src). No font CDN. The `data:` is Vite's own
+ *   inlining: an asset under ~4 KB is emitted as a data: URL inside the CSS rather than as a
+ *   file. That data: is app-bundled bytes, never anything an agent or a pane can reach.
  * - `connect-src 'self'`: every fetch is a relative /api path, the terminal socket is
  *   window.location.host over ws:/wss: (which 'self' matches — confirmed in Chromium:
  *   an explicit `new WebSocket("ws://<same host>/ws")` and the machines event stream both

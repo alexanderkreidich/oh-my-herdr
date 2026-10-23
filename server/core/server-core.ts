@@ -12,8 +12,6 @@
 import type { DeviceStore } from "../devices.ts";
 import { ping } from "../herdr/client.ts";
 import { attachableIdentity, sidecarAvailable } from "../pty/sidecar.ts";
-import type { UsageLoginService } from "../usage-login.ts";
-import type { UsageService } from "../usage.ts";
 import { type Client, createConnections } from "./connections.ts";
 import { createInputLane } from "./input.ts";
 import { createSocket } from "./socket.ts";
@@ -33,11 +31,9 @@ type CoreOptions = Parameters<typeof createTerminalRegistry>[0]["options"] & Par
     attachHoldMs?: number;
   };
 
-export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS }: {
+export function createCore({ options, devices, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS }: {
   options: CoreOptions;
   devices: DeviceStore;
-  usage: UsageService;
-  usageLogin: UsageLoginService;
   TYPED_SETTLE_MS: number;
   KEY_SETTLE_MS: number;
   SUBMIT_DEADLINE_MS: number;
@@ -68,7 +64,7 @@ export function createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_M
   const submitFrames = createSubmit({ options, attachments, serialize, lastTyped, terminalAttach, authorizeSocket: (client) => authorizeSocket(client), SUBMIT_DEADLINE_MS, TYPED_SETTLE_MS, SUBMIT_DELAY_MS });
 
   const { mayType, authorizeSocket, admit, setRole, watchPane, unwatchPane, killWatches, end } = createConnections({ clients, present, devices, detachClaimed, dropClaims });
-  const { push, omo, gjc, claudeAgents, clientSnapshot, machines, broadcastAll, logPushError, collector, waitTimer } = createStatusHub({ options, devices, clients, present, usage, usageLogin });
+  const { push, omo, gjc, claudeAgents, clientSnapshot, machines, broadcastAll, logPushError, collector, waitTimer } = createStatusHub({ options, devices, clients, present });
   const websocket = createSocket({
     clients, present, stopped: () => stopped, admit, setRole, watchPane, unwatchPane, end, attachments, clientSnapshot, drainOutput,
     // each frame type by name, with the handler of the module that owns it: anything else on a frame object never

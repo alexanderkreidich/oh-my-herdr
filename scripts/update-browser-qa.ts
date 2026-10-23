@@ -1,7 +1,7 @@
 /** End-to-end update QA: private Git remote/install + owned herdr pane, never the live app. */
 import "./test-herdr.ts"; // a herdr session of its own: nothing shows in the user's
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright-core";
@@ -34,7 +34,9 @@ try {
   const files = await git(source, "ls-files", "--cached", "--others", "--exclude-standard", "-z");
   for (const file of new Set(files.split("\0").filter(Boolean))) {
     mkdirSync(dirname(join(upstream, file)), { recursive: true });
-    copyFileSync(join(source, file), join(upstream, file));
+    // a tracked symlink (.claude/skills) stays a link: macOS cannot copy one as a file
+    if (lstatSync(join(source, file)).isSymbolicLink()) symlinkSync(readlinkSync(join(source, file)), join(upstream, file));
+    else copyFileSync(join(source, file), join(upstream, file));
   }
   await git(upstream, "init", "-q", "-b", "main");
   await git(upstream, "config", "user.name", "Update browser QA");
@@ -64,9 +66,6 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   page.setDefaultTimeout(60_000);
   await page.goto(`${origin}/?pane=${encodeURIComponent(paneId)}`);
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
-  const draft = page.getByRole("textbox", { name: "Message", exact: true });
-  await draft.fill("Unsent draft preserved across update");
   await page.locator(".sidebar-footer").getByRole("button", { name: "Settings", exact: true }).click();
   await openSettingsPage(page, "About");
   await page.getByRole("heading", { name: "Updates", exact: true }).scrollIntoViewIfNeeded();
@@ -118,10 +117,9 @@ try {
   await until(async () => (await status())?.current_revision === next, "Updated process never became active");
   await page.locator(".update-notice").getByRole("button", { name: "Reload app" }).waitFor();
   await page.getByRole("button", { name: "Close settings", exact: true }).click();
-  assert.equal(await draft.inputValue(), "Unsent draft preserved across update");
   assert.ok((await sessionSnapshot()).panes.some(pane => pane.pane_id === paneId));
-  await page.screenshot({ path: join(evidence, "updated-draft-desktop.png"), fullPage: true });
-  console.log("PASS browser check/install/restart, reload notice, unsent draft and herdr pane preserved");
+  await page.screenshot({ path: join(evidence, "updated-desktop.png"), fullPage: true });
+  console.log("PASS browser check/install/restart, reload notice and herdr pane preserved");
 
   // A reload is explicit. The new frontend's build revision must match the server.
   await page.locator(".update-notice").getByRole("button", { name: "Reload app" }).click();

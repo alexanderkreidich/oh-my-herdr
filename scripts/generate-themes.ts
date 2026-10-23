@@ -90,14 +90,6 @@ const DESIGN_ROWS: readonly (readonly [label: string, token: string])[] = [
   ["Syntax/type", "--syntax-type"],
   ["Syntax/variable", "--syntax-variable"],
   ["Syntax/meta", "--syntax-meta"],
-  ["Alert/background", "--droplet-bg"],
-  ["Alert/text", "--droplet-text"],
-  ["Alert/dim text", "--droplet-text-dim"],
-  ["Alert/blocked", "--droplet-blocked"],
-  ["Alert/done", "--droplet-done"],
-  ["Alert/mark background", "--droplet-mark-bg"],
-  ["Alert/ring", "--droplet-ring"],
-  ["Alert/shadow", "--droplet-shadow"],
 ];
 
 function resolveTheme(blocks: ReturnType<typeof parseThemeBlocks>, id: string) {

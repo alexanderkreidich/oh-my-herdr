@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronsUpDown, Download, Monitor, Plus, Settings, SlidersHorizontal, X } from "lucide-react";
+import { ChevronsUpDown, Monitor, Plus, Settings, SlidersHorizontal, X } from "lucide-react";
 import type { Machine, MachineState, MachineUpdate } from "../../shared/machines.ts";
 import { MachineContext } from "../lib/machineContext.tsx";
 import { answerMachineSetup, machineRequest } from "../lib/api.ts";
 import { describeProgress } from "../lib/bridgeProgress.ts";
 import { keepDismissed, noticeKey, readDismissed, waitingMachines, writeDismissed } from "../lib/machineNotice.ts";
 import type { AppActions } from "../lib/actions.ts";
-import { useInstallPrompt } from "../lib/install.ts";
 import { RowMenu, type RowMenuItem } from "./RowMenu.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { SidebarActivityProvider, useSidebarActivity, useSidebarActivityState } from "../lib/sidebarActivity.tsx";
-import { UsageMeters } from "./UsageMeters.tsx";
 import "./Machines.css";
 import { useT } from "../lib/i18n.ts";
 import { useAnnouncedText } from "../lib/useAnnouncedText.ts";
@@ -30,8 +28,6 @@ export const STATE_WORD: Readonly<Record<MachineState, string>> = {
 interface Props { machines: Machine[]; selectedMachineId: string; selectedPaneId: string | null; presentedPaneId: string | null; paneInFront: () => boolean; actions: AppActions; switcherHost: HTMLElement | null; onSelect(machineId: string, paneId: string | null): void; onSwitch(machineId: string): void; onNew(machineId: string): void; onSetup(machine: Machine, update?: boolean): void }
 export function MachineSidebar(props: Props) {
   const t = useT();
-  const { canInstall, installed, install, help } = useInstallPrompt();
-  const [installHelpOpen, setInstallHelpOpen] = useState(false);
   // the PC whose controls panel is open (the switcher's Manage item): another PC picked closes it
   const [managing, setManaging] = useState<string | null>(null);
   // both lists draw from it: live counters per PC and the finishes looked at here (lib/sidebarActivity.tsx)
@@ -61,12 +57,8 @@ export function MachineSidebar(props: Props) {
       <p className={loadingWords === null ? "visually-hidden" : "tree-state"} role="status">{loadingWords}</p>
     </div>
     <footer className="sidebar-footer">
-      {/* browsers without an install prompt (iOS, plain HTTP) get the steps instead */}
-      {!installed && <button className="btn btn-ghost sidebar-footer-action" aria-expanded={canInstall ? undefined : installHelpOpen} onClick={() => { if (canInstall) void install(); else setInstallHelpOpen(!installHelpOpen); }}><Download aria-hidden="true" />{t("Install app")}</button>}
-      {!installed && !canInstall && installHelpOpen && <p className="sidebar-install-help" role="status">{help}</p>}
       <div className="sidebar-footer-row">
         <button className="btn btn-ghost sidebar-footer-action sidebar-footer-settings" aria-label={t("Settings")} title={t("Settings (⌘⇧,)")} onClick={props.actions.openSettings}><Settings aria-hidden="true" /></button>
-        <UsageMeters />
       </div>
     </footer>
   </div></SidebarActivityProvider>;

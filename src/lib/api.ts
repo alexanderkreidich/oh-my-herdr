@@ -26,7 +26,6 @@ import type {
   PaneFindRequest,
   PaneFindResponse,
   PushKey,
-  PortalStatus,
   RemoteAccess,
   RemoveWorktreeRequest,
   ResizePaneRequest,
@@ -36,7 +35,6 @@ import type {
   SplitPaneRequest,
   SwapPaneRequest,
   TabCreated,
-  UsageReport,
   WorkspaceCreated,
   PluginActionRequest,
   PluginActionResult,
@@ -51,38 +49,12 @@ import { SUPPORTED_AGENT_KINDS } from "../../shared/supported-agents.ts";
 import type { PaneScrollInfo } from "../../shared/herdr-api.generated.ts";
 import { readInstalledNotes, readUpdateNotes, type HerdrUpdateStatus, type InstalledNotes, type UpdateCommand, type UpdateNotes, type UpdateStatus } from "../../shared/update.ts";
 import type { AlertPrefs } from "../../shared/notify-policy.ts";
-import type { VoiceConfigUpdate, VoiceStatus } from "../../shared/voice.ts";
 import { MAX_ATTACHMENT_BYTES } from "../../shared/attachments.ts";
 import { t } from "./i18n.ts";
-import type { UsageLoginAccounts, UsageLoginProvider, UsageLoginRequest, UsageLoginStarted } from "../../shared/usage-login.ts";
-
-export function fetchUsageLoginProviders(signal: AbortSignal): Promise<{ providers: readonly UsageLoginProvider[] }> {
-  return getJson("/api/usage/login", { signal });
-}
-
-export function fetchUsageLoginAccounts(provider: string, signal: AbortSignal): Promise<UsageLoginAccounts> {
-  return getJson(`/api/usage/login?provider=${encodeURIComponent(provider)}`, { signal });
-}
-
-export function startUsageLogin(request: UsageLoginRequest): Promise<UsageLoginStarted> {
-  return getJson<UsageLoginStarted>("/api/usage/login", {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.timeout(30_000),
-  });
-}
 
 /** Settings → Phone: what Tailscale on the server's PC already serves, or the command to run. */
 export function fetchRemoteAccess(): Promise<RemoteAccess> {
   return getJson<RemoteAccess>("/api/access");
-}
-
-/** The sidebar's plan meters; `refresh` asks the providers again instead of the server's recent answer. */
-export function fetchUsage(refresh = false): Promise<UsageReport> {
-  return getJson<UsageReport>(refresh ? "/api/usage?refresh=1" : "/api/usage");
-}
-
-/** Local server's CLIProxyAPI controls; secrets are only ever sent, never read back. */
-export function cliProxyRequest<T>(path = "", init: RequestInit = {}): Promise<T> {
-  return getJson<T>(`/api/cliproxy${path}`, { ...init, cache: "no-store", signal: init.signal ?? AbortSignal.timeout(60_000) });
 }
 
 export function fetchUpdateStatus(): Promise<UpdateStatus> {
@@ -113,17 +85,6 @@ export function fetchHerdrUpdate(): Promise<HerdrUpdateStatus> {
 export async function requestHerdrUpdate(): Promise<void> {
   const url = "/api/herdr/update";
   const response = await fetch(url, { method: "POST", headers: { "x-herdr-update": "1" } });
-  if (!response.ok) throw await errorFrom(url, response);
-}
-
-/** Settings → Phone & devices: Portal's public address for the server's PC. */
-export function fetchPortal(): Promise<PortalStatus> {
-  return getJson<PortalStatus>("/api/portal");
-}
-
-export async function requestPortal(action: "start" | "stop", relay?: string): Promise<void> {
-  const url = `/api/portal/${action}`;
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-herdr-update": "1" }, body: JSON.stringify(relay === undefined ? {} : { relay }) });
   if (!response.ok) throw await errorFrom(url, response);
 }
 
@@ -545,16 +506,3 @@ export const startMachineSetup = (request: SetupRequest) => machineRequest<Setup
 export const fetchMachineSetup = (id: string) => machineRequest<SetupJob>(`/setup/${encodeURIComponent(id)}`);
 export const answerMachineSetup = (id: string, action: SetupAction) => machineRequest<SetupJob>(`/setup/${encodeURIComponent(id)}`, "POST", action);
 
-/** GET /api/voice: whether the server holds a key; the key itself never comes back. */
-export async function fetchVoiceStatus(): Promise<VoiceStatus> {
-  const response = await fetch("/api/voice", { cache: "no-store" });
-  if (!response.ok) throw await errorFrom("/api/voice", response);
-  return (await response.json()) as VoiceStatus;
-}
-
-/** PUT /api/voice/config: ApiError 409 `key_from_env` when the key comes from HERDR_WEB_OPENAI_API_KEY. */
-export async function saveVoiceConfig(update: VoiceConfigUpdate): Promise<VoiceStatus> {
-  const response = await fetch("/api/voice/config", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(update) });
-  if (!response.ok) throw await errorFrom("/api/voice/config", response);
-  return (await response.json()) as VoiceStatus;
-}

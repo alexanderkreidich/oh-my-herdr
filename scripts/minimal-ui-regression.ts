@@ -18,7 +18,6 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { createServer } from "../server/index.ts";
 import { tabCreate, workspaceClose, workspaceCreate } from "../server/herdr/client.ts";
-import { UsageService } from "../server/usage.ts";
 import { chromePath } from "./chrome-path.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "restty-minimal-ui-")));
@@ -27,7 +26,7 @@ mkdirSync(cwd);
 const created = await workspaceCreate({ cwd, label: "minimal-ui" });
 const workspaceId = created.workspace.workspace_id;
 await tabCreate({ workspaceId, cwd });
-const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), usage: new UsageService(undefined, []) });
+const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state") });
 const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox", "--accept-lang=en-US"] });
 let madeId: string | null = null;
 

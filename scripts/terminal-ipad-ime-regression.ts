@@ -190,7 +190,6 @@ export async function checkIpadIme(browser: Browser, origin: string, pane: strin
         await waitForScreenText(page, "Caret replay passed");
         for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
           await page.setViewportSize(viewport);
-          await page.locator('.view-switch button[title^="Live terminal"]').click();
           await page.waitForFunction(() => {
             const terminal = document.querySelector(".terminal-host");
             return terminal && terminal.getBoundingClientRect().width > Math.min(innerWidth - 40, 600);

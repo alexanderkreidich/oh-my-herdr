@@ -71,16 +71,6 @@ export type { Machine, MachineEvent, PaneTarget, SetupJob, SetupRequest, SetupAc
  *  GET    /api/session                   -> { snapshot: SessionSnapshot }
  *  GET    /api/access                    -> RemoteAccess (how a phone can reach this server: what
  *         Tailscale on this PC already serves, or the command to run), no-store
- *  GET    /api/portal                    -> PortalStatus (an optional public HTTPS address through
- *         Portal, server/portal.ts), no-store
- *  POST   /api/portal/start              -> 202 { accepted: true }; body { relay }; 400 invalid_relay,
- *         409 token_required / serve_only / portal_busy / portal_state_in_use / portal_unsupported
- *  POST   /api/portal/stop               -> 202 { accepted: true }; 409 portal_unsupported
- *         Portal POSTs require X-Herdr-Update: 1 and same-origin, like the update POSTs:
- *         403 invalid_portal_request (or invalid_origin from the outer origin gate).
- *         Unsupported methods/actions get 405 method_not_allowed; a watch-only device gets
- *         403 read_only. Startup holds HTTP/WS requests until leftover Portal cleanup completes;
- *         unreadable saved state or unverifiable cleanup fails closed with 500 internal_error.
  *  GET    /api/updates                   -> UpdateStatus (shared/update.ts), no-store
  *  POST   /api/updates/check             -> 202 { accepted: true }
  *  POST   /api/updates/install           -> 202 { accepted: true }
@@ -203,7 +193,6 @@ export type { Machine, MachineEvent, PaneTarget, SetupJob, SetupRequest, SetupAc
  *         started: the browser must unsubscribe and subscribe anew; an older server never says it)
  *  DELETE /api/push/subscribe { endpoint }      -> 204
  *  POST   /api/push/test      { endpoint }      -> 204 | 404 subscription_not_found | 410 subscription_gone | 502 push_failed
- *  GET    /api/usage[?refresh=1]         -> UsageReport (plan limits of the AI subscriptions signed in on this PC)
  *  Errors: non-2xx with { error: { code, message } }
  *
  *  Access: every route above except /api/health, /api/auth and /api/devices/pair, plus the
@@ -246,70 +235,6 @@ export interface PaneFindResponse {
   matches?: PaneFindMatch[];
   /** Viewport mapping at the searched revision; absent on older bridges. */
   scroll?: PaneScrollInfo | null;
-}
-
-/** The subscriptions whose plan limits GET /api/usage can read from a CLI's own sign-in. */
-export type UsageProviderId = "claude" | "codex" | "cursor" | "copilot" | "grok" | "antigravity" | "opencode";
-
-/** One limit of a plan: how much of it is used and when it starts over. */
-export interface UsageWindow {
-  /** the span the limit counts over: a rolling session (5 hours), a day, a week or a billing month */
-  readonly kind: "session" | "day" | "week" | "month";
-  /** the model or quota a plan limits on its own ("Sonnet", "Premium"); null for the plan-wide limit */
-  readonly scope: string | null;
-  /** 0 to 100 */
-  readonly used_percent: number;
-  /** ISO 8601; null when the provider does not say */
-  readonly resets_at: string | null;
-  /** ISO 8601 time this window began counting; null when the provider states neither it nor the window's length */
-  readonly starts_at: string | null;
-}
-
-/**
- * Why a provider's numbers are missing or old: its sign-in expired or was refused; the provider
- * asked to slow down; the request failed; the macOS keychain holding the sign-in could not be
- * read from this server's session.
- */
-export type UsageProblem = "expired" | "rate_limited" | "failed" | "locked";
-
-export interface ProviderUsage {
-  readonly id: UsageProviderId;
-  /**
-   * One account of one provider, stable across reads: the provider and its account id, or, for a
-   * sign-in that does not say whose it is, the provider and where it was found. A PC signed in to
-   * two accounts of one provider lists both.
-   */
-  readonly key: string;
-  /** whose plan this is, as its owner knows the account: an email, or a GitHub login; null when unknown */
-  readonly account: string | null;
-  /** the plan's name as the provider states it ("max", "pro"), when it does */
-  readonly plan: string | null;
-  /** the last numbers read; kept through a later failure, which `problem` then names */
-  readonly windows: readonly UsageWindow[];
-  readonly problem: UsageProblem | null;
-  /** ISO 8601 time `windows` were read; null when they never were */
-  readonly checked_at: string | null;
-}
-
-/** GET /api/usage: only providers a CLI on this PC is signed in to are listed, once per account. */
-export interface UsageReport {
-  readonly providers: readonly ProviderUsage[];
-}
-
-/** CLIProxyAPI management configuration: the management key never leaves the server. */
-export interface CLIProxyStatus {
-  readonly configured: boolean;
-  readonly url: string;
-  readonly ok: boolean;
-  readonly problem: string | null;
-}
-export type CLIProxyProvider = "claude" | "codex";
-export interface CLIProxyLogin {
-  readonly url: string;
-  readonly state: string;
-}
-export interface CLIProxyLoginStatus {
-  readonly status: "wait" | "ok" | "error";
 }
 
 /** How a request got in, when it did. */
@@ -379,32 +304,6 @@ export interface TailscaleAccess {
   readonly serve_command: string | null;
   /** ... and the address that command gives, when the DNS name is known */
   readonly serve_url: string | null;
-}
-
-/**
- * GET /api/portal: a public HTTPS address for this server through the Portal on its PC
- * (gosuda/portal-tunnel), which the app starts and stops (Settings → Phone & devices).
- */
-export interface PortalStatus {
-  /** false on a server started without Portal (tests, the demo): the section stays hidden */
-  readonly supported: boolean;
-  /** what `portal version` says of the `portal` on PATH; null when there is none or it does not answer */
-  readonly version: string | null;
-  /** the oldest Portal that can run this app's tunnel */
-  readonly min_version: string;
-  /** `version` is `min_version` or later: Start is offered */
-  readonly usable: boolean;
-  readonly phase: "idle" | "starting" | "running" | "stopping" | "error";
-  /** the relay the tunnel uses, or used last; an https origin */
-  readonly relay: string | null;
-  /** the public address while it runs, without the default port */
-  readonly url: string | null;
-  /** why a start would be refused now: no token set, or tailscale serve declared the only way in */
-  readonly blocked: "token_required" | "serve_only" | null;
-  /** what went wrong last; null after a success */
-  readonly error: string | null;
-  /** the tail of what Portal printed, for when the error alone does not say enough */
-  readonly output: string | null;
 }
 
 /** GET /api/push: base64url VAPID public key, the `applicationServerKey` a browser subscribes with. */

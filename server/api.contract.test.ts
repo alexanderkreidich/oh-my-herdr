@@ -3,12 +3,9 @@ import { chmodSync, mkdtempSync, existsSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { createServer } from "./index.ts";
-import type { AgentKind, AgentStatus, ApiError, HealthAuth, IntegrationsResponse, LanExposure, PortalStatus, PushKey, RemoteAccess, SessionSnapshot, TabMoved, PaneFindResponse, PaneReadResult, UsageReport, WorkspaceCreated, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../shared/protocol.ts";
+import type { AgentKind, AgentStatus, ApiError, HealthAuth, IntegrationsResponse, LanExposure, PushKey, RemoteAccess, SessionSnapshot, TabMoved, PaneFindResponse, PaneReadResult, WorkspaceCreated, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../shared/protocol.ts";
 import { HerdrUpdater } from "./herdr-update.ts";
-import { PortalService } from "./portal.ts";
 import { noInstalledNotes, unmanagedUpdateStatus, type HerdrUpdateStatus, type InstalledNotes, type UpdateNotes } from "../shared/update.ts";
-import { USAGE_PROVIDERS, UsageService } from "./usage.ts";
-import { VoiceService } from "./voice.ts";
 import { HerdrSocket } from "../src/lib/ws.ts";
 import { herdrRpc, paneRead, ping, sessionSnapshot, tabCreate, workspaceCreate, workspaceClose } from "./herdr/client.ts";
 import { startFakePushService, type FakePushService } from "./push.fake.ts";
@@ -40,102 +37,6 @@ afterAll(() => {
 const base = () => `http://localhost:${server.port}`;
 
 
-
-describe("usage API", () => {
-  it("returns OpenCode Go windows without exposing its credential", async () => {
-    const usageState = mkdtempSync(join(tmpdir(), "herdr-opencode-contract-"));
-    const token = "oc_sk_contract_only";
-    const usage = new UsageService({
-      home: usageState, env: { OPENCODE_API_KEY: token }, platform: "linux", now: () => Date.parse("2026-10-06T00:00:00Z"),
-      keychain: async () => ({ status: "missing" }), run: async () => null,
-      fetch: async (url, init) => {
-        expect(url).toBe("https://opencode.ai/zen/go/v1/usage");
-        expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${token}`);
-        return Response.json({ usage: {
-          rolling: { percent: 12, resetsAt: "2026-10-06T01:00:00Z" },
-          weekly: { percent: 34 }, monthly: { percent: 56 },
-        } });
-      },
-    }, USAGE_PROVIDERS.filter((provider) => provider.id === "opencode"));
-    const app = createServer({ port: 0, stateDir: usageState, usage, token: "report-token" });
-    try {
-      const url = `http://localhost:${app.port}/api/usage`;
-      expect((await fetch(url)).status).toBe(401);
-      const response = await fetch(url, { headers: { authorization: "Bearer report-token" } });
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).not.toContain(token);
-      expect(body).not.toContain(usageState);
-      expect((JSON.parse(body) as UsageReport).providers).toMatchObject([{
-        id: "opencode", account: null, plan: "Go", problem: null,
-        windows: [
-          { kind: "session", used_percent: 12, resets_at: "2026-10-06T01:00:00.000Z" },
-          { kind: "week", used_percent: 34 }, { kind: "month", used_percent: 56 },
-        ],
-      }]);
-    } finally { app.stop(); rmSync(usageState, { recursive: true, force: true }); }
-  });
-
-  it("answers the report and keeps it behind the token gate", async () => {
-    const usageState = mkdtempSync(join(tmpdir(), "herdr-usage-auth-"));
-    const usage = new UsageService(undefined, []);
-    const open = createServer({ port: 0, stateDir: usageState, usage });
-    const gated = createServer({ port: 0, stateDir: usageState, usage, token: "test-usage-token" });
-    try {
-      const answered = await fetch(`http://localhost:${open.port}/api/usage`);
-      expect(answered.status).toBe(200);
-      expect(answered.headers.get("cache-control")).toBe("no-store");
-      expect(await answered.json() as UsageReport).toEqual({ providers: [] });
-      expect((await fetch(`http://localhost:${gated.port}/api/usage`)).status).toBe(401);
-      const withToken = await fetch(`http://localhost:${gated.port}/api/usage`, { headers: { authorization: "Bearer test-usage-token" } });
-      expect(withToken.status).toBe(200);
-    } finally { open.stop(); gated.stop(); rmSync(usageState, { recursive: true, force: true }); }
-  });
-});
-
-describe("voice API", () => {
-  it("keeps the key on the server, refuses cross-site writes and streams a transcript", async () => {
-    const voiceState = mkdtempSync(join(tmpdir(), "herdr-voice-contract-"));
-    const key = "sk-contract-0123456789";
-    const provider = Bun.serve({
-      port: 0, hostname: "127.0.0.1",
-      async fetch(request) {
-        if (new URL(request.url).pathname !== "/v1/audio/transcriptions") return new Response("not found", { status: 404 });
-        expect(request.headers.get("authorization")).toBe(`Bearer ${key}`);
-        await request.formData();
-        return new Response(`data: ${JSON.stringify({ type: "transcript.text.done", text: "git status" })}\n\n`, { headers: { "content-type": "text/event-stream" } });
-      },
-    });
-    const voice = new VoiceService({ stateDir: voiceState, env: { HERDR_WEB_OPENAI_BASE_URL: `http://127.0.0.1:${provider.port}/v1` }, fetch });
-    const open = createServer({ port: 0, stateDir: voiceState, voice });
-    const gated = createServer({ port: 0, stateDir: voiceState, voice, token: "test-voice-token" });
-    const at = (path: string) => `http://localhost:${open.port}${path}`;
-    try {
-      expect((await fetch(`http://localhost:${gated.port}/api/voice`)).status).toBe(401);
-      expect(await (await fetch(at("/api/voice"))).json()).toMatchObject({ configured: false, source: null });
-
-      const crossSite = await fetch(at("/api/voice/config"), { method: "PUT", headers: { "content-type": "application/json", "sec-fetch-site": "cross-site" }, body: JSON.stringify({ api_key: key }) });
-      expect(crossSite.status).toBe(403);
-      const saved = await fetch(at("/api/voice/config"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_key: key }) });
-      expect(saved.status).toBe(200);
-      const status = await (await fetch(at("/api/voice"))).text();
-      expect(JSON.parse(status)).toMatchObject({ configured: true, source: "file" });
-      expect(status).not.toContain(key);
-      expect(statSync(join(voiceState, "voice.json")).mode & 0o777).toBe(0o600);
-
-      const form = new FormData();
-      form.append("audio", new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }), "voice.webm");
-      form.append("mode", "chat");
-      form.append("polish", "0");
-      const transcribed = await fetch(at("/api/voice/transcribe"), { method: "POST", body: form });
-      expect(transcribed.headers.get("content-type")).toContain("application/x-ndjson");
-      expect((await transcribed.text()).trim().split("\n").map((line) => JSON.parse(line))).toEqual([{ type: "done", text: "git status" }]);
-    } finally {
-      open.stop(); gated.stop(); provider.stop(true);
-      rmSync(voiceState, { recursive: true, force: true });
-    }
-  });
-});
 
 describe("update API", () => {
   it("reports unmanaged servers without performing network discovery", async () => {
@@ -301,89 +202,6 @@ describe("phone access", () => {
     try {
       expect((await fetch(`http://localhost:${protectedServer.port}/api/access`)).status).toBe(401);
     } finally { protectedServer.stop(); rmSync(protectedState, { recursive: true, force: true }); }
-  });
-});
-
-describe("Portal API", () => {
-  it("does not serve requests until startup cleanup completes", async () => {
-    const state = mkdtempSync(join(tmpdir(), "herdr-portal-startup-gate-"));
-    let releaseCleanup!: () => void;
-    const cleanup = new Promise<void>((resolve) => { releaseCleanup = resolve; });
-    class DeferredPortal extends PortalService {
-      override resume(): Promise<void> { return cleanup; }
-    }
-    const server = createServer({ port: 0, stateDir: state, token: "", portal: new DeferredPortal({ stateDir: state }) });
-    try {
-      let resolved = false;
-      const request = fetch(`http://127.0.0.1:${server.port}/api/health?scope=bridge`).then((response) => {
-        resolved = true;
-        return response;
-      });
-      const deadline = Date.now() + 50;
-      while (!resolved && Date.now() < deadline) await Bun.sleep(5);
-      expect(resolved).toBe(false);
-      releaseCleanup();
-      const response = await request;
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ ok: true, bridge_protocol: expect.any(Number) });
-    } finally {
-      releaseCleanup();
-      server.stop();
-      rmSync(state, { recursive: true, force: true });
-    }
-  });
-
-  it("fails closed when startup cleanup rejects", async () => {
-    const state = mkdtempSync(join(tmpdir(), "herdr-portal-startup-failure-"));
-    class FailedPortal extends PortalService {
-      override resume(): Promise<void> { return Promise.reject(new Error("Portal cleanup failed")); }
-    }
-    const server = createServer({ port: 0, stateDir: state, token: "", portal: new FailedPortal({ stateDir: state }) });
-    try {
-      const response = await fetch(`http://127.0.0.1:${server.port}/api/health?scope=bridge`);
-      expect(response.status).toBe(500);
-      expect(await response.json()).toMatchObject({ error: { code: "internal_error" } });
-    } finally {
-      server.stop();
-      rmSync(state, { recursive: true, force: true });
-    }
-  });
-
-  it("opens a public address only behind the token, and closes it again", async () => {
-    const state = mkdtempSync(join(tmpdir(), "herdr-portal-api-"));
-    const standIn = join(state, "stand-in-portal");
-    writeFileSync(standIn, [
-      "#!/bin/sh",
-      'case "$1" in',
-      "  version) echo v2.6.1 ;;",
-      "  expose) trap 'exit 0' TERM; echo 'INF service ready at https://herdr-test-0123.relay.example:443'; while :; do sleep 0.05; done ;;",
-      "  *) exit 2 ;;",
-      "esac",
-      "",
-    ].join("\n"));
-    chmodSync(standIn, 0o755);
-    const relay = (async () => Response.json({ data: { release_version: "v2.6.1" } })) as unknown as typeof fetch;
-    const server = createServer({ port: 0, stateDir: state, token: "test-portal-token", portal: new PortalService({ stateDir: state, bin: standIn, fetch: relay }) });
-    const url = `http://127.0.0.1:${server.port}/api/portal`;
-    const signedIn = { authorization: "Bearer test-portal-token" };
-    const post = (action: string, headers: Record<string, string>) => fetch(`${url}/${action}`, { method: "POST", headers: { ...headers, "x-herdr-update": "1", "content-type": "application/json" }, body: JSON.stringify({ relay: "relay.example" }) });
-    const status = async (headers: Record<string, string> = signedIn) => await (await fetch(url, { headers })).json() as PortalStatus;
-    try {
-      expect((await fetch(url)).status).toBe(401);
-      expect(await status()).toMatchObject({ supported: true, usable: true, blocked: null, phase: "idle" });
-      expect((await post("start", {})).status).toBe(401);
-      expect((await post("start", signedIn)).status).toBe(202);
-      const deadline = Date.now() + 10_000;
-      let running = await status();
-      while (running.phase === "starting") {
-        if (Date.now() >= deadline) throw new Error("Timed out: Portal was ready");
-        await Bun.sleep(20);
-        running = await status();
-      }
-      expect(running).toMatchObject({ phase: "running", url: "https://herdr-test-0123.relay.example", relay: "https://relay.example" });
-      expect((await post("stop", signedIn)).status).toBe(202);
-      expect((await status()).url).toBeNull();
-    } finally { server.stop(); rmSync(state, { recursive: true, force: true }); }
   });
 });
 

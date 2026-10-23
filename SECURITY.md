@@ -41,8 +41,6 @@ In scope, for example:
   `server/remote-bundle.ts`, `server/machine-api.ts`, `server/machine-relay.ts`);
 - updates installing anything other than a published release (`server/updater.ts`,
   `server/supervisor.ts`);
-- sign-ins the subscription usage strip reads (`server/usage.ts`) leaving the server's PC other than
-  to their own provider;
 - push keys and subscriptions (`server/push.ts`).
 
 Out of scope, as documented in [Access and safety](docs/guide.md#access-and-safety):

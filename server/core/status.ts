@@ -20,11 +20,9 @@ import { bridgeAgentNews, MachineManager } from "../machines.ts";
 import { omoPanes } from "../omo.ts";
 import { OMO_ALIASES, OmoStatus } from "../omo-status.ts";
 import { type AlertTiming, createPushService, defaultStateDir } from "../push.ts";
-import type { UsageLoginService } from "../usage-login.ts";
-import type { UsageService } from "../usage.ts";
 import { type Client, send } from "./connections.ts";
 
-export function createStatusHub({ options, devices, clients, present, usage, usageLogin }: {
+export function createStatusHub({ options, devices, clients, present }: {
   options: {
     stateDir?: string;
     machines?: boolean;
@@ -37,8 +35,6 @@ export function createStatusHub({ options, devices, clients, present, usage, usa
   devices: DeviceStore;
   clients: Set<Client>;
   present: Set<Client>;
-  usage: UsageService;
-  usageLogin: UsageLoginService;
 }) {
   const push = createPushService({
     stateDir: options.stateDir ?? defaultStateDir(),
@@ -248,7 +244,6 @@ export function createStatusHub({ options, devices, clients, present, usage, usa
     },
     onPaneEnded: (paneId) => {
       finishes.ended(paneId);
-      if (usageLogin.ended(paneId)) usage.invalidate();
       waits.forget(paneId);
       completions.forget(paneId);
       launchedAgents.forget(paneId);

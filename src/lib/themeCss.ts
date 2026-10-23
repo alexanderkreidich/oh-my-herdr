@@ -102,9 +102,8 @@ export function parseThemeBlocks(css: string): Record<string, ThemeBlock> {
         if (role === "bar-bg" || role === "card-glass") {
           const expected = role === "bar-bg" ? "color-mix(in srgb, var(--bg-panel) 72%, transparent)" : "color-mix(in srgb, var(--bg-elevated) 80%, transparent)";
           if (value !== expected) throw new ThemeValueError(entry, role, raw);
-        } else if (role in COLOR_ROLES || /^(indicator-|droplet-|pdf-page$|syntax-(comment|inserted|deleted)$)/.test(role) || id !== "amber") {
-          // The one existing shorthand is a global token, not a per-theme color.
-          const parsed = parseThemeValue(entry, role, role === "droplet-bg" && value === "#000" ? "#000000" : raw);
+        } else if (role in COLOR_ROLES || /^(indicator-|pdf-page$|syntax-(comment|inserted|deleted)$)/.test(role) || id !== "amber") {
+          const parsed = parseThemeValue(entry, role, raw);
           const expectedKind = Object.entries(COLOR_ROLES).find(([name]) => name === role)?.[1];
           if (expectedKind && parsed.kind !== "alias" && parsed.kind !== expectedKind) throw new ThemeValueError(entry, role, raw);
         }

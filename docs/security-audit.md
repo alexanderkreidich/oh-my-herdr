@@ -77,28 +77,7 @@ update/signature policy.
 Evidence: `server/updater.ts:start`, `server/updater.ts:discover`, `server/updater.ts:request`,
 `server/supervisor.ts`, `server/remote-bundle.ts`, `server/machines.ts:lost`, `herdr-plugin.toml`.
 
-### 3. Plan-limit meters read existing CLI credentials, including macOS Keychain
-
-When requested through the authenticated usage API, `server/usage.ts` discovers credentials for
-Claude, Codex, Cursor, Copilot/GitHub, Grok, Antigravity and OpenCode. Sources include CLI auth files,
-editor SQLite state, macOS Keychain and `gh auth token` (which can use environment-provided tokens).
-Discovery includes alternate Claude/Codex homes. Tokens authenticate requests to the corresponding
-provider APIs; they are not part of the removed usage collector. OAuth refresh is deliberately not
-performed here.
-
-The Keychain reader additionally attempts a one-shot `launchctl` job in the user's GUI login
-session when the multiplexer session cannot read the item. The value returns through a FIFO.
-This is a significant, non-obvious credential-access mechanism, even though it supports a visible
-feature and does not introduce a new remote destination.
-
-The browser setting `showUsage` defaults to false. Enabling it polls the local server, which asks
-providers as needed. This setting is a UI preference, not a server-side prohibition: an authorized
-API client can still request usage while its UI toggle is off.
-
-Evidence: `server/usage.ts`, especially `claude`, `codex`, `ghTokens`, `readKeychain` and
-`readKeychainInLoginSession`; `src/lib/usage.ts:useUsage`; `src/lib/settings.ts:DEFAULT_SETTINGS`.
-
-### 4. SSH setup deliberately creates persistent access to registered hosts
+### 3. SSH setup deliberately creates persistent access to registered hosts
 
 The Add PC flow can use existing SSH keys/ssh-agent and explicit password/host-key challenges.
 After approval it generates a dedicated, passphrase-less Ed25519 key and appends its public key to
@@ -109,30 +88,16 @@ approved remote bridge installations without asking for the original password ag
 
 Evidence: `server/machines.ts:prepare`, `server/remote-host.ts:authorizeKey`, `server/ssh.ts`.
 
-### 5. Optional integrations have their own data flows and saved secrets
+### 4. Web Push sends encrypted notifications through the browser vendor
 
-- Voice: user-initiated recordings and optional transcript polishing go to the configured
-  OpenAI-compatible provider (`api.openai.com/v1` by default), with the configured API key.
-  `voice.json` stores a user-supplied key in plaintext with owner-only permissions. A configured
-  HTTP endpoint is allowed, so transport safety depends on that endpoint. Without a configured
-  server provider, dictation can use browser `SpeechRecognition`; its processing location/provider
-  is controlled by the browser and is not guaranteed to be local.
-- CLIProxy/Hub: a configured management URL receives its management bearer key. `cliproxy.json`
-  stores it in plaintext with owner-only permissions; arbitrary HTTP(S) configuration is allowed.
-  The default localhost URL alone does not activate it.
 - Web Push: subscribed devices receive encrypted notification payloads via their browser's push
   endpoint. Titles can include pane/workspace or machine context. The repository URL in the
   VAPID subject is contact metadata, not an analytics destination. Keys/subscriptions persist on
   the server. Push providers can observe delivery metadata, but the application encrypts payloads.
-- Portal: an explicitly enabled, user-selected HTTPS relay exposes the web server publicly and
-  resumes on restart while enabled. This is routed reverse-proxy traffic, not a promise that the
-  relay cannot see terminal traffic. The code requires a token and strips sensitive inherited
-  environment variables from the Portal child. Tailscale is a separate optional transport.
 
-Evidence: `server/voice.ts`, `shared/voice.ts`, `src/lib/voice.ts:beginBrowser`,
-`server/cliproxy.ts`, `server/push.ts:deliver`, `server/portal.ts:resume`.
+Evidence: `server/push.ts:deliver`.
 
-### 6. Browser clipboard writes and local diagnostics are automatic
+### 5. Browser clipboard writes and local diagnostics are automatic
 
 `Clipboard from a pane` defaults to on. OSC 52 output from any pane process can write text to the
 browser clipboard, subject to browser permissions. Clipboard queries are ignored: this path is
@@ -169,7 +134,6 @@ Evidence: `src/components/PaneTerminal.tsx` (OSC 52 handler), `src/lib/connectio
 1. Publish the owned remote-bundle and update channels (`remote-v1000`, the first `v*` release);
    choose whether periodic update checks and remote auto-updates should exist at all.
 2. Require explicit authentication before non-loopback exposure instead of relying on a warning.
-3. Decide whether plan meters/Keychain discovery, Hub, voice, push and Portal belong in this
-   terminal-first app. Remove unused integrations in separate slices rather than silently
-   disabling visible controls while retaining their backends.
-4. Consider independent release signatures and a stricter policy for HTTP provider/Hub URLs.
+3. Plan meters with their Keychain discovery, the Hub, voice input and Portal are removed; decide
+   whether Web Push stays, and remove what does not in its own slice rather than hiding controls.
+4. Consider independent release signatures.

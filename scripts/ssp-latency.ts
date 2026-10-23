@@ -23,7 +23,6 @@ import type { ServerWebSocket } from "bun";
 import { chromium, type Page } from "playwright-core";
 import { createServer } from "../server/index.ts";
 import { workspaceClose, workspaceCreate } from "../server/herdr/client.ts";
-import { UsageService } from "../server/usage.ts";
 import { chromePath } from "./chrome-path.ts";
 
 const DELAY_MS = Number(process.argv[2] ?? 100);
@@ -34,7 +33,7 @@ const cwd = join(root, "work");
 mkdirSync(cwd);
 const created = await workspaceCreate({ cwd, label: "ssp-latency" });
 const workspaceId = created.workspace.workspace_id;
-const bridge = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), usage: new UsageService(undefined, []) });
+const bridge = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state") });
 
 /** The bridge behind a slow link: HTTP as it is, every WebSocket frame held `delay` ms each way. */
 function slowLink(delay: number) {

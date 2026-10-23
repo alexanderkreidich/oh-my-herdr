@@ -22,17 +22,14 @@
     "scripts/terminal-pinch-regression.ts",
     "scripts/terminal-viewport-regression.ts",
     "scripts/pane-find-regression.ts",
-    "scripts/cliproxy-settings-regression.ts",
     "scripts/ci-lanes.ts",
     "scripts/ci-tests.ts",
     "demo/transport.ts",
     "scripts/build-remote-bundle.ts",
     "scripts/ssh-integration.ts",
-    "scripts/gjc-status-browser-regression.ts",
     "scripts/lan-exposure-notice-regression.ts",
     "scripts/application-paging-regression.ts",
-    "scripts/omo-question-wheel-regression.ts",
-    "scripts/pane-paging-demo-regression.ts"
+    "scripts/omo-question-wheel-regression.ts"
   ],
   "include": []
 }

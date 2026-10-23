@@ -100,14 +100,6 @@ Only tokens overridden by `[data-theme="light"]` have a light value. Both column
 | Syntax/type | `--syntax-type` | `#6cb8d6` | `#155a72` |
 | Syntax/variable | `--syntax-variable` | `#e0c08f` | `#7a5418` |
 | Syntax/meta | `--syntax-meta` | `#b49dd6` | `#5d4791` |
-| Alert/background | `--droplet-bg` | `#000` | `#000` |
-| Alert/text | `--droplet-text` | `#f5f5f7` | `#f5f5f7` |
-| Alert/dim text | `--droplet-text-dim` | `rgba(245, 245, 247, 0.62)` | `rgba(245, 245, 247, 0.62)` |
-| Alert/blocked | `--droplet-blocked` | `#ff8a80` | `#ff8a80` |
-| Alert/done | `--droplet-done` | `#9fd47a` | `#9fd47a` |
-| Alert/mark background | `--droplet-mark-bg` | `rgba(255, 255, 255, 0.1)` | `rgba(255, 255, 255, 0.1)` |
-| Alert/ring | `--droplet-ring` | `rgba(255, 255, 255, 0.1)` | `rgba(255, 255, 255, 0.1)` |
-| Alert/shadow | `--droplet-shadow` | `rgba(0, 0, 0, 0.35)` | `rgba(0, 0, 0, 0.35)` |
 
 ### Light terminal ANSI colours
 
@@ -666,23 +658,6 @@ Comfortable values are `:root`; the final column is the complete compact overrid
 | `--z-drawer` | `20` | Mobile drawer |
 | `--z-modal` | `30` | Dialog scrims |
 | `--z-palette` | `35` | Command palette scrim, over every scrim dialog (a `showModal()` dialog sits in the top layer above it) |
-| `--z-droplet` | `40` | In-app alert, over dialogs |
-
-### In-app alert
-
-One set for both themes: the card is island black wherever it shows. Values are generated in the
-Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
-
-| Token | Usage |
-|-------|-------|
-| `--droplet-bg` | Drop, anchor and card |
-| `--droplet-text` | Pane name |
-| `--droplet-text-dim` | Ended detail, blank mark |
-| `--droplet-blocked` | Needs-input detail and dot |
-| `--droplet-done` | Finished detail and dot |
-| `--droplet-mark-bg` | Agent mark disc |
-| `--droplet-ring` | Card hairline |
-| `--droplet-shadow` | Drop shadow under the liquid |
 
 ### Shell
 - `.app` is a full-viewport column: `.app-header` over `.app-body`; the body is sidebar plus
@@ -1127,25 +1102,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Rows use only shared theme tokens in dark and light. Touch keeps row menus and folds visible,
   with `--touch-target` controls, and draws no hover fill; reduced motion removes row transitions
   and keeps the working dot's breath (opacity only).
-- Footer holds the contextual **Install app** action and Settings, its gear alone (named
-  **Settings** to screen readers and in its tooltip), with the plan meters filling the rest of its row,
-  as rows on the same grid with no rule above.
+- Footer holds Settings, its gear alone (named
+  **Settings** to screen readers and in its tooltip), as rows on the same grid with no rule above.
   It carries no product name or version: the running versions are read in Settings.
-
-### Plan meters (`.usage*`)
-- Right of the Settings gear, one button holding as many chips as the row has room for (judged
-  by the widest chip drawn, so the count settles), the rest folded into `+N`, one per account in
-  the user's order: provider mark, mono `--fs-2xs` percent of the limit chosen in Settings, the
-  plan's session by default or its week (what is left by default, or what is used), and a 2px bar on a `--border-strong` track
-  filled to that percent. From 80% used the percent and bar take `--status-blocked`; amber stays
-  chrome. A chip whose numbers are stale or missing dims. An account hidden in Settings is
-  left out of the strip and the popover; with every account hidden, neither shows. The button's
-  name and tooltip add, per account, another of its limits from 80% used that the chip does not
-  show (`(Weekly 9% left)`); the chip itself does not mark it.
-- The button opens a popover above the footer (`--shadow-pop`, `--radius-lg`), as wide as the
-  footer and scrolling when it outgrows the sidebar: per account its mark, name and plan pill with
-  the email or login right-aligned and ellipsized, then one row per limit (label, reset time, right-aligned percent) over a 4px bar. A problem
-  note is dim, red for an expired sign-in or a failed request.
 
 ### New workspace
 - No dialog. The sidebar's `+`, `Mod+Shift+O` and the palette's New workspace call
@@ -1602,8 +1561,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   with a mouse, reaching `--pointer-target` through an invisible `::before` expander; under a
   coarse pointer the button itself grows to `--touch-target` wide and `--touch-target` plus
   `--space-1` tall), then ONE row of controls under it:
-  on the left the add button (lucide `Plus`, named "Attach files"), the mic when voice input
-  shows it (see Voice input), and the background-task chip; on the right the status content and ONE round Send/Stop button.
+  on the left the add button (lucide `Plus`, named "Attach files") and the background-task chip; on the right the status content and ONE round Send/Stop button.
   The message's text starts `--space-4` in (`--space-3` on a phone, `480px` and below).
 - The strip (`.composer-strip`) tucked under the card, as t3code's composer context strip: the
   card's own `--bg-elevated` with a `--border` hairline, inset on each side by the card's radius
@@ -1623,8 +1581,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   over the transcript).
 - Empty chat (`.composer-greeting`): one line on the composer's column, directly over it,
   `What should <agent> do in <folder>?` in `--text-strong`, `--fs-display`, `--fw-semibold`, `--tracking-display`, centred,
-  and under it `PC · full path` in `--text-dim`, `--fs-sm`. Both wrap anywhere. While dictation's
-  recording pill is open over the composer the greeting is hidden (its box stays). No suggestion
+  and under it `PC · full path` in `--text-dim`, `--fs-sm`. Both wrap anywhere. No suggestion
   chips or starter prompts. The greeting is out of the flow, so it takes no row from the terminal
   surface. In a mouse-driven window from `769px` the composer is moved up (a transform, nothing
   else changes size) so the greeting and the input card sit at the pane's vertical centre; a
@@ -1840,16 +1797,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   A desktop's picked pane takes typing at once.
 - Enter sends and Shift+Enter breaks by default; with **Enter sends** off, Mod+Enter sends. On touch screens the same device setting is shown inverted as **Return inserts a new line**, with Send and hardware Mod+Enter explained below it. IME Enter is ignored. Stop sends Escape. While the agent works and a draft shows Send in Stop's place, Escape in the box is Stop; an open completion menu takes the first Escape, and its X in the top corner (`.composer-menu-close`, Close suggestions, sticky over the rows it scrolls; the first row leaves it room) does the same for a pointer or a phone, which has no Escape, keeping the text and the focus in the box. T3 Code's command menu closes on Escape alone. Working Send schedules a pending message; its Send now action submits that same message now.
 
-### Voice input
-- A mic button sits beside the add button in the composer and beside Send in the terminal input line; it
-  fills with `--accent` while recording. Dictated text is inserted at the caret, never sent.
-- `voiceInput`: `auto`, `on` or `off`; default `auto`. Auto puts the mic in the composer only, not on
-  a phone (the composer's `(max-width: 640px), (pointer: coarse)`), and leaves it out where dictation
-  cannot work (no HTTPS, or no key and no browser recognition). On shows it in both inputs and on a
-  phone, disabled with its reason where it cannot work.
-- The recording pill shows Cancel, a **Recording** label, the level bars, a mono timer and Done.
-  Amber only; `--danger` stays for errors.
-
 ### Command palette
 - At `<=480px` the header has no palette button: the More menu's first item, **Search panes and
   actions**, opens it by touch, and a connected keyboard still opens it with `Mod+Shift+K` (or
@@ -1921,9 +1868,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   **Composer**: Enter sends, send queued messages automatically, and on a touch screen the suggestion
   chip (off by default); then **Quick replies**; then **File viewer**: wrap long
   lines, Markdown width, Diff layout), **Terminal** (font size, font family, wheel
-  speed, input mode, Key bar), **Alerts**, **Voice input**, **Subscription usage**,
+  speed, input mode, Key bar), **Alerts**,
   **Shortcuts** (the platform-resolved global bindings), **Phone & devices** (the phone address,
-  Keep screen on, Install; then Portal, where the server offers it; then paired devices),
+  Keep screen on, Install; then paired devices),
   **Remote PCs**, **About** (Updates, herdr, the repository links). A button that points at
   Updates opens the dialog on About.
 - Every page is built from the same parts (`components/SettingsControls.tsx`). A group is an
@@ -1959,11 +1906,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   workspace-list toggle. Under the row, once the server has answered, the bridge auto-update switch.
 - Install (a row of the Phone group) reflects installed, promptable or browser-instructions state;
   About links the repository.
-- Portal, a group of its own between Phone and Devices where the server offers it: while it runs,
-  the address and QR code as the Phone group draws them over a Relay row with Stop; otherwise one
-  hint for what blocks it (no token, serve-only, no `portal` or an old one, with a link to get it)
-  or a wide Relay row whose text field and Start stack on a phone. Starting and stopping are one
-  dim status line; a failure is the server's sentence over Portal's own lines, folded.
 - The running versions are always written, since the sidebar carries none. Updates opens with
   **Running vX.Y.Z (commit)**: the server's version and commit, or the client's own build version
   before the server answers and where it names neither. While the server runs another version than
@@ -1971,45 +1913,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   **herdr** section opens with
   **Running herdr X.Y.Z**; where herdr cannot be updated from here (Windows, an older server) the
   section is that line alone, from the health check.
-- Subscription usage keeps its meter preferences first, then an **Accounts** header with a dim total
-  count and one **Add account** button (Plus + label). With meters off, one note follows it without
-  provider placeholders; the configured hub connection remains available. With meters on, provider cards are ordered Claude,
-  Codex, then the remaining reported providers; headings show mark, name and dim account count.
-  Each row has email/name, then dim source (**This PC** or **Hub**), known plan and written
-  sign-in status with an existing status-token dot, without badge pills. Within-provider reorder
-  and visibility controls stay in fixed columns; hidden rows remain listed but fade. Empty lists
-  show one dim sentence.
-- The global Add opens the shared `.modal` (a bottom sheet at 640px and below), with the existing
-  focus trap, Escape/close and return focus. Its small stepper leads through provider (Claude, Codex,
-  Cursor, GitHub Copilot, Grok, Antigravity, OpenCode, then Hub, in server discovery order),
-  method, and authentication; Back preserves the provider context. The provider step uses two equal
-  columns above 640px to fit eight choices without expanding the existing modal width, and a single
-  column on phones. The existing bounded `.modal-body` alone scrolls inside the sheet; its header
-  and Back/Close remain fixed. No grid reordering: keyboard and reading order match the server.
-  Use **Hub** in labels and source metadata; name CLIProxyAPI only in the picker description,
-  **Import accounts from CLIProxyAPI**. Descriptions stay short across all four languages.
-  Only Claude/Codex offer the hub method and a named credential home. Other providers have no
-  name field or disabled hub choice. PATH discovery replaces unavailable local actions with a
-  named CLI installation hint. Single-home sign-in reads local account metadata without querying
-  upstream usage, warns about an existing account and requires Continue; the POST independently
-  refuses an unconfirmed replacement. Antigravity offers app sign-in guidance
-  instead of an unverified standalone login command. OpenCode explains which subscriptions
-  supply plan limits. Local sign-in uses a new native terminal tab on the connection server's local PC
-  without moving native focus. It uses in-app pane selection and the existing canonical link writer,
-  not a page reload, even when another PC was selected. Hub OAuth
-  keeps the synchronous popup, bounded waiting, Cancel and redirect-paste form. Closing account setup
-  cancels a pending hub sign-in; changing the UI language does not cancel it. The hub connection
-  step has a labeled URL and DOM-only password, Connect, then Connected and Done; an account count
-  is fetched only when plan limits are enabled. Connection save/edit/remove never requests usage
-  while that opt-in is off.
-- A configured hub is one compact connection row below Accounts, including with meters off: network
-  icon, Hub label, dim URL/status and ghost Edit/Remove actions. Editing reopens the hub step
-  with its URL filled and key blank. Remove uses `.confirm-dialog`, with Cancel initially focused
-  and the danger action on the right, before deleting the saved management key. An unconfigured hub renders nothing. No dedicated Usage sources
-  section, new tokens or decorative motion. References: Paseo's global account picker/provider counts
-  and t3code's inline authentication metadata/compact hub row; their pixels are not copied.
-  An unreadable hub configuration leaves the hub unconfigured without blocking server startup;
-  its fixed diagnostic is logged and returned by the hub status endpoint, never its saved key.
 
 ### Terminal host, key bar and drawer
 - **Find in terminal** in the header's More menu and Mod+Shift+F opens a find bar above the
@@ -2082,19 +1985,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   UI; a cap that is a word (Tab, Enter, Home, End) is its own name.
 - The mobile drawer slides over a scrim. Closed visibility removes its controls from the tab order.
 
-### In-app alert
-- While the app is on screen, a pane that needs input, finishes a turn (by the device's Finished
-  choice) or ends drops a card from the top edge: a black drop falls from above the safe area,
-  spreads into the card, and its text shows. It hangs from `env(safe-area-inset-top)` only, so a
-  Dynamic Island, a notch and a desktop window take the same path; no device is guessed.
-- In the phone layout (768px and under) the card is one line, 44px high and as wide as its text
-  (340px at most): the pane's name, then what happened. A long name is cut short, what happened is
-  not, and the dot is left out. Wider than that it is the two-line card, 64px high.
-- One at a time; a newer one folds the current one away first. Tap opens the pane; a drag or flick
-  up puts it away; it leaves by itself 3.6s after its text shows, and waits while touched.
-- Not for the pane already open, and not while the app is hidden (system notifications cover that).
-- Reduced motion: it fades in and out where it rests, without falling or spreading.
-
 ### Token gate
 - A centered password card replaces the entire shell while authentication is required. It has a real
   label, autofocused field, primary Unlock button and linked alert text.
@@ -2123,7 +2013,7 @@ The values are the ones in `src/styles.css`.
 | Move easing | `--ease-in-out` | `cubic-bezier(0.77, 0, 0.175, 1)` | Something moving on screen from one place to another |
 | Dialog | `--dur-modal` | `220ms` | A dialog growing in from `641px` (scale 0.96 and opacity, centred) over its darkening scrim |
 | Pulse easing | `--ease-pulse` | `steps(2, jump-none)` | Endless working and reconnecting dots; avoids drawing every display refresh |
-| Spring easing | `--ease-spring` | `cubic-bezier(0.32, 0.72, 0, 1)` | Voice recording pill enter (180ms, scale 0.96->1 + opacity, from the mic button) and exit (120ms); a phone's sheet rising and springing back |
+| Spring easing | `--ease-spring` | `cubic-bezier(0.32, 0.72, 0, 1)` | A phone's sheet rising and springing back; the sidebar sliding |
 | Sheet in | `--dur-sheet` | `360ms` | A phone's sheet rising, and springing back after a short drag |
 | Sheet out | `--dur-sheet-out` | `240ms` | A phone's sheet dropping, however it closed |
 
@@ -2140,15 +2030,10 @@ The values are the ones in `src/styles.css`.
   the sidebar slides in and out (`--dur-modal` on `--ease-spring`); the pane column takes its new
   width once. Nothing a shortcut opens or toggles animates (`data-key-action`,
   `lib/shortcuts.ts`). Rules for new motion: AGENTS.md, UX and motion.
-- The voice recording waveform is the one surface allowed to draw every frame: only while
-  recording, driven by the live microphone level, transform-only (`scaleY` on 7 bars). The pill is
-  a state change, not a dialog, so the snap rule above does not apply to it.
 - `prefers-reduced-motion: reduce` removes pulses, drawer/control transitions, sheet rise and drop,
   smooth chat scrolling and settings toggle motion; a drag still follows the finger. State remains legible without animation.
   One exception: the sidebar's RUN dot keeps its stepped breath, opacity only and nothing moving,
   so a running agent does not look frozen.
-- Under reduced motion the voice pill swaps its bars for one level bar updated at 4 Hz and drops
-  the ring and the morph; the **Recording** label and the timer stay.
 
 ## 7. Depth & Surface
 
@@ -2202,7 +2087,7 @@ The values are the ones in `src/styles.css`.
   are refused, and a plain Ctrl/Alt chord the terminal uses, or a ⌘ chord the browser commonly
   uses, saves only after Save anyway.
   Reservations vary by browser and installed-app mode; a warning is not a guarantee of delivery.
-  Bindings belong to this browser, not the remote PC or pane. Hold-to-dictate remains fixed.
+  Bindings belong to this browser, not the remote PC or pane.
 - Text-field selection and IME composition keep their keys. Focus-local list/tab navigation and
   reordering are separate from global bindings; they must not intercept terminal input.
   Global actions target the selected pane, and the original handled chord must never also reach its PTY.
