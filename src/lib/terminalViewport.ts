@@ -10,6 +10,9 @@ export function validScroll(value: PaneScrollInfo | null | undefined): value is 
 }
 /** a metrics read re-arms this soon while output is arriving */
 export const SCROLL_POLL_BUSY_MS = 250;
+/** ...and this soon while it arrives at the bottom with no search: nothing shown there follows the
+ * metrics closely, and a page key reads them at once (one read for each visible pane) */
+export const SCROLL_POLL_OUTPUT_MS = 1000;
 /** the longest an idle, visible pane waits between metrics reads */
 export const SCROLL_POLL_IDLE_MAX_MS = 15_000;
 /** Delay before the next metrics read after `idleReads` reads in a row with no output, scroll,
@@ -23,10 +26,14 @@ export function idleScrollPollDelay(idleReads: number): number {
 /** The poll's next delay: busy while something is moving, 1 s while scrolled up into history (herdr can
  * hold that view still while output grows the history below it, which sends this client no bytes to wake
  * the poll), else the idle backoff. */
-export function scrollPollDelay(busy: boolean, idleReads: number, metrics: PaneScrollInfo | null | undefined): number {
-  if (busy) return SCROLL_POLL_BUSY_MS;
+export function scrollPollDelay(busy: boolean, idleReads: number, metrics: PaneScrollInfo | null | undefined, searching = false): number {
+  if (busy) return outputScrollPollDelay(metrics, searching);
   if (validScroll(metrics) && metrics.offset_from_bottom > 0) return 1000;
   return idleScrollPollDelay(idleReads);
+}
+/** How soon a change wakes a metrics read: quickly while scrolled up or searching, where the view or the hits follow the output. */
+export function outputScrollPollDelay(metrics: PaneScrollInfo | null | undefined, searching: boolean): number {
+  return searching || (validScroll(metrics) && metrics.offset_from_bottom > 0) ? SCROLL_POLL_BUSY_MS : SCROLL_POLL_OUTPUT_MS;
 }
 export function sameFindMatch(a: PaneFindMatch | null | undefined, b: PaneFindMatch): boolean {
   return !!a && a.start.row === b.start.row && a.start.col === b.start.col && a.end.row === b.end.row && a.end.col === b.end.col;

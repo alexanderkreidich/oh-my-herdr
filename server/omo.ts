@@ -199,15 +199,17 @@ export function omoProcessIdentity(
   const dir = processCwd(process, cwd);
   const environ = environOf(process.pid);
   const agentDir = omoAgentDir(environ, home, dir);
-  const startedAt = processStartedAt(process.pid);
+  // read only for a holder record of this pid: every pane's processes are looked at, and on macOS each read is a `ps`
+  let startedAt: number | null | undefined;
+  const started = (): number | null => startedAt === undefined ? (startedAt = processStartedAt(process.pid)) : startedAt;
   if (isOmoProcess(process.argv ?? [])) {
-    return { agentDir, heldIds: heldSessionIds(sessionDir(dir, agentDir), process.pid, startedAt), custom: false };
+    return { agentDir, heldIds: heldSessionIds(sessionDir(dir, agentDir), process.pid, started), custom: false };
   }
-  if (!dir || startedAt === null) return null;
+  if (!dir) return null;
   const omoStore = environ?.some((word) => word.startsWith("OMO_CODING_AGENT_DIR=")) === true || agentDir === defaultOmoAgentDir(home);
   if (!omoStore) return null;
-  const heldIds = heldSessionIds(sessionDir(dir, agentDir), process.pid, startedAt, dir);
-  return heldIds.length === 0 ? null : { agentDir, heldIds, custom: true };
+  const heldIds = heldSessionIds(sessionDir(dir, agentDir), process.pid, started, dir);
+  return heldIds.length === 0 || started() === null ? null : { agentDir, heldIds, custom: true };
 }
 
 /**
@@ -230,17 +232,20 @@ const HOLDER_START_TOLERANCE_MS = 3000;
  * counts only for the live pid it names and, where our start time is readable, only
  * if it started when that pid did: a reused pid starts later.
  */
-export function heldSessionIds(dir: string, pid: number, startedAt: number | null, cwd?: string): string[] {
+export function heldSessionIds(dir: string, pid: number, startedAt: number | null | (() => number | null), cwd?: string): string[] {
   const holders = join(dir, "session-holders");
   let names: string[] = [];
   try { names = readdirSync(holders); } catch { return []; }
   const ids: string[] = [];
+  // a start given as a lookup is read once, for the first record of this pid
+  let start = typeof startedAt === "function" ? undefined : startedAt;
   for (const name of names.slice(0, 4096)) {
     try {
       const record = JSON.parse(readFileSync(join(holders, name, `${pid}.json`), "utf8"));
       if (record?.pid !== pid) continue;
       if (cwd !== undefined && record.cwd !== cwd) continue;
-      if (startedAt !== null && !(typeof record.processStartedAtMs === "number" && Math.abs(record.processStartedAtMs - startedAt) <= HOLDER_START_TOLERANCE_MS)) continue;
+      if (start === undefined) start = (startedAt as () => number | null)();
+      if (start !== null && !(typeof record.processStartedAtMs === "number" && Math.abs(record.processStartedAtMs - start) <= HOLDER_START_TOLERANCE_MS)) continue;
       ids.push(decodeURIComponent(name));
     } catch { /* this pid holds nothing here, or the record is unreadable */ }
   }

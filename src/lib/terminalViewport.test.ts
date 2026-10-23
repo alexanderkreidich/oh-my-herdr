@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { SCROLL_POLL_BUSY_MS, SCROLL_POLL_IDLE_MAX_MS, idleScrollPollDelay, scrollPollDelay, validScroll, visibleFindRects, type CellReader } from "./terminalViewport.ts";
+import { SCROLL_POLL_BUSY_MS, SCROLL_POLL_IDLE_MAX_MS, SCROLL_POLL_OUTPUT_MS, idleScrollPollDelay, outputScrollPollDelay, scrollPollDelay, validScroll, visibleFindRects, type CellReader } from "./terminalViewport.ts";
 const scroll = { max_offset_from_bottom: 100, offset_from_bottom: 20, viewport_rows: 2 };
 const cells = (lines: string[]): CellReader => (row, col) => ({ chars: lines[row]?.[col] ?? " ", width: 1 });
 
@@ -57,6 +57,16 @@ describe("scroll metrics poll", () => {
     expect(scrollPollDelay(false, 20, { ...up, offset_from_bottom: 0 })).toBe(SCROLL_POLL_IDLE_MAX_MS);
     expect(scrollPollDelay(false, 20, null)).toBe(SCROLL_POLL_IDLE_MAX_MS);
     expect(scrollPollDelay(false, 20, { ...up, offset_from_bottom: 200 })).toBe(SCROLL_POLL_IDLE_MAX_MS);
+  });
+  it("reads less often for output at the bottom with no search", () => {
+    const up = { max_offset_from_bottom: 300, offset_from_bottom: 20, viewport_rows: 40 };
+    const bottom = { ...up, offset_from_bottom: 0 };
+    expect(outputScrollPollDelay(bottom, false)).toBe(SCROLL_POLL_OUTPUT_MS);
+    expect(outputScrollPollDelay(null, false)).toBe(SCROLL_POLL_OUTPUT_MS);
+    expect(outputScrollPollDelay(bottom, true)).toBe(SCROLL_POLL_BUSY_MS);
+    expect(outputScrollPollDelay(up, false)).toBe(SCROLL_POLL_BUSY_MS);
+    expect(scrollPollDelay(true, 0, bottom)).toBe(SCROLL_POLL_OUTPUT_MS);
+    expect(scrollPollDelay(true, 0, bottom, true)).toBe(SCROLL_POLL_BUSY_MS);
   });
   it("keeps the busy cadence below the first idle step", () => {
     expect(SCROLL_POLL_BUSY_MS).toBeLessThan(idleScrollPollDelay(0));

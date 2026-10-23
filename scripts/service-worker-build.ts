@@ -32,7 +32,7 @@ function stampLine(source: string, line: string, stamped: string): string {
  */
 export function buildFiles(fileNames: Iterable<string>): string[] {
   return [...fileNames]
-    .filter((name) => name.startsWith("assets/") && !/\.(woff2?|ttf|br|gz|map)$/.test(name))
+    .filter((name) => name.startsWith("assets/") && !/\.(woff2?|ttf|ttc|br|gz|map)$/.test(name))
     .sort()
     .map((name) => `/${name}`);
 }

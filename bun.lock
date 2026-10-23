@@ -10,7 +10,7 @@
         "qrcode-generator": "^2.0.4",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
-        "restty": "github:alexanderkreidich/restty#8749072475e16469ddb9ca5ba3db8f9afc8d9f9e",
+        "restty": "github:alexanderkreidich/restty#f4f1556c2702815a469fdeb1e1b239881faea2a0",
         "web-push": "^3.6.7",
       },
       "devDependencies": {
@@ -215,7 +215,7 @@
 
     "react-test-renderer": ["react-test-renderer@19.3.0", "", { "dependencies": { "react-is": "^19.3.0", "scheduler": "^0.28.0" }, "peerDependencies": { "react": "^19.3.0" } }, "sha512-AUxgv+hRbqjRgx4xVwiWL6cvDDKPAva1VWLXQIMoevqQn9us//C5TX9LEnBGH47D0zvJpjwjxb1umzgOMvE8Wg=="],
 
-    "restty": ["restty@github:alexanderkreidich/restty#8749072", { "dependencies": { "text-shaper": "0.1.28" } }, "alexanderkreidich-restty-8749072", "sha512-A8SsiMJyFSQTWu1Ji6wdwoMqMoHZvj286G284H5HfwC9xkLSTNj0XY382ImIRqZJbg7NJTxSRpRUYAex7P2zNA=="],
+    "restty": ["restty@github:alexanderkreidich/restty#f4f1556", { "dependencies": { "text-shaper": "0.1.28" } }, "alexanderkreidich-restty-f4f1556", "sha512-gaLErPGWhPHdtTfMcAp3rt6jkyyFzEhNx8+2S0jBXXQ9mIYqYHQ6zwApgWUZKSaOSKfL+MBSz5v+gEttTyBL5A=="],
 
     "rolldown": ["rolldown@1.2.13", "", { "dependencies": { "@oxc-project/types": "=0.153.0", "@rolldown/pluginutils": "^1.0.0" }, "optionalDependencies": { "@rolldown/binding-android-arm-eabi": "1.2.13", "@rolldown/binding-android-arm64": "1.2.13", "@rolldown/binding-darwin-arm64": "1.2.13", "@rolldown/binding-darwin-x64": "1.2.13", "@rolldown/binding-freebsd-x64": "1.2.13", "@rolldown/binding-linux-arm-gnueabihf": "1.2.13", "@rolldown/binding-linux-arm64-gnu": "1.2.13", "@rolldown/binding-linux-arm64-musl": "1.2.13", "@rolldown/binding-linux-ppc64-gnu": "1.2.13", "@rolldown/binding-linux-s390x-gnu": "1.2.13", "@rolldown/binding-linux-x64-gnu": "1.2.13", "@rolldown/binding-linux-x64-musl": "1.2.13", "@rolldown/binding-openharmony-arm64": "1.2.13", "@rolldown/binding-win32-arm64-msvc": "1.2.13", "@rolldown/binding-win32-x64-msvc": "1.2.13" }, "bin": { "rolldown": "./bin/cli.mjs" } }, "sha512-/5apOkwWxtACcQtZ5WlrAsKS4JwXVThQPJZ3RqIruRY9UG9M8e0VlXN068xum/JRKA4aIUoJ13ghe/kGCvidiQ=="],
 

@@ -54,7 +54,7 @@ function isCacheFirst(pathname) {
 /** A typeface or an icon: kept in FILES across builds. */
 function isLongLived(pathname) {
   if (pathname.startsWith("/icons/") || CACHE_FIRST_PATHS.has(pathname)) return true;
-  return pathname.startsWith("/assets/") && /\.(woff2?|ttf)$/.test(pathname);
+  return pathname.startsWith("/assets/") && /\.(woff2?|ttf|ttc)$/.test(pathname);
 }
 
 /** A page where a file was asked for: a server that had no such file answered with its shell. */

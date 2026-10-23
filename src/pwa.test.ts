@@ -146,6 +146,14 @@ describe("a service worker under a new cache name", () => {
     expect(worker.names()).toContain(before);
   });
 
+  it("carries over a font collection with the typefaces", async () => {
+    const worker = serviceWorker({ [before]: { ...old()[before], "/assets/NotoSansCJK-Regular-old.ttc": "old collection" } });
+    await worker.update();
+    worker.network.shell = "new shell";
+    expect(await worker.navigate()).toBe("new shell");
+    expect(worker.entries(FILES)).toContain("/assets/NotoSansCJK-Regular-old.ttc");
+  });
+
   it("drops that cache once its own holds a shell, and carries over only its typefaces", async () => {
     const worker = serviceWorker(old());
     await worker.update();

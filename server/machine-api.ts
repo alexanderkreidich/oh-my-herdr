@@ -51,7 +51,16 @@ export async function handleMachineRequest(request: Request, manager: MachineMan
           unwatchDevice = onRevoke?.(close);
           if (closed) return;
           const send = (text: string) => { if (closed) return; if ((controller.desiredSize ?? 0) < -4) { close(); return; } try { controller.enqueue(encoder.encode(text)); } catch { close(); } };
-          stop = manager.subscribe((event) => send(`data: ${JSON.stringify(event)}\n\n`));
+          // the roster is read every 5 s; a page is sent it when it changed since the last one it got
+          let sentRoster = "";
+          stop = manager.subscribe((event) => {
+            const data = JSON.stringify(event);
+            if (event.type === "machines") {
+              if (data === sentRoster) return;
+              sentRoster = data;
+            }
+            send(`data: ${data}\n\n`);
+          });
           // the shared preferences ride the same stream, one connection per browser; the document
           // opens it, so a page that reconnects (or whose GET lost a race) holds the latest
           const sendPreferences = (shared: SharedPreferences) => send(`data: ${JSON.stringify({ type: "preferences", preferences: shared } satisfies MachineEvent)}\n\n`);

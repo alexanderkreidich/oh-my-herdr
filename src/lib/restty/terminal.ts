@@ -67,6 +67,8 @@ export class ResttyTerminal {
   private theme: GhosttyTheme;
   private ligatures: boolean;
   private renderer: TerminalRenderer;
+  /** drawn while shown (setDrawing) */
+  private drawing = true;
   private fontKey: string;
   private readonly fontSizeMode: "em" | "height";
   private fixed: { cols: number; rows: number } | null = null;
@@ -188,6 +190,7 @@ export class ResttyTerminal {
       services: { ptyTransport: transport },
     });
     this.runtime = runtime;
+    if (!this.drawing) runtime.terminal.setPaused(true);
     runtime.events.subscribe((event) => {
       if (event.type !== "state" || event.state !== "ready") return;
       this.lifecycleReady = true;
@@ -384,6 +387,17 @@ export class ResttyTerminal {
     if (renderer === this.renderer) return;
     this.renderer = renderer;
     this.runtime?.terminal.setRenderer(renderer);
+  }
+
+  /**
+   * Draws only while shown: a pane hidden in a cached tab, or behind the other half of its split,
+   * still takes its output and draws it once it is shown again. Idle, restty draws nothing anyway;
+   * this spares the frames a hidden pane's output would cost.
+   */
+  setDrawing(drawing: boolean): void {
+    if (drawing === this.drawing) return;
+    this.drawing = drawing;
+    this.runtime?.terminal.setPaused(!drawing);
   }
 
   focus(): void {

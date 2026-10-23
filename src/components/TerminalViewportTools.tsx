@@ -6,7 +6,7 @@ import type { ViewportIntentGate } from "../lib/viewportIntent.ts";
 import { ApiError } from "../lib/api.ts";
 import { useT } from "../lib/i18n.ts";
 import { PAGE_OVERLAP_ROWS, pageScrollDistance } from "../lib/pageScroll.ts";
-import { scrollPollDelay, validScroll, visibleFindRects, type FindCellRect } from "../lib/terminalViewport.ts";
+import { outputScrollPollDelay, scrollPollDelay, validScroll, visibleFindRects, type FindCellRect } from "../lib/terminalViewport.ts";
 import type { TerminalScreen } from "../lib/terminalScreen.ts";
 import "./TerminalViewportTools.css";
 
@@ -161,10 +161,10 @@ export function TerminalViewportTools({ viewportIntent, terminal, paneId, pageSc
       } finally {
         pending = false;
         // an idle pane at the bottom backs off; output, a scroll, a resize, moved metrics or coming back into view resets it
-        if (alive) schedule(scrollPollDelay(dirty, idle++, scrollRef.current));
+        if (alive) schedule(scrollPollDelay(dirty, idle++, scrollRef.current, query !== ""));
       }
     };
-    const wake = () => { dirty = true; idle = 0; schedule(); };
+    const wake = (delay?: number) => { dirty = true; idle = 0; schedule(delay); };
     const flush = async () => {
       if (writing || desired === null || !alive || viewportIntent.isSearching()) return;
       writing = true;
@@ -229,7 +229,7 @@ export function TerminalViewportTools({ viewportIntent, terminal, paneId, pageSc
     });
     refreshRef.current = () => { dirty = true; idle = 0; paint(); schedule(0); };
     // the screen's cells change with the output: a find result is placed again on the new screen
-    const offOutput = terminal.onOutput(() => { outputVersion++; clearHits(); wake(); paintHits(); });
+    const offOutput = terminal.onOutput(() => { outputVersion++; clearHits(); wake(outputScrollPollDelay(scrollRef.current, query !== "")); paintHits(); });
     const offResize = terminal.onResize(() => { version++; clearHits(); setScroll(null); wake(); paint(); });
     const visibility = () => {
       if (document.visibilityState === "hidden") { if (timer !== null) clearTimeout(timer); timer = null; clearHits(); }

@@ -118,6 +118,13 @@ it("reads only the live process's own holder records, never a reused pid's lefto
     expect(heldSessionIds(dir, 43, 10_000)).toEqual(["odd/id"]);
     expect(heldSessionIds(dir, 99, 10_000)).toEqual([]);
     expect(heldSessionIds(join(dir, "missing"), 42, 10_000)).toEqual([]);
+    // a start given as a lookup (a `ps` on macOS) is read once, and only for a record of the pid
+    let reads = 0;
+    const start = () => { reads++; return 10_900; };
+    expect(heldSessionIds(dir, 42, start)).toEqual(["current"]);
+    expect(heldSessionIds(dir, 99, start)).toEqual([]);
+    expect(heldSessionIds(join(dir, "missing"), 42, start)).toEqual([]);
+    expect(reads).toBe(1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

@@ -242,7 +242,7 @@ describe("port", () => {
 describe("stop", () => {
   it("returns only once the server's process group is gone", async () => {
     // a server that takes a second to exit, as the supervisor does while its bridge shuts down
-    const server = spawn("sh", ["-c", "trap 'sleep 1; exit 0' TERM; while :; do sleep 0.1; done"], { detached: true, stdio: "ignore" });
+    const server = spawn("sh", ["-c", "trap 'sleep 1; exit 0' TERM; while kill -0 $PPID 2>/dev/null; do sleep 0.1; done"], { detached: true, stdio: "ignore" });
     const pid = server.pid!;
     mkdirSync(join(scratch, "state"));
     writeFileSync(join(scratch, "state", "server.pid"), `${pid}\n`);

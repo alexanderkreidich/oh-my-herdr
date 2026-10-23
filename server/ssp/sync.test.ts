@@ -204,6 +204,25 @@ describe("SyncSender", () => {
     screen.dispose();
   });
 
+  it("sends an acknowledged echo frame only once", async () => {
+    const screen = await drawn();
+    const sent: FrameDiff[] = [];
+    let echo = 0;
+    const sender = new SyncSender(screen, { send: (diff) => { sent.push(diff); return true; }, buffered: () => 0, echo: () => echo });
+    sender.schedule();
+    sender.ack(sent[0]!.num);
+    echo = 1;
+    sender.schedule();
+    await until(() => sent.length === 2, "the echo frame");
+    // the echo frame carries the acknowledged screen's number: acknowledging it ends its resends
+    sender.ack(sent[1]!.num);
+    // fixed wait: proving that nothing is resent, over several 50 ms retransmission timeouts
+    await Bun.sleep(300);
+    expect(sent).toHaveLength(2);
+    sender.dispose();
+    screen.dispose();
+  });
+
   it("resumes a stream from a screen the client kept", async () => {
     const screen = await Screen.create(20, 4);
     screen.write("before");
