@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentStatus, HerdrPane } from "../../shared/protocol.ts";
-import machines from "../../site/demo/fixtures/machines.json";
+import machines from "../../demo/fixtures/machines.json";
 import { isSeenDone, markSeen, shownStatus } from "./sidebarOrder.ts";
 import { DEFAULT_SETTINGS, sanitizeSettings } from "./settings.ts";
 

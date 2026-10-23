@@ -921,7 +921,4 @@ export const ZH: Record<string, string> = {
   "Menus, lists, dialogs and the sidebar. The terminal keeps its own.": "适用于菜单、列表、对话框和侧边栏。终端保留自己的字号。",
   "Decrease interface font size": "减小界面字号",
   "Increase interface font size": "增大界面字号",
-  "Change PC": "切换电脑",
-  "This is the demo. Go back to the app's list of PCs to open yours.": "这是演示。回到应用的电脑列表即可打开你自己的电脑。",
-  "This app shows {address}. Go back to its list of PCs to open another.": "此应用正在显示 {address}。回到电脑列表可打开其他电脑。",
 };

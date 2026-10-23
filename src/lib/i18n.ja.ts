@@ -919,7 +919,4 @@ export const JA: Record<string, string> = {
   "Menus, lists, dialogs and the sidebar. The terminal keeps its own.": "メニュー、リスト、ダイアログ、サイドバーに適用されます。ターミナルは独自のサイズを保ちます。",
   "Decrease interface font size": "インターフェースの文字サイズを小さく",
   "Increase interface font size": "インターフェースの文字サイズを大きく",
-  "Change PC": "PCを切り替え",
-  "This is the demo. Go back to the app's list of PCs to open yours.": "これはデモです。アプリのPC一覧に戻って、ご自分のPCを開いてください。",
-  "This app shows {address}. Go back to its list of PCs to open another.": "このアプリは {address} を表示しています。PC一覧に戻ると別のPCを開けます。",
 };

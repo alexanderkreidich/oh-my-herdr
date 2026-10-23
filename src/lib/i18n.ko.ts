@@ -917,7 +917,4 @@ export const KO: Record<string, string> = {
   "Menus, lists, dialogs and the sidebar. The terminal keeps its own.": "메뉴, 목록, 대화 상자, 사이드바에 적용됩니다. 터미널은 자체 크기를 유지합니다.",
   "Decrease interface font size": "인터페이스 글자 크기 줄이기",
   "Increase interface font size": "인터페이스 글자 크기 키우기",
-  "Change PC": "PC 바꾸기",
-  "This is the demo. Go back to the app's list of PCs to open yours.": "데모 화면입니다. 앱의 PC 목록으로 돌아가 내 PC를 여세요.",
-  "This app shows {address}. Go back to its list of PCs to open another.": "이 앱은 {address}를 보여 주고 있습니다. PC 목록으로 돌아가 다른 PC를 열 수 있습니다.",
 };

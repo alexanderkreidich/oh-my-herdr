@@ -1,8 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { HIGHLIGHT_LIMIT, HIGHLIGHTS_PER_GROUP, RELEASES_LIMIT, SUMMARY_GROUPS, SUMMARY_LANGUAGES } from "../shared/update.ts";
-import { compareVersions, releaseNotes, releaseSummaries, SUMMARIES_FILE } from "./release-notes.ts";
+import { HIGHLIGHT_LIMIT, HIGHLIGHTS_PER_GROUP, RELEASES_LIMIT } from "../shared/update.ts";
+import { compareVersions, releaseNotes, releaseSummaries } from "./release-notes.ts";
 
 const CHANGELOG = `# Changelog
 
@@ -200,37 +198,5 @@ describe("a release told as patch notes", () => {
     expect(compareVersions("0.3.9", "0.3.9")).toBe(0);
     expect(compareVersions("0.3.9", "1.0.0")! < 0).toBe(true);
     expect(compareVersions("0.3.9", "main")).toBeNull();
-  });
-});
-
-describe("this repository's own summaries", () => {
-  const root = join(import.meta.dir, "..");
-  const text = readFileSync(join(root, SUMMARIES_FILE), "utf8");
-  const summaries = releaseSummaries(text);
-  const released = [...readFileSync(join(root, "CHANGELOG.md"), "utf8").matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((match) => match[1]!);
-  /** the last release cut before summaries were written */
-  const BEFORE = "0.3.52";
-  /** patch notes are read at a glance: a line longer than this is a sentence from the changelog */
-  const LINE = 90;
-
-  it("tells every release since in every language the app has", () => {
-    const missing = released.filter((version) => compareVersions(version, BEFORE)! > 0)
-      .flatMap((version) => SUMMARY_LANGUAGES.filter((language) => !summaries.get(version)?.[language]).map((language) => `${version} ${language}`));
-    expect(missing).toEqual([]);
-  });
-
-  it("holds nothing but short lines for releases the changelog names, the same lists in every language", () => {
-    const raw = JSON.parse(text) as Record<string, Record<string, Record<string, string[]>>>;
-    for (const [version, entry] of Object.entries(raw)) {
-      expect(released).toContain(version);
-      expect(Object.keys(entry).sort()).toEqual([...SUMMARY_LANGUAGES].sort());
-      // what was read is what was written: nothing dropped, cut or trimmed
-      expect(summaries.get(version) as unknown).toEqual(entry);
-      const shape = (language: string) => SUMMARY_GROUPS.map((group) => entry[language]![group]?.length ?? 0);
-      for (const language of SUMMARY_LANGUAGES) {
-        expect([version, language, shape(language)]).toEqual([version, language, shape("en")]);
-        for (const line of Object.values(entry[language]!).flat()) expect(line.length).toBeLessThanOrEqual(LINE);
-      }
-    }
   });
 });

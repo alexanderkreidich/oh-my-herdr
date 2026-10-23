@@ -70,18 +70,12 @@ Evidence: `server/index.ts:createServer`, `server/access.ts:decideAccess`,
   A local manifest/build or `HERDR_WEB_BUNDLE_MANIFEST` can override this source.
 - Registered remote bridges can update unattended when `auto_update_bridges` is enabled (the default) and the
   bridge is eligible for management. Initial installation/SSH approval is a separate user flow.
-- `install.sh` and `install.ps1` still target the upstream repository/plugin identity. The Mac
-  wrapper downloads `https://herdrweb.dev/install.sh`; installers also fetch herdr/Bun/Node.
-  Running those distribution paths can install upstream rather than this modified fork. The
-  installers also query GitHub star status through `gh` and can star the upstream repository
-  after an affirmative interactive answer; this uses the existing GitHub CLI sign-in.
 
 This is the main remaining upstream trust boundary. Complete the roadmap's fork-identity slice
 before distributing the fork: choose owned sources and an explicit update/signature policy.
 
 Evidence: `server/updater.ts:start`, `server/updater.ts:discover`, `server/updater.ts:request`,
-`server/supervisor.ts`, `server/remote-bundle.ts`, `server/machines.ts:lost`, `install.sh`,
-`install.ps1`, `herdr-plugin.toml`, `app/mac/Sources/OvisMac/Run.swift`.
+`server/supervisor.ts`, `server/remote-bundle.ts`, `server/machines.ts:lost`, `herdr-plugin.toml`.
 
 ### 3. Plan-limit meters read existing CLI credentials, including macOS Keychain
 

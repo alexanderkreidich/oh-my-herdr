@@ -147,14 +147,7 @@ bun run check run bun scripts/ssp-latency.ts # local echo at a 200 ms round trip
 bun scripts/math-browser-qa.ts  # chat math: KaTeX loads with the first expression
 bun scripts/phone-worktree-sheet-regression.ts # a phone's New worktree sheet: the agent list's own stroke, and a Shell checkout's terminal opening
 bun run test:ssh                # remote-PC integration over SSH
-bun scripts/fresh-install-docker.ts [owner/repo] [ref]  # a new user's install in a bare Ubuntu (Docker)
 ```
-
-`fresh-install-docker.ts` is the check for "does a new user get a working install": a disposable
-Ubuntu 24.04 with only curl, git and the distro's Node 18, a normal user, herdr and Bun from their
-installers, a headless herdr, then `herdr plugin install` of a pushed ref (default: the current
-branch), the start action, `/api/health`, the PTY smoke test on the box's Node, and the startup hook
-after a herdr restart. It prints the time each step took. `KEEP=1` leaves the container for a look.
 
 Tests run against a herdr session of their own, `herdr-web-ui-test`. The first run starts a headless `herdr --session herdr-web-ui-test server` and later runs reuse it, so test workspaces never show in the herdr you work in (`scripts/test-herdr.ts`). Stop it with `herdr --session herdr-web-ui-test server stop`. `HERDR_TEST_SESSION` picks another name, and `HERDR_TEST_LIVE=1` runs against `HERDR_SOCKET` or your default session instead.
 
@@ -385,138 +378,28 @@ These resource results do not remeasure the latency or compressed payload figure
 in the historical table above. They were taken with a 2 s push-read bound; the bound is now
 1 s, so a pane written continuously gets up to twice the REST reads shown in the last rows.
 
-## README media
+## The browser demo
 
-`bun run build && bun scripts/readme-media/capture.ts` regenerates the stills and demos in `docs/screenshots/` from a staged, fictional session in its own herdr session (`herdr-web-ui-demo`). Pass `shots` or `video` to redo only one of them. It needs ffmpeg.
-
-- `stage.ts` builds the session from `site/demo/fixtures.ts`: two git repositories under `/tmp/herdr-demo`, each with two agent worktrees herdr adds, a release shell tab, curated chats served in place of transcripts, and the hostname rewritten.
-- `record.ts` records a walkthrough at 2x (Chrome's screencast, with `--force-device-scale-factor=2`), logging pointer moves, clicks, taps and camera cues as it drives the page.
-- `compose.ts` draws every output frame on a canvas: a backdrop, a browser window or a phone, the frame under an eased camera, and a vector cursor with click ripples or touch rings. It writes `demo-*.mp4` (1920×1200 and 1080×1920, 30 fps) and a GIF of each. Stills get the same window or phone on a transparent background.
-
-The MP4s are not committed: GitHub plays a README video only from an upload (`github.com/user-attachments/…`), so drop them into an issue or PR comment and use the link it gives.
-The website's page is built from the README's own artifacts: it downloads the README's top video (listed in `scripts/build-site.ts`, `videos`, so a new top video needs its link changed there as well), shows the feature grid's clips linking to their uploads (the same list of links is in `site/index.html` and `site/zh/index.html`), and uses `docs/screenshots/install.png`.
-The README's feature grid shows a looping ~7-second cut of each feature video (`docs/media/readme/*.webp`, 800×450, 15 fps), each linking to its upload. Cut one with
-`ffmpeg -ss <start> -t <seconds> -i clip.mp4 -vf "fps=15,scale=800:450:force_original_aspect_ratio=increase:flags=lanczos,crop=800:450" -c:v libwebp_anim -loop 0 -quality 72 -compression_level 6 -an out.webp`;
-the scale and crop fill 800×450 from any source aspect. Start on a sharp frame, not mid camera move. The top video stays a GitHub upload so it plays at full quality.
-
-The user guide's gallery and the retained banner assets are rendered from the film's stills (below): `bun scripts/readme-media/banner.ts [banner] [og] [look]`
-draws `banner.html` in headless Chrome into `docs/media/banner.png` (1920×800), `site/assets/og.png` (1280×640) and
-`docs/media/look-{chat,prompt,terminal}.png` (1760×1150), each quantized to 256 colours. `docs/media/chat-loop.gif`
-comes from `scripts/film/render.ts loop`.
-
-## The film
-
-The film (`site/media/herdr-web-ui-film.mp4`, 56 s) and chat loop (`site/media/chat-loop.mp4`, with the README's
-`docs/media/chat-loop.gif`) are the real client on the demo's fixtures, recorded and composited by `scripts/film/`.
-Raw footage and renders go to `_film/` (gitignored); only the outputs under `site/media/`, `site/assets/` and
-`docs/media/` are committed. Needs ffmpeg and Chrome at `/usr/bin/google-chrome` (`CHROME_PATH` otherwise).
-
-```bash
-bun run build:site                              # the demo the takes are recorded from
-bun scripts/film/capture.ts [stills] [rec] [stepped] [R10 R11 … | still names]   # _film/footage/
-bun scripts/film/site-assets.ts                 # site/assets/*.webp|jpg|png from the stills
-bun scripts/readme-media/banner.ts              # banner, og.png, look-*.png from the stills
-bun scripts/film/render.ts film                 # site/media/herdr-web-ui-film.{mp4,jpg}
-bun scripts/film/render.ts loop                 # site/media/chat-loop.{mp4,jpg}, docs/media/chat-loop.gif
-bun scripts/film/render.ts check                # acceptance frame grabs, sizes, loop seam
-```
-
-- `capture.ts` serves `_site/` under `/herdr-web-ui/` and records `demo/app/` (no demo banner) at 2x with `hand.ts`
-  (CDP screencast frames with paint times, plus a cue log of every pointer move, click and tap). Film-only staging lives
-  here as init scripts, never in `site/demo/`: fixture `mods` (`todo`, `real`, `stream`, `story`, `worked`) change what
-  the fixtures say, and `filmHold` holds the demo's own 4.5 s / 2.4 s timers so a turn stays running on camera.
-  `_film/footage/INDEX.md` lists every take, its mods and its marks.
-- `timeline.ts` is the film shot by shot as data (source ranges from each take's `marks.json`, camera, type);
-  `camera.ts` the easing and matrices; `stage.ts` the compositor page that draws one frame; `footage.ts` reads the takes.
-- `render.ts` renders frames in parallel Chromes and encodes once. `render.ts report` prints the shot table with the
-  maximum magnification (never above 1 source px per output px); `render.ts stills 8 13.6 …` grabs single frames.
-- After a re-capture, re-check what was placed by hand on the frames (the header of `render.ts` lists it), then
-  re-render. `build-site.ts` fails if a file in `site/media/` is over 4 MB (the film: 24 MB) or one in `site/assets/`
-  is over 750 KB.
-
-## Website
-
-<https://herdrweb.dev/> is `site/index.html`, a static page with desktop and phone
-demos, a screenshot gallery, supported agents, phone setup and a comparison table. `site/zh/index.html`
-is the same page in Simplified Chinese at `/zh/`, linked from the header; a change to one page belongs in
-the other. `bun run build:site`
-assembles it into `_site/` with icons, the social preview and scaled screenshots from `docs/screenshots/`.
-The two demo videos come from local `docs/screenshots/*.mp4` when present, otherwise the README's uploads;
-ffmpeg creates their poster frames. Without ffmpeg, the page omits unavailable posters.
-
-For search engines the build also writes `sitemap.xml` (the page only: the demo is `noindex`) and copies
-the page's FAQ rows (`<div class="qa">`) into its head as FAQPage structured data, so edit a question in
-the page and the data follows. The SoftwareApplication data is written in the page's head by hand.
-
-The build also copies the retained `site/assets/` and `site/media/` files, including the film linked
-from the README and its chat loop. These remain available at their existing URLs even though the
-homepage uses the desktop and phone demos.
-`.github/workflows/pages.yml` installs ffmpeg when the runner lacks it and runs after CI completes
-on `main`, or on manual dispatches from `main`. A completed CI run only builds and deploys when it
-succeeded for a push from this repository; PR runs and forks cannot publish. It builds that CI run's
-head SHA without running validation again. Manual dispatches run reusable CI validation and the site
-build in parallel against the dispatch SHA, and deployment requires both to succeed.
-Deployments are serialized. Immediately before deploying,
-the workflow checks that the validated SHA is still the latest `main` commit; it fails closed if it is
-stale or that check cannot be completed. This does not change the separate Release workflow.
-The standalone `main` CI supplies the validation for each main push, preserving its independent CI
-history while the Website workflow waits for its successful completion.
-
-### The browser demo
-
-<https://herdrweb.dev/demo/> is the real client on a fictional session, no server.
-`build-site.ts` builds the client a second time with `vite build --base ./` into `_site/demo/app/`,
-bundles `site/demo/transport.ts` in front of it and frames it with `site/demo/index.html`. The
-transport answers the app's `fetch("/api/…")`, the machines event stream and the `/ws` terminal
-socket from `site/demo/fixtures/`: the chats and the Codex approval are the README's
-(`site/demo/fixtures.ts`, shared with `scripts/readme-media/stage.ts`), and `machines.json`,
-`agents.json`, `commands.json` and the shell pane's `terminal.json` are captured from that staged
-session by `bun scripts/demo-fixtures.ts` (needs herdr; it uses the `herdr-web-ui-demo` session and
-scrubs the hostname and login). Recapture them after a herdr upgrade changes the snapshot shapes, or
-after changing the staged session. Files, images, push and remote PCs are not part of the demo.
+The real client on a fictional session, no server, for the browser scripts that need no herdr.
+`scripts/demo-build.ts` builds the client with `vite build --base ./` and bundles
+`demo/transport.ts` beside it. The transport answers the app's `fetch("/api/…")`, the machines
+event stream and the `/ws` terminal socket from `demo/fixtures/`: the panes come from
+`demo/fixtures.ts`, and `machines.json`, `agents.json` and the shell pane's `terminal.json` are
+captured from a staged session (`scripts/demo-stage.ts`) by `bun scripts/demo-fixtures.ts` (needs
+herdr; it uses a session of its own and scrubs the hostname and login). Recapture them after a
+herdr upgrade changes the snapshot shapes, or after changing the staged session. Files, images,
+push and remote PCs are not part of the demo.
 
 ## Releasing
 
-1. Open a release PR that bumps `version` in `package.json` and `herdr-plugin.toml`,
-   runs `bun scripts/changelog-fold.ts X.Y.Z [YYYY-MM-DD]` (it moves the `Unreleased` notes in
-   [CHANGELOG.md](../CHANGELOG.md) and the [changelog.d/](../changelog.d/README.md) fragments under
-   the new version, dated today in local time by default, links each fragment's PR and deletes the
-   fragments; then add the `by @login` credits; a fragment merged later must be moved into the
-   version by hand, since the release workflow refuses while one is left), and tells the release
-   in [release-summaries.json](../release-summaries.json) the way a game's patch notes do: under
-   the version, for each language in `SUMMARY_LANGUAGES` (`shared/update.ts`: `en`, `ko`, `ja` and `zh`), the lists `new`, `improved` and `fixed` (a list with nothing to say is left out), each a few lines of
-   plain text, 90 characters at most, the same number of lines in every language. It is what
-   an install shows before and after the update, with the changelog section folded under it,
-   so a line names what changes for the people who use the app and leaves out PR numbers and
-   internals. The unit suite and the release workflow fail without every language.
-   The GitHub release is written from the same files by `scripts/release-notes.ts`: the
-   English lists under New features, Improvements and Bug fixes, then the version's whole
-   changelog section folded under **Full changelog**.
-   When the release guards (below) say so, the same PR raises `REMOTE_BUNDLE_VERSION` in
-   `shared/machines.ts`.
-2. Merge it after CI passes.
-3. If it raised `REMOTE_BUNDLE_VERSION` to N, push the tag `remote-vN` on the merged commit and wait
-   for the **Remote PC bundles** workflow to publish it ([remote PCs](remote-pcs.md)). Merge nothing
-   that touches `server/`, `shared/`, `bun.lock` or `patches/` until the Release run is done: the
-   Release run would then ask for a follow-up PR that raises the number again and a new tag.
-4. Run **Actions → Release → Run workflow**, select `main`, and enter `X.Y.Z` without `v`.
-   The CLI equivalent is `gh workflow run release.yml --ref main -f version=X.Y.Z`.
+There is no release yet. A release will be a `vX.Y.Z` tag on `main` with its notes in
+[CHANGELOG.md](../CHANGELOG.md): installed updaters read Git tags directly, so never push one by
+hand before the release train exists (roadmap, Phase 3).
 
-The workflow validates metadata, then runs the same unit, integration and browser checks
-as PRs against the exact `main` commit selected when the run starts. Only after all checks
-pass does it create the tag and GitHub release. A failed validation creates neither.
-Do not push release tags by hand: installed updaters read Git tags directly, so a tag is
-visible to them even without a GitHub release. Existing tags cannot be reused; fix a
-published version with a new patch release. If publishing fails after a tag was created,
-verify that tag's commit and repair its GitHub release rather than moving the tag.
-
-Remote-PC runtime bundles are published by a `remote-vN` tag, and an app release requires the bundle
-that matches its server (step 3). See [remote PCs](remote-pcs.md).
-
-`scripts/release-guards.ts` fails a release PR (CI's Fast checks) and the Release run when the bundle's
-inputs changed since the published `remote-vN` without a raised `REMOTE_BUNDLE_VERSION`, when the raised
-one is not published yet (Release only), or when the step 1 metadata is incomplete. In CI only the change that bumps the version is checked;
-PRs merged before the Release run pass, and the Release run checks the whole tree again.
+Remote-PC runtime bundles are published by a `remote-vN` tag: when `server/`, `shared/`,
+`bun.lock` or `patches/` change what a bundle runs, raise `REMOTE_BUNDLE_VERSION` in
+`shared/machines.ts`, merge, push `remote-vN` on the merged commit and wait for the **Remote PC
+bundles** workflow to publish it. See [remote PCs](remote-pcs.md).
 
 ## Pull requests and CI
 
@@ -585,7 +468,7 @@ The [CI workflow](../.github/workflows/ci.yml) runs on every PR and `main` push:
 
   Both browser jobs run `scripts/ci-browser-parallel.ts`, which takes its script list from
   `scripts/ci-browser.sh` (`BROWSER_SCRIPTS` picks from it, `BROWSER_EXCLUDE` leaves scripts out,
-  and a name the list does not hold is an error). `scripts/pages-gate.test.ts` fails if the two
+  and a name the list does not hold is an error). `scripts/ci-gate.test.ts` fails if the two
   jobs together do not run that list exactly once. A new browser script therefore only needs its
   `run_script` line in `scripts/ci-browser.sh`.
 
@@ -636,24 +519,20 @@ Linux CI/CD jobs run on GitHub-hosted `ubuntu-24.04` unless the repository varia
 `CI_SELF_HOSTED_LABELS` holds a JSON array of runner labels that contains `"self-hosted"`, for
 example `["self-hosted","linux","x64","herdr-ci"]`. Set, it routes:
 
-- in `ci.yml`: Fast checks, Integration tests and both Browser regression jobs;
-- in `pages.yml`: the site build and the deploy after successful same-repository main push CI,
-  or on a manual dispatch with reusable CI validation;
-- in `release.yml`: the preflight and publish jobs.
+- in `ci.yml`: Fast checks, Integration tests and both Browser regression jobs.
 
-Detect changes, the Integration and browser summary, the Windows and macOS jobs,
-`remote-bundles.yml` and `windows-install.yml` always stay GitHub-hosted.
+Detect changes, the Integration and browser summary, the Windows and macOS jobs and
+`remote-bundles.yml` always stay GitHub-hosted.
 
 In `ci.yml`, Detect changes picks the runner with `scripts/ci-runner-route.sh`. A fork pull request
 always gets `ubuntu-24.04`, whatever the variable says. Otherwise the `self_hosted_labels`
 workflow_dispatch input, when not empty, overrides the variable for that one manual run. A value
 that is not a non-empty array of strings containing `"self-hosted"` fails the job instead of
-falling back. `pages.yml` and `release.yml` read the variable directly.
+falling back.
 
 Only a `pull_request` may skip the heavy jobs as docs-only, and only when every changed file is
-under `docs/`, ends in `.md` or `.txt`, or is the root `LICENSE`. Pushes, dispatches and runs called from `release.yml` or manual
-`pages.yml` dispatches always validate in full. Automatic Website runs reuse CI's successful
-main push validation instead of calling CI again.
+under `docs/`, ends in `.md` or `.txt`, or is the root `LICENSE`. Pushes and dispatches always
+validate in full.
 
 The runner is an ephemeral Docker container that runs one job and exits. Containers have no CPU
 quota or total-memory limit; concurrent slots share the host's available resources. The
@@ -663,13 +542,13 @@ together: `ci.yml` runs each of them through `bun run check` with `CHECK_MAX_RUN
 `CHECK_WAIT_SECONDS`, and a job that finds the slots taken waits for one. A check run on the host
 itself is not in that namespace and does not count against it. Its image ships Bun,
 Node 22, checksum-pinned herdr, Playwright Chromium and its system libraries, ffmpeg, git, the
-checksum-pinned GitHub CLI (`gh`) for deployment and release publishing, curl, jq, unzip,
+checksum-pinned GitHub CLI (`gh`), curl, jq, unzip,
 xz-utils and CA certificates, with no sudo. Self-hosted setup verifies the prepared tools and
 fails on a stale image instead of downloading replacements. Rebuild the image after changing
 its pins; its Bun pin must match `.github/actions/setup-ci/action.yml`, and its Playwright pin
 must match `bun.lock`.
 
-The composite setup action used by `ci.yml`, `pages.yml` and `release.yml` keeps Bun's dependency
+The composite setup action used by `ci.yml` keeps Bun's dependency
 cache in `.ci-cache/bun`. Only GitHub-hosted jobs restore/save that cache remotely: on the measured
 self-hosted connection, downloading the archive took longer than a fresh dependency install.
 Self-hosted jobs install directly from the lockfile without transferring a remote dependency cache.
@@ -687,11 +566,10 @@ to integration; everything else belongs to unit. Name new live-server tests
 `*.contract.test.ts`. Plain `bun test` still runs both suites for local development.
 
 Remote/server/shared/dependency changes also run the existing four-platform bundle and
-SSH workflow on PRs; its publishing job only runs for `remote-v*` tags. Website publishing
-continues after `main` pushes.
+SSH workflow on PRs; its publishing job only runs for `remote-v*` tags.
 
 Repository protection should require PRs and all three checks on `main`—**Fast checks**,
-**Integration and browser**, and **Native Windows install** (GitHub App ID `15368`)—including for
+**Integration and browser**, and **Native Windows plugin** (GitHub App ID `15368`)—including for
 administrators. Branch protection does not require branches to be up to date before merging and
 does not enforce resolved review threads; resolve every review thread before merging anyway, as a
 practice. Force pushes and branch deletion are disabled. Human approvals are optional for this maintainer-led
@@ -709,8 +587,8 @@ input regression matrix.
 | [`src/`](../src/) | React UI: chat, terminal, composer, sidebar, settings |
 | [`server/`](../server/) | API, WebSockets, transcript readers, push, PTY bridge, remote PCs and updater |
 | [`shared/`](../shared/) | HTTP/WebSocket contract and generated herdr types |
-| [`scripts/`](../scripts/) | Plugin lifecycle, type generation, remote bundles, README media, the film and browser checks |
+| [`scripts/`](../scripts/) | Plugin lifecycle, type generation, remote bundles and browser checks |
 | [`public/`](../public/) | PWA manifest, service worker and icons |
-| [`docs/`](.) | Remote PCs, updates, screen sync (SSP), chat audit, brand assets and README media (`docs/media/`) |
-| [`site/`](../site/) | The website, built by `scripts/build-site.ts` and deployed by GitHub Pages |
+| [`docs/`](.) | Remote PCs, updates, screen sync (SSP), terminal input and brand assets |
+| [`demo/`](../demo/) | The browser demo's transport and fixtures |
 | [`DESIGN.md`](../DESIGN.md) | Design tokens and UI conventions |

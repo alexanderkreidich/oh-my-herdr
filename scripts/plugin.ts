@@ -60,9 +60,7 @@ const KILL_WAIT_MS = 3_000;
 /** `tailscale serve` waits while the user turns HTTPS on for the tailnet at the link it prints */
 const SERVE_TIMEOUT_MS = 180_000;
 /** how to come back to `phone` once Tailscale is set up: an action's output goes to herdr's log, not a terminal */
-const PHONE_AGAIN = platform() === "win32"
-  ? "irm https://herdrweb.dev/install.ps1 | iex"
-  : "curl -fsSL https://herdrweb.dev/install.sh | sh";
+const PHONE_AGAIN = "herdr's Phone setup action";
 
 /**
  * Run by hand (`pair` on a headless PC), herdr's env is not there to name the config dir:
@@ -114,14 +112,14 @@ const originOf = (value: number): string => `http://${host === "0.0.0.0" ? "127.
 let origin = originOf(port);
 
 /**
- * herdr's PATH plus where the one-line installer (install.sh) puts Bun, Node and herdr: herdr may
+ * herdr's PATH plus where Bun's, Node's and herdr's own installers put them: herdr may
  * have been started from a shell that has none of them, and the server spawns `node` for every
  * terminal. Appended, so a Node the user chose (nvm, Homebrew) still comes first.
  */
 function toolPath(): string {
   const current = (env[PATH_KEY] ?? "").split(delimiter).filter(Boolean);
   const home = homedir();
-  const extra = [join(home, ".bun", "bin"), join(home, ".local", "bin"), join(home, ".local", "share", "herdr-web-ui", "node", "bin")];
+  const extra = [join(home, ".bun", "bin"), join(home, ".local", "bin")];
   return [...current, ...extra.filter((dir) => existsSync(dir) && !current.includes(dir))].join(delimiter);
 }
 
@@ -517,7 +515,7 @@ async function pair(): Promise<number> {
  * The address a phone opens, as a QR code. When Tailscale runs on this PC but does not yet serve
  * the app, this is the one place that changes it: `tailscale serve` of the app's port on the first
  * free HTTPS port, said out loud with the command that undoes it. Everything else only reads.
- * Run by install.sh (and by hand); neither the server nor startup ever calls it.
+ * Run by the Phone setup pane (and by hand); neither the server nor startup ever calls it.
  */
 async function phone(): Promise<number> {
   const say = (line = "") => process.stdout.write(line + "\n");
@@ -532,11 +530,11 @@ async function phone(): Promise<number> {
   let access = parseTailscale(output, port);
   if (binary === null || access.state === "missing") {
     say("For your phone: install Tailscale on this PC and on the phone (https://tailscale.com/download),");
-    say(`sign in to the same account on both, then run: ${PHONE_AGAIN}`);
+    say(`sign in to the same account on both, then run ${PHONE_AGAIN} again.`);
     return 0;
   }
   if (access.state === "stopped") {
-    say(`For your phone: Tailscale is installed but not signed in. Run \`tailscale up\` (or open the Tailscale app), then run: ${PHONE_AGAIN}`);
+    say(`For your phone: Tailscale is installed but not signed in. Run \`tailscale up\` (or open the Tailscale app), then run ${PHONE_AGAIN} again.`);
     return 0;
   }
   let published = false;
@@ -553,7 +551,7 @@ async function phone(): Promise<number> {
     clearTimeout(timer);
     if (code !== 0) {
       say(`Tailscale did not take it (exit ${code}).${platform() === "linux" ? " On Linux, let your user change Tailscale once with `sudo tailscale set --operator=$USER`," : ""}`);
-      say(`then run: ${PHONE_AGAIN}   Or run the command above yourself.`);
+      say(`then run ${PHONE_AGAIN} again. Or run the command above yourself.`);
       return 1;
     }
     output = await readTailscale(binary);

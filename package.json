@@ -27,7 +27,6 @@
     "generate:types": "bun run scripts/generate-protocol-types.ts",
     "generate:themes": "bun run scripts/generate-themes.ts",
     "build:remote": "bun run scripts/build-remote-bundle.ts",
-    "build:site": "bun scripts/build-site.ts",
     "test:ssh": "bun run scripts/ssh-integration.ts"
   },
   "dependencies": {

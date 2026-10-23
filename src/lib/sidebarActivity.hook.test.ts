@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import type { Machine } from "../../shared/machines.ts";
 import type { AgentStatus, HerdrPane } from "../../shared/protocol.ts";
-import machinesFixture from "../../site/demo/fixtures/machines.json";
+import machinesFixture from "../../demo/fixtures/machines.json";
 import { useSidebarActivityState, type SidebarActivity } from "./sidebarActivity.tsx";
 import { cleanSeen, loadSeen, saveSeen, seenKey, SEEN_LIMIT } from "./seenFinishes.ts";
 
