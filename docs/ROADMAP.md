@@ -44,6 +44,16 @@ The visible UI shrinks to a workspace list, one top bar of pill tabs and the ter
       with a shell in the PC's home, no dialog; New tab (its key, the palette) is the strip's shell
       tab. The New workspace / New tab dialog, its folder browser and recent folder chips, the tab
       menus' New tab with agent… and `?new=` links go. New worktree keeps its agent picker.
+- [x] **Pane cards.** From 769px the window is one recessed surface (`--bg`): the sidebar, the
+      bar and the gaps around the panes. Each pane is a rounded card on it. Its title bar shows the
+      pane's mark, its name (a lone pane shows its tab's name), its folder, and Split right, Split
+      down, Zoom and Close. The buttons show on the open pane and under the pointer. Drag a card by
+      its title onto another card of its tab and the two swap places (herdr's `pane.swap`). They
+      are drawn swapped at once and slide into place (FLIP, transform only). A split made from a
+      card grows in from its side. A phone keeps its edge-to-edge pane.
+- [ ] Pane cards follow-ups: the browser's split view still draws a strip row per half under an
+      empty bar; after a swap, Tab moves across the cards in pane order, not on-screen order (a
+      section never moves in the document, so the terminal keeps the focus).
 - [ ] New workspace follow-up: the bridge's `POST /api/workspace/directories` (New folder) and the
       `agent` field of `/api/workspace/create` and `/api/tab/create` have no caller in this client.
 - [ ] PC switcher follow-ups: a key to switch PCs (Ctrl+1–9 is the browser's on Windows and Linux);

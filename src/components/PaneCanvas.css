@@ -48,10 +48,17 @@
   .pane-frame-menu { opacity: 0; pointer-events: none; }
   .pane-frame-menu:focus-visible { opacity: 1; pointer-events: auto; }
 }
-/* Single-pane chrome must not cover the search controls. */
-.pane-frame.is-single:has(.find-bar) > .pane-frame-head { display: none; }
-/* the tab strip's touch menu carries the open pane's actions: a lone pane draws no second ellipsis */
-.pane-column:has(.tab-strip-menu) .pane-frame.is-single > .pane-frame-head { display: none; }
+/* A phone draws a pane's title bar as its ellipsis alone: the mark, the folder and the actions are
+   the desktop card's (below) */
+.pane-frame-mark,
+.pane-frame-folder,
+.pane-frame-actions { display: none; }
+@media (max-width: 768px) {
+  /* Single-pane chrome must not cover the search controls. */
+  .pane-frame.is-single:has(.find-bar) > .pane-frame-head { display: none; }
+  /* the tab strip's touch menu carries the open pane's actions: a lone pane draws no second ellipsis */
+  .pane-column:has(.tab-strip-menu) .pane-frame.is-single > .pane-frame-head { display: none; }
+}
 .pane-divider {
   position: absolute;
   z-index: var(--z-banner);
@@ -71,3 +78,82 @@
 }
 
 .pane-canvas.is-pending { pointer-events: none; }
+
+/* From 769px each pane is a card on the window's surface, the gap between them (Ghostty's splits,
+   Zed's panes): a title bar on top says what runs in it and where, with the pane's actions, shown
+   on the open pane and under the pointer. A tab's cards trade places by their titles (PaneCanvas). */
+@media (min-width: 769px) {
+  .pane-canvas { --pane-gap: var(--space-2); background: transparent; }
+  .pane-frame,
+  .pane-frame.is-single {
+    /* a card's own layers (its banners, its input line) stay inside it, under a card moving over it */
+    isolation: isolate;
+    border: var(--hairline) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+  .pane-frame.is-current:not(.is-single) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  /* the grid inset from the card's edges, under the title's mark: on the body, never on the
+     terminal's mount, whose client size the fit reads (PaneTerminal.css) */
+  .pane-frame-body { padding: 0 var(--space-3) var(--space-2); }
+  .pane-frame-head,
+  .pane-frame.is-single > .pane-frame-head {
+    position: static;
+    gap: var(--space-2);
+    padding: 0 var(--space-1) 0 var(--space-3);
+    background: var(--term-bg);
+    color: var(--text-strong);
+    font-size: var(--fs-sm);
+    pointer-events: auto;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .pane-frame.is-current .pane-frame-head { color: var(--text-strong); }
+  .pane-frame.is-single .pane-frame-title { display: block; }
+  .pane-frame-title { font-weight: var(--fw-medium); }
+  .pane-frame-mark { display: inline-flex; flex: none; color: var(--text-dim); }
+  .pane-frame-mark > svg { width: 15px; height: 15px; }
+  .pane-frame-folder { display: inline; margin-left: var(--space-2); color: var(--text-dim); font-weight: var(--fw-regular); }
+  .pane-frame-actions {
+    display: flex;
+    flex: none;
+    gap: 2px;
+    opacity: 0;
+  }
+  /* shown at once on the open pane and on a focus move (keys switch panes); faded in under the pointer alone */
+  .pane-frame.is-current .pane-frame-actions,
+  .pane-frame.is-single .pane-frame-actions,
+  .pane-frame-actions:focus-within { opacity: 1; }
+  .pane-frame-actions .icon-button { width: 28px; height: 28px; color: var(--text-dim); }
+  .pane-frame-actions .icon-button svg { width: 16px; height: 16px; }
+  .pane-frame-actions .icon-button:disabled { opacity: 0.4; cursor: default; }
+  .pane-canvas.is-sortable .pane-frame-head { cursor: grab; }
+  .pane-canvas.is-sorting,
+  .pane-canvas.is-sorting .pane-frame-head { cursor: grabbing; }
+  /* the held card over the others, lifted; the pane it would trade places with is tinted */
+  .pane-frame.is-lifted { z-index: var(--z-popover); box-shadow: var(--shadow-pop); will-change: transform; }
+  .pane-frame::after {
+    position: absolute;
+    inset: 0;
+    z-index: var(--z-banner);
+    content: "";
+    border-radius: inherit;
+    background: var(--accent-tint);
+    box-shadow: inset 0 0 0 2px var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .pane-frame.is-swap-target::after { opacity: 1; }
+}
+@media (min-width: 769px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  /* the ellipsis a mouse never sees (right-click opens the menu) takes no room in the title bar */
+  .pane-frame-menu:not(:focus-visible) { width: 0; margin-left: calc(-1 * var(--space-2)); overflow: hidden; }
+}
+@media (min-width: 769px) and (hover: hover) and (pointer: fine) {
+  .pane-frame:hover .pane-frame-actions { opacity: 1; transition: opacity var(--dur-fast) ease; }
+  .pane-frame-actions .icon-button:hover:not(:disabled) { color: var(--text); }
+}
+@media (min-width: 769px) and (hover: none) {
+  .pane-frame-actions { opacity: 1; }
+}

@@ -5,6 +5,8 @@
  * the pane is drawn by restty (WebGPU, or WebGL2 where the browser has no WebGPU). Focus mode
  * (Mod+Shift+.) moves the tabs under their workspace, and a hidden sidebar hands them back to the bar.
  * The top row's + makes a workspace at once, a shell in the PC's home, with no dialog.
+ * Each pane is a rounded card whose title bar carries Split right, Split down, Zoom and Close; a
+ * card dragged by its title onto another of its tab trades places with it in herdr.
  *
  *   bun run build && bun run check run bun scripts/minimal-ui-regression.ts
  */
@@ -114,6 +116,38 @@ try {
   await page.keyboard.press(`${mod}+Shift+Period`);
   await tabs.nth(1).waitFor({ timeout: 5_000 });
   assert.equal(await page.locator(".workspace-tab").count(), 0, "no tab rows outside focus mode");
+
+  // the pane is a card, its title bar says what runs in it and carries the pane's actions
+  const card = page.locator(".pane-frame[data-layout-pane]:not(.is-hidden)").first();
+  assert.notEqual(await card.evaluate((frame) => getComputedStyle(frame).borderTopLeftRadius), "0px", "the pane is a rounded card");
+  const actions = card.locator(".pane-frame-actions button");
+  assert.deepEqual(await actions.evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label"))),
+    ["Split right", "Split down", "Zoom pane", "Close pane"], "the title bar carries the pane's actions");
+  assert.equal(await actions.nth(2).isDisabled(), true, "a lone pane has nothing to zoom");
+  // Split right from the title bar; then the left card, dragged by its title onto the right one, trades places with it in herdr
+  await card.getByRole("button", { name: "Split right" }).click();
+  const cards = page.locator(".pane-frame[data-layout-pane]:not(.is-hidden)");
+  await cards.nth(1).waitFor({ timeout: 10_000 });
+  const [left, right] = await cards.evaluateAll((frames) => frames.map((frame) => (frame as HTMLElement).dataset["layoutPane"]!));
+  const columns = async (): Promise<Map<string, number>> => {
+    const session = await page.evaluate(async () => (await (await fetch("/api/session")).json()).snapshot) as { layouts: { panes: { pane_id: string; rect: { x: number } }[] }[] };
+    return new Map(session.layouts.flatMap((layout) => layout.panes.map((pane) => [pane.pane_id, pane.rect.x] as const)));
+  };
+  const split = await columns();
+  assert.ok(split.get(left!)! < split.get(right!)!, "the new pane is on the right");
+  const title = (await cards.nth(0).locator(".pane-frame-head").boundingBox())!;
+  const drop = (await cards.nth(1).boundingBox())!;
+  await page.mouse.move(title.x + 40, title.y + title.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(drop.x + drop.width / 2, drop.y + drop.height / 2, { steps: 8 });
+  await page.mouse.up();
+  let swapped = await columns();
+  for (const deadline = Date.now() + 5_000; Date.now() < deadline && swapped.get(left!) === split.get(left!);) {
+    await page.waitForTimeout(100);
+    swapped = await columns();
+  }
+  assert.equal(swapped.get(left!), split.get(right!), "the dragged pane took the other's place");
+  assert.equal(swapped.get(right!), split.get(left!), "and the other took its place");
 
   // the top row's + makes a workspace at once and opens it: a shell in home, no dialog asking for an agent or a folder
   const known = await page.locator(".workspace-group[data-workspace]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workspace")));

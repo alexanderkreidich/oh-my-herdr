@@ -806,3 +806,15 @@
 
   .workspace-new-tab:active:not(:disabled) { transform: none; }
 }
+
+/* From 769px the sidebar stands on the window's recessed surface (styles.css), beside the pane
+   cards: its fills are tints of the text, which read on --bg as the panel's steps did on --bg-panel */
+@media (min-width: 769px) {
+  .sidebar-shell {
+    --side-hover: color-mix(in srgb, var(--text) 5%, transparent);
+    --side-selected: color-mix(in srgb, var(--text) 9%, transparent);
+    background: transparent;
+  }
+
+  .sidebar-pinned-label > span { background: var(--bg); }
+}

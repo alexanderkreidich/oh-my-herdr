@@ -1999,6 +1999,52 @@ button {
   }
 }
 
+/* From 769px the window is one surface (--bg), recessed under the panes: the sidebar, the bar and
+   the gaps around the pane cards (PaneCanvas.css), which carry the terminal's colour. A phone keeps
+   its panel bar and an edge-to-edge pane. */
+@media (min-width: 769px) {
+  .app-header.is-zoned {
+    background: var(--bg);
+    border-bottom: 0;
+  }
+
+  .app:not(.sidebar-collapsed) .header-side,
+  .app.sidebar-collapsed .header-side {
+    border-right: 0;
+    background: var(--bg);
+  }
+
+  .app-header .tab-strip {
+    --strip-bg: var(--bg);
+  }
+
+  .sidebar {
+    border-right: 0;
+    background: var(--bg);
+  }
+
+  .pane-split {
+    gap: var(--space-2);
+    padding: 0 var(--space-2) var(--space-2) 0;
+  }
+
+  .app.is-focus .pane-split {
+    padding-top: var(--space-2);
+  }
+
+  .app.sidebar-collapsed .pane-split {
+    padding-left: var(--space-2);
+  }
+
+  .terminal-host {
+    background: transparent;
+  }
+
+  .pane-slot[data-side="left"] {
+    border-right: 0;
+  }
+}
+
 /* Installed desktop app with the title bar folded away (manifest display_override): the header
    takes the title bar's place, so it drags the window and leaves room for the window controls
    Chrome draws over its left (macOS) or right edge. */

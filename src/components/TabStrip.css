@@ -346,3 +346,16 @@
     }
   }
 }
+
+/* From 769px a split view half's row stands on the window's recessed surface over its pane cards,
+   as the bar's own strip does (styles.css) */
+@media (min-width: 769px) {
+  .tab-strip-row,
+  .tab-strip-row > .tab-strip {
+    --strip-bg: var(--bg);
+  }
+
+  .tab-strip-row {
+    border-bottom: 0;
+  }
+}
