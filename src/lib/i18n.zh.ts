@@ -420,7 +420,6 @@ export const ZH: Record<string, string> = {
   "This tab still runs {version} until it is reloaded.": "此标签页在重新加载前仍运行 {version}。",
   "Reload app": "重新加载应用",
   "App updated. Save unsent drafts before reloading.": "应用已更新。重新加载前请保存未发送的草稿。",
-  "Part of the app could not load. Save unsent drafts, then reload.": "应用的一部分未能加载。请先保存未发送的草稿，再重新加载。",
   "t-rex was updated on this PC. Restart it there to load the update.": "此 PC 上的 t-rex 已更新。请在 PC 上重新启动它以加载更新。",
   "How to restart": "如何重新启动",
   "t-rex v{version} is available.": "t-rex v{version} 已发布。",

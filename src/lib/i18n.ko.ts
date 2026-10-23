@@ -416,7 +416,6 @@ export const KO: Record<string, string> = {
   "This tab still runs {version} until it is reloaded.": "이 탭은 새로 고칠 때까지 계속 {version} 버전입니다.",
   "Reload app": "앱 새로 고침",
   "App updated. Save unsent drafts before reloading.": "앱이 업데이트되었습니다. 새로 고치기 전에 보내지 않은 초안을 저장하세요.",
-  "Part of the app could not load. Save unsent drafts, then reload.": "앱 일부를 불러오지 못했습니다. 보내지 않은 초안을 저장한 뒤 새로 고치세요.",
   "t-rex was updated on this PC. Restart it there to load the update.": "PC의 t-rex가 업데이트되었습니다. 업데이트를 적용하려면 PC에서 다시 시작하세요.",
   "How to restart": "다시 시작하는 방법",
   "t-rex v{version} is available.": "t-rex v{version}이 나왔습니다.",

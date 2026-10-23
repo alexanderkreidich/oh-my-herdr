@@ -418,7 +418,6 @@ export const JA: Record<string, string> = {
   "This tab still runs {version} until it is reloaded.": "このタブは再読み込みするまで {version} のままです。",
   "Reload app": "アプリを再読み込み",
   "App updated. Save unsent drafts before reloading.": "アプリが更新されました。再読み込みする前に未送信の下書きを保存してください。",
-  "Part of the app could not load. Save unsent drafts, then reload.": "アプリの一部を読み込めませんでした。未送信の下書きを保存してから再読み込みしてください。",
   "t-rex was updated on this PC. Restart it there to load the update.": "このPCの t-rex が更新されました。更新を読み込むには、PCで再起動してください。",
   "How to restart": "再起動の方法",
   "t-rex v{version} is available.": "t-rex v{version} が利用可能です。",
