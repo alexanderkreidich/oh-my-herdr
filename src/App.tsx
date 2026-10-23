@@ -411,12 +411,14 @@ export function App() {
   snapshotRef.current = snapshot;
 
   const loadHealth = useCallback(async () => {
-    try { const next = await fetchBridgeHealth(); setLocked(next.auth.required && !next.auth.authenticated); setLockReason(next.auth.reason ?? null); setAuth(next.auth); }
+    try { const next = await fetchBridgeHealth(); setLocked(next.auth.required && !next.auth.authenticated); setLockReason(next.auth.reason ?? null); setAuth((previous) => sameData(previous, next.auth) ? previous : next.auth); }
     catch { /* retain the gate while the connection server restarts */ }
     try { const next = await fetchHealth(); setHealth((previous) => sameData(previous, next) ? previous : next); } catch { setHealth(null); }
   }, []);
   const snapshotRequests = useRef(new SnapshotRequests());
   const createdTabs = useRef(new CreatedTabs());
+  /** the roster's event stream: while it is open it brings every change, and the poll leaves the roster to it */
+  const machineEvents = useRef<EventSource | null>(null);
   const load = useCallback(async () => {
     try {
       await snapshotRequests.current.read(fetchMachines, (received) => {
@@ -434,12 +436,15 @@ export function App() {
   }, [rosterIn]);
 
   useEffect(() => {
-    const tick = (): void => {
+    const tick = (returned = false): void => {
       // a hidden tab (or a phone app in the background) polls nothing; it catches up on return
       if (document.visibilityState === "hidden") return;
       void loadHealth();
-      // a locked tab only watches health, so a token entered in another tab still unlocks it
-      if (lockedRef.current !== true) void load();
+      // a locked tab only watches health, so a token entered in another tab still unlocks it.
+      // The open event stream brings the roster; a page coming back reads it anyway, as its
+      // stream may have died unnoticed while it was away
+      const streamed = machineEvents.current?.readyState === EventSource.OPEN;
+      if (lockedRef.current !== true && (returned || !streamed)) void load();
     };
     let timer = 0;
     let disposed = false;
@@ -454,7 +459,7 @@ export function App() {
       timer = window.setInterval(tick, POLL_MS);
     })();
     const onVisible = (): void => {
-      if (document.visibilityState === "visible" && !disposed) tick();
+      if (document.visibilityState === "visible" && !disposed) tick(true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -486,6 +491,7 @@ export function App() {
       snapshot: machine.snapshot && { panes: machine.snapshot.panes.map((pane) => ({ pane_id: pane.pane_id, agent_status: alertStatus(pane.agent_status, (pane as HerdrPane).background_wait) })) },
     }));
     const events = new EventSource("/api/machines/events");
+    machineEvents.current = events;
     events.onmessage = (event) => {
       let payload: MachineEvent;
       try { payload = JSON.parse(event.data); } catch { return; }
@@ -531,7 +537,7 @@ export function App() {
       }
       if (message.type === "session-changed" || message.type === "pane-exited") scheduleRefetch();
     };
-    return () => events.close();
+    return () => { events.close(); if (machineEvents.current === events) machineEvents.current = null; };
   }, [locked, scheduleRefetch]);
 
   const handleServerMessage = useCallback((message: ServerMessage) => {
