@@ -2047,6 +2047,9 @@ export function PaneTerminal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, []);
 
+  // a pane not shown draws nothing (its output still goes in)
+  useEffect(() => { termRef.current?.setDrawing(shown); }, [shown]);
+
   // hidden behind another pane of its split, the pane keeps the size the pty has; shown again, it
   // fits this screen and takes the pty
   const wasShown = useRef(shown);
