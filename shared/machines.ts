@@ -4,9 +4,9 @@ import type { HealthAuth, ServerMessage, SessionSnapshot } from "./protocol.ts";
 export const LOCAL_MACHINE = "local";
 export const BRIDGE_PROTOCOL = 1;
 /**
- * The remote bridge's runtime version. t-rex's bundles count from 1000, so that no older bundle
- * (remote-v1, remote-v2, … of the client t-rex began from) is ever taken for one of them: a PC
- * still running such a bridge has none of t-rex's server (the screen sync, local echo) and is
+ * The remote bridge's runtime version. T-Rex's bundles count from 1000, so that no older bundle
+ * (remote-v1, remote-v2, … of the client T-Rex began from) is ever taken for one of them: a PC
+ * still running such a bridge has none of T-Rex's server (the screen sync, local echo) and is
  * offered Update bridge instead.
  */
 export const REMOTE_BUNDLE_VERSION = "1000";

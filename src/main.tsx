@@ -27,9 +27,9 @@ if (!container) throw new Error("#root is missing from index.html");
 // an error nothing else caught still reaches the console under one name, where a bug report can find it
 // (but not the browser's benign ResizeObserver loop notice: lib/uncaughtErrors.ts)
 window.addEventListener("error", (event) => {
-  if (isReportableWindowError(event.error, event.message)) console.error("t-rex: uncaught error", event.error ?? event.message);
+  if (isReportableWindowError(event.error, event.message)) console.error("T-Rex: uncaught error", event.error ?? event.message);
 });
-window.addEventListener("unhandledrejection", (event) => console.error("t-rex: unhandled rejection", event.reason));
+window.addEventListener("unhandledrejection", (event) => console.error("T-Rex: unhandled rejection", event.reason));
 
 // A render error the parts below do not catch would unmount the whole tree and leave the page
 // blank, and an installed web app has no reload button: AppCrash offers one. It sits outside

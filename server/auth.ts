@@ -1,5 +1,5 @@
 /**
- * Optional shared-token gate for t-rex.
+ * Optional shared-token gate for T-Rex.
  *
  * There is no user database here: the token is the whole authorization decision,
  * and whoever holds it can type into live terminals. Hence constant-time compares

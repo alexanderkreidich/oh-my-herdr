@@ -1,4 +1,4 @@
-// Service worker for t-rex. Policy: navigations are network-first (so a
+// Service worker for T-Rex. Policy: navigations are network-first (so a
 // fresh build always wins when online) falling back to the cached shell when
 // offline; static assets (hashed bundles, icons, favicons) are cache-first since
 // they are content-addressed or rarely change. The web manifest is not: its URL
@@ -28,7 +28,7 @@
 // list: any file is copied forward, as before.
 // A retired cache's own shell keeps its entry script and stylesheet here too: a page that started
 // from that shell offline and has not asked for them yet still boots, then offers a reload.
-const CACHE_NAME = "t-rex-v5-rex";
+const CACHE_NAME = "t-rex-v6-rex2";
 const BUILD = "";
 const BUILD_FILES = null;
 const CACHE = BUILD ? `${CACHE_NAME}-${BUILD}` : CACHE_NAME;
@@ -205,15 +205,15 @@ self.addEventListener("push", (event) => {
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       const watching = windows.some((client) => client.visibilityState === "visible");
-      await self.registration.showNotification(payload.title || "t-rex", {
+      await self.registration.showNotification(payload.title || "T-Rex", {
         body: payload.body || "",
         tag: payload.tag || "herdr",
         renotify: !watching,
         silent: watching,
         data: { pane_id: payload.pane_id || null, machine_id: payload.machine_id || "local", workspace_id: payload.workspace_id || null },
-        icon: "/icons/icon-192.png?v=rex1",
+        icon: "/icons/icon-192.png?v=rex2",
         // Android's status bar and small icon: white on transparent, or Chrome's bell
-        badge: "/icons/badge-96.png?v=rex1",
+        badge: "/icons/badge-96.png?v=rex2",
       });
     })(),
   );

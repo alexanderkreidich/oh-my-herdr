@@ -36,13 +36,13 @@ const DINO = [
 ];
 /** The icon's part of the dino: head, neck, chest and arm. */
 const BUST = DINO.slice(0, 14).map((row) => row.slice(4));
-/** Where the bust sits on the 192 px icon, in fractions of its side: 11 px art pixels, running off the left and bottom edges. */
-const CELL = 11 / 192, LEFT = -14 / 192, TOP = 49 / 192;
+/** Where the bust sits on the 192 px icon, in fractions of its side: 11 px art pixels, the head near the top, running off the left and bottom edges. */
+const CELL = 11 / 192, LEFT = -14 / 192, TOP = 38 / 192;
 
 const WORD: Record<string, string[]> = {
-  t: [".#...", ".#...", "###..", ".#...", ".#...", ".#..#", "..##."],
+  T: ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
   "-": [".....", ".....", ".....", "####.", ".....", ".....", "....."],
-  r: [".....", ".....", "#.##.", "##..#", "#....", "#....", "#...."],
+  R: ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
   e: [".....", ".....", ".###.", "#...#", "#####", "#....", ".###."],
   x: [".....", ".....", "#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
 };
@@ -85,15 +85,11 @@ interface IconOptions {
   ink?: Rgba;
   /** the corner radius, a fraction of the side; 0 for a square the platform masks itself */
   corner?: number;
-  /** the bust scaled about the bottom centre, so it still rises from the bottom edge */
-  zoom?: number;
 }
 
-function icon(size: number, { background = TILE, ink = AMBER, corner = 0.22, zoom = 1 }: IconOptions = {}): Canvas {
+function icon(size: number, { background = TILE, ink = AMBER, corner = 0.22 }: IconOptions = {}): Canvas {
   const canvas = new Canvas(size, size, [0, 0, 0, 0]);
-  const cell = CELL * size * zoom;
-  const left = size / 2 + (LEFT * size - size / 2) * zoom;
-  const top = size + (TOP * size - size) * zoom;
+  const cell = CELL * size, left = LEFT * size, top = TOP * size;
   const radius = corner * size;
   const k = 8;
   for (let y = 0; y < size; y++) {
@@ -126,7 +122,7 @@ function socialPreview(): Canvas {
   const canvas = new Canvas(1280, 640, TILE);
   const dino = 30, letter = 14;
   canvas.art(BUST, 110, 640 - (BUST.length - 1) * dino, dino, AMBER);
-  const word = ["t", "-", "r", "e", "x"];
+  const word = ["T", "-", "R", "e", "x"];
   const left = 740, top = 300;
   word.forEach((glyph, i) => canvas.art(WORD[glyph]!, left + i * 6 * letter, top, letter, CREAM));
   canvas.rect(left + word.length * 6 * letter, top + 2 * letter, 3 * letter, 5 * letter, AMBER);
@@ -183,9 +179,10 @@ const out = (path: string, bytes: Buffer) => { writeFileSync(join(root, path), b
 
 out("public/icons/icon-192.png", png(icon(192)));
 out("public/icons/icon-512.png", png(icon(512)));
-// maskable: square, the platform rounds it; the head inside the inner 80% circle every mask keeps
-out("public/icons/icon-maskable-192.png", png(icon(192, { corner: 0, zoom: 0.8 })));
-out("public/icons/icon-maskable-512.png", png(icon(512, { corner: 0, zoom: 0.8 })));
+// maskable: square, the platform masks it (Chrome on macOS takes it for the Dock); the same drawing,
+// so the Dock shows the bust as large as the plain icon. A circle mask trims the tip of the snout.
+out("public/icons/icon-maskable-192.png", png(icon(192, { corner: 0 })));
+out("public/icons/icon-maskable-512.png", png(icon(512, { corner: 0 })));
 // Android draws a notification's small icon from its alpha alone: the bust white on transparent
 out("public/icons/badge-96.png", png(icon(96, { background: null, ink: WHITE, corner: 0 })));
 // iOS rounds the home-screen icon itself and fills transparent corners with black

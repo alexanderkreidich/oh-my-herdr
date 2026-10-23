@@ -1,10 +1,10 @@
 # Third-party notices
 
-t-rex includes material from the projects below, under their own licenses.
+T-Rex includes material from the projects below, under their own licenses.
 
 ## Original web client
 
-t-rex began as a modified copy of an MIT-licensed browser client for herdr, and much of `src/`,
+T-Rex began as a modified copy of an MIT-licensed browser client for herdr, and much of `src/`,
 `server/`, `shared/` and `scripts/` still derives from it. That code is used under the MIT
 License:
 
@@ -60,7 +60,7 @@ licenses follow. Tokyo Night Day uses folke's Apache-2.0 port, not the original 
 
 ## T3 Code
 
-These t-rex files adapt logic from [t3code](https://github.com/pingdotgg/t3code) at revision
+These T-Rex files adapt logic from [t3code](https://github.com/pingdotgg/t3code) at revision
 `e82a1ce3f369f113b0b33dff8249569c345e30e8`, under the MIT License (its text is printed under
 Original web client above), with this copyright notice:
 

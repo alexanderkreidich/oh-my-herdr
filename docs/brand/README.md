@@ -6,9 +6,9 @@ app's amber `#f0a830` rising from the bottom of a dark `#181613` tile, drawn fro
 scaled (sampled eight times per pixel), so the favicon is the same picture as the home-screen icon.
 
 Run `bun scripts/generate-brand.ts` after changing the art. It writes the app icons (plain and
-maskable, the maskable ones inside the 80% safe circle), the white-on-transparent notification
+maskable, one drawing: Chrome on macOS puts the maskable one in the Dock), the white-on-transparent notification
 badge Android draws from alpha alone, the Apple touch icon, `favicon.png`, `favicon.ico` and the
-1280 × 640 social preview with the pixel word "t-rex" and a cursor. New icons need a new `?v=` query and
+1280 × 640 social preview with the pixel word "T-Rex" and a cursor. New icons need a new `?v=` query and
 `CACHE_NAME` (`src/conventions.test.ts` says which).
 
 GitHub's repository preview is a separate setting: open
