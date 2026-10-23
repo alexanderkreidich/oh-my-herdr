@@ -104,8 +104,10 @@ export class SyncSender {
   ack(num: number): boolean {
     if (this.disposed) return true;
     if (!Number.isInteger(num)) return false;
-    if (this.acked && num <= this.acked.num) { this.syncAssets(this.acked); return true; }
+    // looked up before the acknowledged screen: the acknowledged screen sent again (only the echo
+    // moved, or a resumed stream's first frame) is acknowledged here, or it would be resent forever
     const index = this.sent.findIndex((entry) => entry.frame.num === num);
+    if (index === -1 && this.acked && num <= this.acked.num) { this.syncAssets(this.acked); return true; }
     if (index === -1) return num <= (this.sent.at(-1)?.frame.num ?? this.acked?.num ?? 0);
     const entry = this.sent[index]!;
     if (!entry.again) this.measure(this.now() - entry.at);
