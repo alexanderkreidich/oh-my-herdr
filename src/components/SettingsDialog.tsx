@@ -33,7 +33,6 @@ import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { PhonePanel } from "./PhonePanel.tsx";
 import { copyText } from "../lib/clipboard.ts";
 import { PushTestControls } from "./PushTestControls.tsx";
-import { previewAlertSound, unlockAlertSound } from "../lib/alertSound.ts";
 import { HerdrUpdateControls, UpdateControls } from "./UpdateControls.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
 import { useSheetSwipe } from "../lib/sheets.ts";
@@ -394,8 +393,6 @@ function TerminalPage({ keyBarButtonRef, onEditKeyBar }: { keyBarButtonRef: RefO
 function AlertsPage({ onEnableNotifications }: { onEnableNotifications: () => Promise<boolean> }) {
   const { settings, update } = useSettings();
   const t = useT();
-  // the Sound switch as last set: the preview waits for the audio, and must not play once it is off
-  const alertSoundWanted = useRef(settings.alertSound);
   return (
     <SettingsGroup note={t("For this device. An alert waits a little first, and none comes when the pane changes meanwhile, as when you answer at the PC.")}>
       <PushTestControls onEnable={onEnableNotifications} />
@@ -404,18 +401,6 @@ function AlertsPage({ onEnableNotifications }: { onEnableNotifications: () => Pr
       </SettingsRow>
       <SettingsRow label={t("Finished")} description={t("Long turns: only work that took a minute or more")} wide>
         <Segmented label={t("Finished")} value={settings.alertDone} onChange={(alertDone) => update({ alertDone })} options={[{ value: "off", label: t("Off") }, { value: "long", label: t("Long turns") }, { value: "always", label: t("Every turn") }]} />
-      </SettingsRow>
-      <SettingsRow label={t("In the app")} description={t("While the app is open, these drop in from the top of the screen at once. Tap one to open its pane.")}>
-        <Toggle label={t("In the app")} checked={settings.alertInApp} onChange={(alertInApp) => update({ alertInApp })} />
-      </SettingsRow>
-      <SettingsRow label={t("Sound")} description={t("While a tab of the app is open, it chimes for these alerts, also when a Focus or Do Not Disturb silences notifications.")}>
-        <Toggle label={t("Sound")} checked={settings.alertSound} onChange={(alertSound) => {
-          update({ alertSound });
-          alertSoundWanted.current = alertSound;
-          // this tap is the gesture the page needs to play audio; the chime is the preview,
-          // unless the switch went off again while the audio was getting ready
-          if (alertSound) void unlockAlertSound().then((ready) => { if (ready && alertSoundWanted.current) previewAlertSound(); });
-        }} />
       </SettingsRow>
     </SettingsGroup>
   );

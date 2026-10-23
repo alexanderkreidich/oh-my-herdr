@@ -242,9 +242,6 @@ export const KO: Record<string, string> = {
   "Alerts off on this device. Tap to turn them on": "이 기기에서 알림이 꺼져 있습니다. 누르면 켜집니다",
   "On in this tab": "이 탭에서 켜짐",
   "Alerts on while this tab is open. Tap to turn them off": "이 탭이 열려 있는 동안 알림이 옵니다. 누르면 꺼집니다",
-  "On in the app": "앱 안에서 켜짐",
-  "Alerts on in the app. Tap to allow them when it is closed too": "앱에서 알림 켜짐. 누르면 앱을 닫았을 때도 받도록 허용할 수 있습니다",
-  "Alerts on in the app. Tap to turn them off": "앱에서 알림 켜짐. 누르면 꺼집니다",
   "Alerts on while this tab is open (closed-app alerts need https, and on iPhone the home-screen app). Tap to turn them off": "이 탭이 열려 있는 동안 알림이 옵니다 (앱을 닫은 뒤의 알림은 https가 필요하고, iPhone에서는 홈 화면 앱이어야 합니다). 누르면 꺼집니다",
 
   // ---- sidebar ----
@@ -573,7 +570,6 @@ export const KO: Record<string, string> = {
   "A program in a pane that copies (vim, tmux, Claude Code) puts its text on this device's clipboard, as a copy you made yourself would. Turn it off if a pane runs output you do not trust: it could replace what you paste next.": "패널에서 복사하는 프로그램(vim, tmux, Claude Code)은 직접 복사한 것과 같이 이 기기의 클립보드에 텍스트를 넣습니다. 믿을 수 없는 출력을 실행하는 패널이 있다면 끄세요. 다음에 붙여 넣을 내용이 바뀔 수 있습니다.",
   "Use alongside herdr's own window": "터미널의 herdr와 같이 쓰기",
   "Turn this on if this PC also shows herdr in a terminal window. A second after you switch to another window, this tab only watches the pane, so herdr's window keeps the pane at its own size instead of this window's. Click the tab to type again. While it watches, the pane is drawn at herdr's size and may not fill this window.": "이 PC의 터미널 창에서도 herdr를 띄워 쓴다면 켜세요. 다른 창으로 옮기고 1초가 지나면 이 탭은 패널을 보기만 해서, herdr 창이 패널을 이 창 크기가 아닌 자기 크기로 유지합니다. 다시 입력하려면 탭을 클릭하세요. 보는 동안 패널은 herdr 크기로 그려져 이 창을 다 채우지 않을 수 있습니다.",
-  "terminal ended": "터미널 종료됨",
   "{m}m": "{m}분",
   "{h}h {m}m": "{h}시간 {m}분",
 
@@ -710,11 +706,6 @@ export const KO: Record<string, string> = {
   "Off": "끄기",
   "Long turns": "긴 작업",
   "Every turn": "매번",
-  "In the app": "앱 안에서",
-  "While the app is open, these drop in from the top of the screen at once. Tap one to open its pane.": "앱을 열어 둔 동안에는 화면 위에서 바로 내려옵니다. 누르면 그 패널을 엽니다.",
-  "Sound": "소리",
-  "While a tab of the app is open, it chimes for these alerts, also when a Focus or Do Not Disturb silences notifications.": "앱 탭을 열어 둔 동안에는 이 알림마다 소리를 냅니다. 집중 모드나 방해 금지 모드로 알림이 꺼져 있어도 들립니다.",
-  "Open pane": "패널 열기",
   "Restore defaults": "기본값으로 되돌리기",
   "Type for the terminal…": "터미널에 보낼 내용…",
   "Terminal input line": "터미널 입력줄",

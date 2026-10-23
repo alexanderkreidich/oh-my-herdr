@@ -244,9 +244,6 @@ export const JA: Record<string, string> = {
   "Alerts off on this device. Tap to turn them on": "このデバイスでは通知がオフです。タップするとオンになります",
   "On in this tab": "このタブでオン",
   "Alerts on while this tab is open. Tap to turn them off": "このタブを開いている間は通知が届きます。タップするとオフになります",
-  "On in the app": "アプリ内でオン",
-  "Alerts on in the app. Tap to allow them when it is closed too": "アプリ内の通知はオンです。タップすると、アプリを閉じてるときにも許可できます",
-  "Alerts on in the app. Tap to turn them off": "アプリ内の通知はオンです。タップするとオフになります",
   "Alerts on while this tab is open (closed-app alerts need https, and on iPhone the home-screen app). Tap to turn them off": "このタブを開いている間は通知が届きます (アプリを閉じた後の通知には https が必要で、iPhone ではホーム画面のアプリである必要があります)。タップするとオフになります",
 
   // ---- sidebar ----
@@ -575,7 +572,6 @@ export const JA: Record<string, string> = {
   "A program in a pane that copies (vim, tmux, Claude Code) puts its text on this device's clipboard, as a copy you made yourself would. Turn it off if a pane runs output you do not trust: it could replace what you paste next.": "ペインでコピーするプログラム（vim、tmux、Claude Code）は、自分でコピーしたときと同じようにこのデバイスのクリップボードにテキストを入れます。信頼できない出力を実行するペインがある場合はオフにしてください。次に貼り付ける内容が置き換えられることがあります。",
   "Use alongside herdr's own window": "ターミナルの herdr と併用",
   "Turn this on if this PC also shows herdr in a terminal window. A second after you switch to another window, this tab only watches the pane, so herdr's window keeps the pane at its own size instead of this window's. Click the tab to type again. While it watches, the pane is drawn at herdr's size and may not fill this window.": "この PC のターミナルウィンドウでも herdr を使うならオンにします。別のウィンドウに切り替えて 1 秒たつと、このタブはペインを表示するだけになり、herdr のウィンドウはペインをこのウィンドウではなく自分のサイズのまま保ちます。入力するにはタブをクリックしてください。表示中のペインは herdr のサイズで描かれるため、このウィンドウを埋めないことがあります。",
-  "terminal ended": "ターミナルが終了しました",
   "{m}m": "{m}分",
   "{h}h {m}m": "{h}時間 {m}分",
 
@@ -712,11 +708,6 @@ export const JA: Record<string, string> = {
   "Off": "オフ",
   "Long turns": "長いターン",
   "Every turn": "毎ターン",
-  "In the app": "アプリ内",
-  "While the app is open, these drop in from the top of the screen at once. Tap one to open its pane.": "アプリを開いている間は、画面の上からすぐに表示されます。タップするとそのペインを開きます。",
-  "Sound": "サウンド",
-  "While a tab of the app is open, it chimes for these alerts, also when a Focus or Do Not Disturb silences notifications.": "アプリのタブを開いている間は、これらの通知ごとに音を鳴らします。集中モードやおやすみモードで通知が消音されていても聞こえます。",
-  "Open pane": "ペインを開く",
   "Restore defaults": "デフォルトに戻す",
   "Type for the terminal…": "ターミナルへの入力…",
   "Terminal input line": "ターミナル入力行",

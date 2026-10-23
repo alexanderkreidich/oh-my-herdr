@@ -246,9 +246,6 @@ export const ZH: Record<string, string> = {
   "Alerts off on this device. Tap to turn them on": "此设备上的提醒已关闭。点按可开启",
   "On in this tab": "在此标签页开启",
   "Alerts on while this tab is open. Tap to turn them off": "此标签页打开期间会收到提醒。点按可关闭",
-  "On in the app": "在应用内开启",
-  "Alerts on in the app. Tap to allow them when it is closed too": "应用内提醒已开启。点按可允许在应用关闭时也收到提醒",
-  "Alerts on in the app. Tap to turn them off": "应用内提醒已开启。点按可关闭",
   "Alerts on while this tab is open (closed-app alerts need https, and on iPhone the home-screen app). Tap to turn them off": "此标签页打开期间会收到提醒（关闭应用后的提醒需要 https，在 iPhone 上还需使用主屏幕应用）。点按可关闭",
 
   // ---- sidebar ----
@@ -577,7 +574,6 @@ export const ZH: Record<string, string> = {
   "A program in a pane that copies (vim, tmux, Claude Code) puts its text on this device's clipboard, as a copy you made yourself would. Turn it off if a pane runs output you do not trust: it could replace what you paste next.": "窗格中执行复制的程序（vim、tmux、Claude Code）会像你自己复制一样把文本写入此设备的剪贴板。如果窗格运行你不信任的输出，请关闭它：它可能替换你下次粘贴的内容。",
   "Use alongside herdr's own window": "与终端里的 herdr 一起使用",
   "Turn this on if this PC also shows herdr in a terminal window. A second after you switch to another window, this tab only watches the pane, so herdr's window keeps the pane at its own size instead of this window's. Click the tab to type again. While it watches, the pane is drawn at herdr's size and may not fill this window.": "如果这台电脑的终端窗口里也开着 herdr，请打开此项。切换到其他窗口一秒后，此标签页只查看窗格，herdr 窗口会按自己的尺寸而不是此窗口的尺寸保留窗格。点击标签页即可再次输入。查看期间窗格按 herdr 的尺寸绘制，可能不会填满此窗口。",
-  "terminal ended": "终端已结束",
   "{m}m": "{m} 分钟",
   "{h}h {m}m": "{h} 小时 {m} 分",
 
@@ -714,11 +710,6 @@ export const ZH: Record<string, string> = {
   "Off": "关闭",
   "Long turns": "长任务",
   "Every turn": "每一轮",
-  "In the app": "应用内",
-  "While the app is open, these drop in from the top of the screen at once. Tap one to open its pane.": "应用打开时，这些提醒会立即从屏幕顶部落下。点按即可打开对应的窗格。",
-  "Sound": "声音",
-  "While a tab of the app is open, it chimes for these alerts, also when a Focus or Do Not Disturb silences notifications.": "应用的标签页打开时，每条提醒都会响起提示音。即使专注模式或勿扰模式让通知静音，也能听到。",
-  "Open pane": "打开窗格",
   "Restore defaults": "恢复默认值",
   "Type for the terminal…": "输入要发送到终端的内容…",
   "Terminal input line": "终端输入行",

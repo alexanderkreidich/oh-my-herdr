@@ -100,14 +100,6 @@ Only tokens overridden by `[data-theme="light"]` have a light value. Both column
 | Syntax/type | `--syntax-type` | `#6cb8d6` | `#155a72` |
 | Syntax/variable | `--syntax-variable` | `#e0c08f` | `#7a5418` |
 | Syntax/meta | `--syntax-meta` | `#b49dd6` | `#5d4791` |
-| Alert/background | `--droplet-bg` | `#000` | `#000` |
-| Alert/text | `--droplet-text` | `#f5f5f7` | `#f5f5f7` |
-| Alert/dim text | `--droplet-text-dim` | `rgba(245, 245, 247, 0.62)` | `rgba(245, 245, 247, 0.62)` |
-| Alert/blocked | `--droplet-blocked` | `#ff8a80` | `#ff8a80` |
-| Alert/done | `--droplet-done` | `#9fd47a` | `#9fd47a` |
-| Alert/mark background | `--droplet-mark-bg` | `rgba(255, 255, 255, 0.1)` | `rgba(255, 255, 255, 0.1)` |
-| Alert/ring | `--droplet-ring` | `rgba(255, 255, 255, 0.1)` | `rgba(255, 255, 255, 0.1)` |
-| Alert/shadow | `--droplet-shadow` | `rgba(0, 0, 0, 0.35)` | `rgba(0, 0, 0, 0.35)` |
 
 ### Light terminal ANSI colours
 
@@ -666,23 +658,6 @@ Comfortable values are `:root`; the final column is the complete compact overrid
 | `--z-drawer` | `20` | Mobile drawer |
 | `--z-modal` | `30` | Dialog scrims |
 | `--z-palette` | `35` | Command palette scrim, over every scrim dialog (a `showModal()` dialog sits in the top layer above it) |
-| `--z-droplet` | `40` | In-app alert, over dialogs |
-
-### In-app alert
-
-One set for both themes: the card is island black wherever it shows. Values are generated in the
-Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
-
-| Token | Usage |
-|-------|-------|
-| `--droplet-bg` | Drop, anchor and card |
-| `--droplet-text` | Pane name |
-| `--droplet-text-dim` | Ended detail, blank mark |
-| `--droplet-blocked` | Needs-input detail and dot |
-| `--droplet-done` | Finished detail and dot |
-| `--droplet-mark-bg` | Agent mark disc |
-| `--droplet-ring` | Card hairline |
-| `--droplet-shadow` | Drop shadow under the liquid |
 
 ### Shell
 - `.app` is a full-viewport column: `.app-header` over `.app-body`; the body is sidebar plus
@@ -2064,19 +2039,6 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   `^C` → Control C, ⌫ → Backspace, Ctrl → Control, the arrows and page keys), translated with the
   UI; a cap that is a word (Tab, Enter, Home, End) is its own name.
 - The mobile drawer slides over a scrim. Closed visibility removes its controls from the tab order.
-
-### In-app alert
-- While the app is on screen, a pane that needs input, finishes a turn (by the device's Finished
-  choice) or ends drops a card from the top edge: a black drop falls from above the safe area,
-  spreads into the card, and its text shows. It hangs from `env(safe-area-inset-top)` only, so a
-  Dynamic Island, a notch and a desktop window take the same path; no device is guessed.
-- In the phone layout (768px and under) the card is one line, 44px high and as wide as its text
-  (340px at most): the pane's name, then what happened. A long name is cut short, what happened is
-  not, and the dot is left out. Wider than that it is the two-line card, 64px high.
-- One at a time; a newer one folds the current one away first. Tap opens the pane; a drag or flick
-  up puts it away; it leaves by itself 3.6s after its text shows, and waits while touched.
-- Not for the pane already open, and not while the app is hidden (system notifications cover that).
-- Reduced motion: it fades in and out where it rests, without falling or spreading.
 
 ### Token gate
 - A centered password card replaces the entire shell while authentication is required. It has a real

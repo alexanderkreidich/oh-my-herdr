@@ -64,7 +64,7 @@ function cacheControlFor(pathname: string): string {
  *   WebAssembly core (restty's libghostty-vt, bundled in the app's own script); it allows no
  *   JavaScript evaluation.
  * - `style-src 'self' 'unsafe-inline'`: inline style attributes are how measured layout
- *   reaches the DOM (AgentPicker, RowMenu, Droplet, UsageMeters), and KaTeX writes one on
+ *   reaches the DOM (AgentPicker, RowMenu, UsageMeters), and KaTeX writes one on
  *   every expression it cannot render. The terminal's box takes its measured size the same
  *   way. The unsafe part is styles, not script.
  * - `img-src 'self' data: blob:`: same-origin icons and pane images;

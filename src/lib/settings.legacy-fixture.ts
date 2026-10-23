@@ -20,6 +20,7 @@ const DICTATION_LANGUAGES = [
 type DictationLanguage = "auto" | (typeof DICTATION_LANGUAGES)[number];
 type Settings = Omit<CurrentSettings, "darkTheme" | "lightTheme" | "fileOpen" | "webLinks" | "showRemotePcs" | "claudeLaunchMode" | "codexLaunchMode" | "terminalLigatures" | "terminalRenderer" | "terminalThemeName" | "focusMode"> & {
   voiceInput: VoiceButton; voiceLanguage: DictationLanguage; voicePolishChat: boolean; voicePolishTerminal: boolean;
+  alertInApp: boolean; alertSound: boolean;
 };
 type Palette = "amber" | "charcoal" | "catppuccin";
 const PALETTES: readonly Palette[] = ["amber", "charcoal", "catppuccin"];
