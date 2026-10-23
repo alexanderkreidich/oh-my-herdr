@@ -35,12 +35,9 @@ export function servedRevision(directory: string, since = Date.now()): () => Pro
   };
 }
 
-/** What Settings says in the Mac app (desktop/, HERDR_WEB_DESKTOP=1): its bridge is part of the app, so an update is a new download. */
-export const DESKTOP_UPDATE_REASON = "The Mac app updates by download: get the new version from github.com/alexanderkreidich/t-rex/releases.";
-
 /** Only the managed entrypoint connects IPC; importing createServer in tests does not. */
 export function connectUpdater(): UpdateService {
-  let status = process.env["HERDR_WEB_DESKTOP"] === "1" ? { ...unmanagedUpdateStatus(), blocked_reason: DESKTOP_UPDATE_REASON } : unmanagedUpdateStatus();
+  let status = unmanagedUpdateStatus();
   let notes = noUpdateNotes();
   let installed = noInstalledNotes();
   const managed = Boolean(process.send) && process.env["HERDR_WEB_MANAGED"] === "1";

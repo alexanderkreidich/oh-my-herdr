@@ -1,129 +1,34 @@
 name: Release
-# The Mac app (desktop/) for Apple silicon and Intel, each packaged and then opened once as a
-# user would (desktop/scripts/smoke.ts). A vX.Y.Z tag publishes them as that GitHub release, with
-# its CHANGELOG.md section as the notes; a pull request that touches the app, or a manual run,
-# builds and checks them only. docs/desktop.md#releases says how to cut one.
+# A vX.Y.Z tag publishes that GitHub release, with its CHANGELOG.md section as the notes; GitHub
+# adds the source archives. The tag must name the version package.json and herdr-plugin.toml
+# carry. docs/development.md#releases says how to cut one.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
-  pull_request:
-    paths:
-      - 'desktop/**'
-      - 'scripts/build-remote-bundle.ts'
-      - '.github/workflows/release.yml'
-  workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  version:
-    name: Release version
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      version: ${{ steps.read.outputs.version }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: read
-        name: Read the version (and match a tag against it)
-        env:
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-        run: |
-          version=$(jq -r .version package.json)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          [ -n "$TAG" ] || exit 0
-          fail() { echo "::error::$1"; exit 1; }
-          [ "$TAG" = "v$version" ] || fail "Tag $TAG does not name package.json's version $version"
-          grep -qx "version = \"$version\"" herdr-plugin.toml || fail "herdr-plugin.toml does not carry version $version"
-          grep -q "^## \[$version\]" CHANGELOG.md || fail "CHANGELOG.md has no ## [$version] section to publish as the notes"
-  mac:
-    name: Mac app (${{ matrix.arch }})
-    needs: version
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            arch: arm64
-          - os: macos-15-intel
-            arch: x64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      # electron-builder runs on Node
-      - uses: ./.github/actions/setup-ci
-        with:
-          node: 'true'
-      - run: bun install --frozen-lockfile
-      - name: Install the app's tools (the Electron it packages is fetched for the target)
-        working-directory: desktop
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: bun install --frozen-lockfile
-      - run: bun run typecheck && bun run build
-      - name: Check the app
-        working-directory: desktop
-        run: bun run typecheck && bun test src && bun run build
-      - name: Stage the bridge with the root's production dependencies only
-        run: |
-          rm -rf node_modules
-          bun install --frozen-lockfile --production
-          bun run --cwd desktop bridge
-      - name: Package
-        working-directory: desktop
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: ./node_modules/.bin/electron-builder --mac --${{ matrix.arch }} --publish never -c.extraMetadata.version="$VERSION"
-      - name: Open the packaged app
-        working-directory: desktop
-        run: bun scripts/smoke.ts dist/mac*/T-Rex.app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: mac-${{ matrix.arch }}
-          path: |
-            desktop/dist/*.dmg
-            desktop/dist/*.zip
-          if-no-files-found: error
   publish:
     name: Publish the release
-    if: github.ref_type == 'tag'
-    needs: [version, mac]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: mac-*
-          path: release
-          merge-multiple: true
-      - name: Notes and checksums
+      - name: Match the tag against the version and take its notes
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ github.ref_name }}
         run: |
-          awk -v head="## [$VERSION]" 'index($0, head) == 1 { found = 1; next } found && /^## \[/ { exit } found' CHANGELOG.md > notes.md
-          cat >> notes.md <<EOF
-
-          ### Install on a Mac
-
-          Download \`t-rex-$VERSION-arm64.dmg\` for Apple silicon or \`t-rex-$VERSION-x64.dmg\` for an Intel Mac and drag T-Rex to Applications. The app is not signed with an Apple Developer ID yet, so macOS refuses to open it until its download mark is cleared once:
-
-          \`\`\`sh
-          xattr -dr com.apple.quarantine /Applications/T-Rex.app
-          \`\`\`
-
-          T-Rex uses the herdr installed on the Mac, or the one it carries when there is none. Installed herdr plugins update to this release from Settings.
-          EOF
-          (cd release && shasum -a 256 -- * > SHA256SUMS.txt)
+          version=$(jq -r .version package.json)
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$TAG" = "v$version" ] || fail "Tag $TAG does not name package.json's version $version"
+          grep -qx "version = \"$version\"" herdr-plugin.toml || fail "herdr-plugin.toml does not carry version $version"
+          awk -v head="## [$version]" 'index($0, head) == 1 { found = 1; next } found && /^## \[/ { exit } found' CHANGELOG.md > notes.md
+          grep -q '[^[:space:]]' notes.md || fail "CHANGELOG.md has no ## [$version] section to publish as the notes"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-          VERSION: ${{ needs.version.outputs.version }}
-        run: gh release create "$TAG" release/* --verify-tag --title "T-Rex $VERSION" --notes-file notes.md
+        run: gh release create "$TAG" --verify-tag --title "T-Rex ${TAG#v}" --notes-file notes.md
