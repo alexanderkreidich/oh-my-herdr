@@ -1453,7 +1453,7 @@ export function App() {
                   <div id={slotPanelId} className="terminal-tabpanel" role={slotPanelLabel === null ? undefined : "tabpanel"} aria-label={slotPanelLabel ?? undefined}>
                   <PaneCanvas key={machineId} snapshot={slotSnapshot} pane={pane} selectedPaneId={paneId} onSelect={onSelect} onChanged={actions.refresh} actionsRef={active ? paneActionsRef : undefined}
                     onOpenInHalf={wideScreen ? (id, side) => dockSide({ machineId, paneId: id }, side) : undefined}
-                    renderPane={(item, itemActive, herdrSplit) => <PaneTerminal
+                    renderPane={(item, itemActive) => <PaneTerminal
                         presentationKey={paneContentKey(machine, item)}
                         title={item ? displayPaneTitle(item) : active ? selectedTitle : null}
                         // Wait for the roster before attaching: the loading placeholder is replaced
@@ -1472,7 +1472,6 @@ export function App() {
                         autoSelected={active ? autoSelected : true}
                         focusRequest={focusRequest}
                         terminalFontSize={settings.terminalFontSize}
-                        split={herdrSplit || splitOn}
                         terminalWheelSpeed={settings.terminalWheelSpeed}
                         terminalFontFamily={settings.terminalFontFamily}
                         theme={resolvedEntry.mode}

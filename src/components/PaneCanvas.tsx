@@ -73,7 +73,7 @@ interface Props {
   selectedPaneId: string | null;
   onSelect: (paneId: string, focusInput?: boolean) => void;
   onChanged: () => void;
-  renderPane: (pane: HerdrPane | null, active: boolean, split: boolean) => ReactNode;
+  renderPane: (pane: HerdrPane | null, active: boolean) => ReactNode;
   /** filled with this canvas's pane actions on each render: a phone's tab menu offers them for the open pane (TabStrip) */
   actionsRef?: MutableRefObject<((target: HerdrPane) => RowMenuItem[]) | null>;
   /** where the split view can be drawn: a pane opened in a half of it, from its menu or by dragging its title (lib/split.ts) */
@@ -472,7 +472,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   // layout as it is; the tab's menu lists the other panes (TabStrip).
   // a phone's hidden siblings take the whole canvas too, so each keeps the grid it is shown with
   return <PaneSubmitContext.Provider value={submits}><div className={`pane-canvas${!pane && presented ? " is-pending" : ""}${sortable ? " is-sortable" : ""}${sort ? " is-sorting" : ""}`} ref={canvas} aria-busy={!pane && presented ? true : undefined}>
-    {cells.length === 0 && renderPane(pane, true, false)}
+    {cells.length === 0 && renderPane(pane, true)}
     {mountedCells.map((cell) => {
       const item = snapshot?.panes.find((item) => item.pane_id === cell.paneId);
       if (!item) return null;
@@ -556,7 +556,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
           <button type="button" className="icon-button pane-frame-menu" aria-label={t("Pane actions for {name}", { name: displayPaneTitle(item) })}
             onClick={(event) => showMenu(item, event.currentTarget)}><Ellipsis aria-hidden="true" /></button>
         </div>
-        <div className="pane-frame-body"><PaneCachedContext.Provider value={cell.cached && !cell.retained}><PanePresentedContext.Provider value={!offTab}><PaneShownContext.Provider value={!hidden}>{renderPane(item, active, alone === null && cells.length > 1)}</PaneShownContext.Provider></PanePresentedContext.Provider></PaneCachedContext.Provider></div>
+        <div className="pane-frame-body"><PaneCachedContext.Provider value={cell.cached && !cell.retained}><PanePresentedContext.Provider value={!offTab}><PaneShownContext.Provider value={!hidden}>{renderPane(item, active)}</PaneShownContext.Provider></PanePresentedContext.Provider></PaneCachedContext.Provider></div>
       </section>;
     })}
     {alone === null && layout?.splits.map((item) => {
