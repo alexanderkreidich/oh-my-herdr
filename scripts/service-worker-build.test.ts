@@ -33,7 +33,7 @@ describe("service worker build stamp", () => {
 
   it("lists the build's own files the page asks for, without typefaces or precompressed copies", () => {
     const files = buildFiles(["assets/katex-b2.js", "assets/index-a1.js", "assets/index-a1.css", "assets/index-a1.js.br", "assets/index-a1.js.gz",
-      "assets/PretendardVariable.subset.40-abc.woff2", "assets/KaTeX_Main-Regular-x.woff", "assets/KaTeX_Main-Regular-x.ttf", "index.html", "sw.js"]);
+      "assets/PretendardVariable.subset.40-abc.woff2", "assets/KaTeX_Main-Regular-x.woff", "assets/KaTeX_Main-Regular-x.ttf", "assets/NotoSansCJK-Regular-x.ttc", "index.html", "sw.js"]);
     expect(files).toEqual(["/assets/index-a1.css", "/assets/index-a1.js", "/assets/katex-b2.js"]);
     const stamped = stampServiceWorker(source, "0123456789ab", files);
     expect(stamped).toContain(`const BUILD_FILES = ${JSON.stringify(files)};`);
