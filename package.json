@@ -35,7 +35,7 @@
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "restty": "github:alexanderkreidich/restty#8749072475e16469ddb9ca5ba3db8f9afc8d9f9e",
+    "restty": "github:alexanderkreidich/restty#f4f1556c2702815a469fdeb1e1b239881faea2a0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
