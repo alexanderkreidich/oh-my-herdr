@@ -1102,7 +1102,7 @@ Comfortable values are `:root`; the final column is the complete compact overrid
 - Rows use only shared theme tokens in dark and light. Touch keeps row menus and folds visible,
   with `--touch-target` controls, and draws no hover fill; reduced motion removes row transitions
   and keeps the working dot's breath (opacity only).
-- Footer holds the contextual **Install app** action and Settings, its gear alone (named
+- Footer holds Settings, its gear alone (named
   **Settings** to screen readers and in its tooltip), as rows on the same grid with no rule above.
   It carries no product name or version: the running versions are read in Settings.
 

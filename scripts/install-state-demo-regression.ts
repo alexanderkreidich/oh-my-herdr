@@ -7,7 +7,7 @@ import { manifestBody } from "../server/static.ts";
 import { buildDemoApp } from "./demo-build.ts";
 import { openSettingsPage } from "./settings-page.ts";
 
-// The sidebar's "Install app" against a real install: the unmodified app over the demo's fixture
+// Settings → Phone & devices → Install against a real install: the unmodified app over the demo's fixture
 // transport, served at the ROOT of a loopback origin so the manifest's id, start_url and scope "/"
 // are this app, installed with the browser's own PWA domain (CDP). The browser runs on a profile,
 // HOME and XDG data dir of its own, so the install's OS integration (desktop entries, icons) lands
@@ -25,7 +25,13 @@ const newRealDesktopEntries = (): string[] => existsSync(realApplications)
   ? readdirSync(realApplications).filter((name) => /^chrome-.*\.desktop$/.test(name) && statSync(join(realApplications, name)).mtimeMs >= started)
   : [];
 
-const installButton = (page: Page) => page.locator(".sidebar-footer-action").filter({ hasText: "Install app" });
+/** Settings → Phone & devices → Install: the place the app offers its install, and says it is installed. */
+const installRow = async (page: Page) => {
+  if (!(await page.locator(".settings-dialog").isVisible())) await page.keyboard.press("ControlOrMeta+Shift+Comma");
+  await openSettingsPage(page, "Phone & devices");
+  return page.locator(".settings-row").filter({ has: page.locator(".settings-label", { hasText: /^Install$/ }) });
+};
+const installed = (page: Page) => page.locator(".settings-row .settings-description", { hasText: /^Installed$/ });
 const ready = async (page: Page): Promise<void> => {
   await page.locator(".conn-live").waitFor({ state: "attached" });
   await page.locator(".sidebar-footer").waitFor();
@@ -93,23 +99,16 @@ try {
       await send(cdp, "PWA.uninstall", { manifestId });
       console.log(`PASS spike: PWA.install and PWA.uninstall accepted in ${headless ? "headless" : "headed"} Chromium ${browser.version()}`);
 
-      // (a) before the install, a tab offers Install app
+      // (a) before the install, without a prompt: Install says how to install, with no button
       const tab = watch(context.pages()[0] ?? await context.newPage());
       await tab.goto(manifestId);
       await ready(tab);
-      await installButton(tab).waitFor();
       assert.equal(await relatedApps(tab), 0, "nothing is installed yet");
-      console.log("PASS (a) before install, a tab shows Install app");
-
-      // (a1) no prompt: the click shows the help instead
-      await installButton(tab).click();
-      const help = tab.locator(".sidebar-install-help");
-      await help.waitFor();
-      assert.equal(await help.getAttribute("role"), "status");
-      assert.notEqual((await help.textContent())?.trim() ?? "", "", "the help says how to install");
-      assert.equal(await installButton(tab).getAttribute("aria-expanded"), "true");
-      assert.equal(await tab.evaluate(() => (window as unknown as { __prompts?: number }).__prompts), undefined, "no prompt was attempted");
-      console.log("PASS (a1) without a prompt, Install app shows the help text");
+      const row = await installRow(tab);
+      const help = (await row.locator(".settings-description").textContent())?.trim() ?? "";
+      assert.ok(help !== "" && help !== "Installed", "the help says how to install");
+      assert.equal(await row.getByRole("button", { name: "Install app" }).count(), 0, "no prompt, no button");
+      console.log("PASS (a) before install, without a prompt, Settings > Install shows how to install");
 
       // (a2) a prompt: the click shows it, once, and no help
       const prompted = watch(await context.newPage());
@@ -122,13 +121,14 @@ try {
         });
         window.dispatchEvent(event);
       });
-      await installButton(prompted).click();
+      const promptedRow = await installRow(prompted);
+      assert.equal(await promptedRow.locator(".settings-description").count(), 0, "a prompt shows no help text");
+      await promptedRow.getByRole("button", { name: "Install app" }).click();
       await prompted.waitForFunction(() => (window as unknown as { __prompts?: number }).__prompts === 1);
-      assert.equal(await prompted.locator(".sidebar-install-help").count(), 0, "a prompt shows no help text");
-      console.log("PASS (a2) with a prompt, Install app calls prompt() exactly once and shows no help");
+      console.log("PASS (a2) with a prompt, Install app shows no help and calls prompt() exactly once");
       await prompted.close();
 
-      // (b) installed and launched in its own window: no Install app, Settings says Installed.
+      // (b) installed and launched in its own window: Settings says Installed.
       // An install through CDP opens in a tab by default; the user setting makes it a window.
       await send(cdp, "PWA.install", { manifestId, installUrlOrBundleUrl: manifestId });
       await send(cdp, "PWA.changeAppUserSettings", { manifestId, displayMode: "standalone" });
@@ -136,13 +136,9 @@ try {
       assert.equal(new URL(appWindow.url()).origin, origin);
       await ready(appWindow);
       assert.equal(await appWindow.evaluate(() => matchMedia("(display-mode: standalone)").matches), true, "the app runs in a standalone window");
-      assert.equal(await installButton(appWindow).count(), 0, "the app window shows no Install app");
-      await appWindow.keyboard.press("ControlOrMeta+Shift+Comma");
-      await openSettingsPage(appWindow, "Phone & devices");
-      const installRow = appWindow.locator(".settings-row").filter({ has: appWindow.locator(".settings-label", { hasText: /^Install$/ }) });
-      assert.equal(await installRow.locator(".settings-description").textContent(), "Installed");
+      assert.equal(await (await installRow(appWindow)).locator(".settings-description").textContent(), "Installed");
       await shot(appWindow, "app-window");
-      console.log("PASS (b) the installed app window: display-mode standalone, no Install app, Settings > Install says Installed");
+      console.log("PASS (b) the installed app window: display-mode standalone, Settings > Install says Installed");
 
       // (c) a normal tab of the same origin knows the app is installed (related_applications)
       const related = watch(await nextPage(context, () => send(cdp, "Target.createTarget", { url: manifestId })));
@@ -150,19 +146,21 @@ try {
       assert.equal(await related.evaluate(() => matchMedia("(display-mode: browser)").matches), true, "this is a browser tab, not the app window");
       const linked = await related.evaluate(async () => (await (await fetch(document.querySelector<HTMLLinkElement>("link[rel=manifest]")!.href)).json()) as { related_applications?: unknown });
       assert.equal(await relatedApps(related), 1, `(c) getInstalledRelatedApps() finds the installed app; the served related_applications: ${JSON.stringify(linked.related_applications)}`);
-      try { await installButton(related).waitFor({ state: "detached", timeout: 10_000 }); }
-      catch (error) { throw new Error("(c) the tab of the installed app still shows Install app", { cause: error }); }
+      await installRow(related);
+      try { await installed(related).waitFor({ timeout: 10_000 }); }
+      catch (error) { throw new Error("(c) the tab of the installed app does not say Installed", { cause: error }); }
       await shot(related, "tab");
-      console.log("PASS (c) a tab of the installed origin: getInstalledRelatedApps() has 1 entry, no Install app");
+      console.log("PASS (c) a tab of the installed origin: getInstalledRelatedApps() has 1 entry, Settings > Install says Installed");
 
-      // (d) after the uninstall a NEW tab offers Install app again (installedByEvent is per page)
+      // (d) after the uninstall a NEW tab no longer says Installed (installedByEvent is per page)
       await send(cdp, "PWA.uninstall", { manifestId });
       const after = watch(await context.newPage());
       await after.goto(manifestId);
       await ready(after);
       assert.equal(await relatedApps(after), 0, "nothing is installed after the uninstall");
-      await installButton(after).waitFor();
-      console.log("PASS (d) after uninstall, a new tab shows Install app and getInstalledRelatedApps() is empty");
+      await installRow(after);
+      assert.equal(await installed(after).count(), 0, "a new tab after the uninstall does not say Installed");
+      console.log("PASS (d) after uninstall, a new tab does not say Installed and getInstalledRelatedApps() is empty");
       assert.deepEqual(errors, [], "no page error");
     } finally {
       await context.close();
