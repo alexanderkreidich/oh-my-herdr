@@ -78,7 +78,7 @@ export function AccessGate({ reason, initialCode, onUnlocked }: AccessGateProps)
   return (
     <main className="access-gate-screen">
       <div className="access-gate" data-testid="token-gate">
-        <img src="/icons/icon-192.png?v=rex1" alt="" width="44" height="44" className="access-gate-mark" />
+        <img src="/icons/icon-192.png?v=rex2" alt="" width="44" height="44" className="access-gate-mark" />
         <h1 id="access-gate-title" className="access-gate-title">T-Rex</h1>
         {reason === "other_user" && (
           <p className="access-gate-refused" role="status">{t("Tailscale says this device belongs to someone other than this PC's owner. The owner can still let it in with a pairing code.")}</p>

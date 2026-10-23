@@ -28,7 +28,7 @@
 // list: any file is copied forward, as before.
 // A retired cache's own shell keeps its entry script and stylesheet here too: a page that started
 // from that shell offline and has not asked for them yet still boots, then offers a reload.
-const CACHE_NAME = "t-rex-v5-rex";
+const CACHE_NAME = "t-rex-v6-rex2";
 const BUILD = "";
 const BUILD_FILES = null;
 const CACHE = BUILD ? `${CACHE_NAME}-${BUILD}` : CACHE_NAME;
@@ -211,9 +211,9 @@ self.addEventListener("push", (event) => {
         renotify: !watching,
         silent: watching,
         data: { pane_id: payload.pane_id || null, machine_id: payload.machine_id || "local", workspace_id: payload.workspace_id || null },
-        icon: "/icons/icon-192.png?v=rex1",
+        icon: "/icons/icon-192.png?v=rex2",
         // Android's status bar and small icon: white on transparent, or Chrome's bell
-        badge: "/icons/badge-96.png?v=rex1",
+        badge: "/icons/badge-96.png?v=rex2",
       });
     })(),
   );

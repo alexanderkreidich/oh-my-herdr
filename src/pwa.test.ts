@@ -33,7 +33,7 @@ describe("installed app", () => {
     const answers = serviceWorkerFetch();
     const get = (path: string) => ({ method: "GET", url: `https://app.test${path}`, mode: "no-cors" });
     expect(answers(get("/manifest.webmanifest"))).toBe(false);
-    expect(answers(get("/icons/icon-192.png?v=rex1"))).toBe(true);
+    expect(answers(get("/icons/icon-192.png?v=rex2"))).toBe(true);
     expect(answers(get("/assets/index-abc123.js"))).toBe(true);
   });
 });
@@ -343,7 +343,7 @@ describe("a service worker of a new build", () => {
     await first.update();
     expect(await first.navigate()).toBe("shell");
     await first.get(font);
-    await first.get("/icons/icon-192.png?v=rex1");
+    await first.get("/icons/icon-192.png?v=rex2");
     await first.get("/assets/index-a.js");
     const kept = Object.fromEntries(first.names().map((name) => [name, Object.fromEntries(first.entries(name).map((key) => [key, `kept ${key}`]))]));
     const next = serviceWorker(kept, stampServiceWorker(sw, "bbbbbbbbbbbb"));
@@ -352,7 +352,7 @@ describe("a service worker of a new build", () => {
     expect(await next.navigate()).toBe("new shell");
     next.network.online = false;
     expect(await next.get(font)).toBe(`kept ${font}`);
-    expect(await next.get("/icons/icon-192.png?v=rex1")).toBe("kept /icons/icon-192.png?v=rex1");
+    expect(await next.get("/icons/icon-192.png?v=rex2")).toBe("kept /icons/icon-192.png?v=rex2");
     expect(await next.get("/assets/index-a.js")).toBeNull();
   });
 
