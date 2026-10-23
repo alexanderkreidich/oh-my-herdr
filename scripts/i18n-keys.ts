@@ -67,6 +67,5 @@ export function labelMapKeys(root: string): string[] {
     ...grab("lib/shortcuts.ts", "SHORTCUTS", /label: "([^"]+)"/g),
     ...grab("lib/bridgeProgress.ts", "STAGES", /label: "([^"]+)"/g),
     ...grab("lib/updateProgress.ts", "STEPS", /label: "([^"]+)"/g),
-    ...grab("lib/usage.ts", "WINDOW_LABEL", value),
   ];
 }

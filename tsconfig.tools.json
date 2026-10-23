@@ -22,7 +22,6 @@
     "scripts/terminal-pinch-regression.ts",
     "scripts/terminal-viewport-regression.ts",
     "scripts/pane-find-regression.ts",
-    "scripts/cliproxy-settings-regression.ts",
     "scripts/ci-lanes.ts",
     "scripts/ci-tests.ts",
     "demo/transport.ts",

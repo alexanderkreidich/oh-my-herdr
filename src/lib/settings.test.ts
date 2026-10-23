@@ -324,18 +324,6 @@ describe("quick replies row", () => {
     expect(DEFAULT_SETTINGS.showQuickReplies).toBe(false);
     expect(sanitizeSettings({ showQuickReplies: true }).showQuickReplies).toBe(true);
     expect(sanitizeSettings({ showQuickReplies: "yes" }).showQuickReplies).toBe(false);
-    expect(DEFAULT_SETTINGS.showUsage).toBe(false);
-    expect(sanitizeSettings({ showUsage: true }).showUsage).toBe(true);
-    expect(sanitizeSettings({ showUsage: 1 }).showUsage).toBe(false);
-    expect(DEFAULT_SETTINGS.usageCount).toBe("left");
-    expect(sanitizeSettings({ usageCount: "used" }).usageCount).toBe("used");
-    expect(sanitizeSettings({ usageCount: "half" }).usageCount).toBe("left");
-    expect(DEFAULT_SETTINGS.usageGlance).toBe("session");
-    expect(sanitizeSettings({ usageGlance: "week" }).usageGlance).toBe("week");
-    expect(sanitizeSettings({ usageGlance: "nearest" }).usageGlance).toBe("session");
-    expect(sanitizeSettings({ usageOrder: ["codex:a", 3, "codex:a", "", "claude:b"] }).usageOrder).toEqual(["codex:a", "claude:b"]);
-    expect(sanitizeSettings({ usageHidden: Array.from({ length: 100 }, (_, index) => `k${index}`) }).usageHidden).toHaveLength(64);
-    expect(sanitizeSettings({ usageHidden: "codex:a" }).usageHidden).toEqual([]);
   });
 });
 

@@ -25,10 +25,6 @@ export type SidebarRows = "one" | "two";
 export type AgentOrder = "workspace" | "activity";
 /** how agent logos are drawn: in their brand colors, or without color: Claude's in the text color, the others in grey (data-marks on <html>) */
 export type AgentMarks = "color" | "mono";
-/** what the plan meters count: the share of a limit used, or what is left of it */
-export type UsageCount = "used" | "left";
-/** the limit a plan meter shows: the plan's week, or its short session (5 hours on Claude and Codex) */
-export type UsageGlance = "week" | "session";
 /** amber: the herdr look (the default before codex); charcoal: neutral Ghostty-style dark;
  *  catppuccin: Catppuccin Mocha in dark, Latte in light. A record naming a palette that was removed
  *  (report, lilac, forest) loads as amber. */
@@ -122,18 +118,10 @@ export interface Settings {
   quickReplies: string[];
   /** whether the quick replies show above the composer at all */
   showQuickReplies: boolean;
-  /** the plan meters beside Settings in the sidebar (GET /api/usage); off until chosen, as it sends this PC's sign-ins out */
-  showUsage: boolean;
   /** the remote PCs (SSH, saved in herdr) in the sidebar and its notices; off: the Host alone. Add PC turns it on */
   showRemotePcs: boolean;
-  usageCount: UsageCount;
-  usageGlance: UsageGlance;
   /** every pane's lens until switched in that pane; changing it puts every pane back on it */
   defaultView: DefaultView;
-  /** the plan meters' order by ProviderUsage.key; accounts not in it follow as the server lists them */
-  usageOrder: string[];
-  /** accounts left out of the plan meters, strip and popover alike, by ProviderUsage.key */
-  usageHidden: string[];
   /** the file viewer wraps long lines instead of scrolling sideways */
   wrapCode: boolean;
   /** the width of a Markdown preview: the chat's lane (--chat-w), centered, or the viewer's width */
@@ -165,8 +153,7 @@ export type DiffStyle = (typeof DIFF_STYLES)[number];
 export const SETTING_SCOPE = {
   theme: "shared", palette: "shared", darkTheme: "shared", lightTheme: "shared", language: "shared", sidebarRows: "shared", agentOrder: "shared",
   agentMarks: "shared", autoSendQueued: "shared", showThinking: "shared", quickReplies: "shared",
-  showQuickReplies: "shared", showUsage: "shared", showRemotePcs: "shared", usageCount: "shared",
-  usageGlance: "shared", usageOrder: "shared", usageHidden: "shared", defaultView: "device", suggestionChip: "device",
+  showQuickReplies: "shared", showRemotePcs: "shared", defaultView: "device", suggestionChip: "device",
   terminalInputMode: "device", keyBarExtras: "device", keyBarItems: "device", shortcutOverrides: "device", density: "device",
   terminalFontSize: "device",
   terminalWheelSpeed: "device", terminalFontFamily: "device", terminalLigatures: "device", terminalRenderer: "device", terminalThemeName: "device",
@@ -225,13 +212,8 @@ export const DEFAULT_SETTINGS: Settings = {
   alertDone: "long",
   quickReplies: ["continue", "yes", "no", "commit and push", "retry"],
   showQuickReplies: false,
-  showUsage: false,
   showRemotePcs: false,
-  usageCount: "left",
-  usageGlance: "session",
   defaultView: "auto",
-  usageOrder: [],
-  usageHidden: [],
   wrapCode: false,
   markdownWidth: "readable",
   diffStyle: "unified",
@@ -242,14 +224,6 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const QUICK_REPLIES_MAX = 12;
-/** accounts the usage order and hiding remember; more are a hand-edited record */
-export const USAGE_KEYS_MAX = 64;
-
-/** A list of usage keys: strings only, each once, bounded. */
-function usageKeys(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 512))].slice(0, USAGE_KEYS_MAX);
-}
 export const QUICK_REPLY_MAX_CHARS = 200;
 
 /** This device's alert choices, as the server keeps them with its push subscription. */
@@ -351,13 +325,8 @@ export function sanitizeSettings(raw: unknown): Settings {
       ? record["quickReplies"].filter((reply): reply is string => typeof reply === "string").slice(0, QUICK_REPLIES_MAX).map((reply) => reply.slice(0, QUICK_REPLY_MAX_CHARS))
       : [...DEFAULT_SETTINGS.quickReplies],
     showQuickReplies: typeof record["showQuickReplies"] === "boolean" ? record["showQuickReplies"] : DEFAULT_SETTINGS.showQuickReplies,
-    showUsage: typeof record["showUsage"] === "boolean" ? record["showUsage"] : DEFAULT_SETTINGS.showUsage,
     showRemotePcs: typeof record["showRemotePcs"] === "boolean" ? record["showRemotePcs"] : DEFAULT_SETTINGS.showRemotePcs,
-    usageCount: record["usageCount"] === "used" || record["usageCount"] === "left" ? record["usageCount"] : DEFAULT_SETTINGS.usageCount,
-    usageGlance: record["usageGlance"] === "week" || record["usageGlance"] === "session" ? record["usageGlance"] : DEFAULT_SETTINGS.usageGlance,
     defaultView: record["defaultView"] === "chat" || record["defaultView"] === "terminal" || record["defaultView"] === "auto" ? record["defaultView"] : DEFAULT_SETTINGS.defaultView,
-    usageOrder: usageKeys(record["usageOrder"]),
-    usageHidden: usageKeys(record["usageHidden"]),
     wrapCode: typeof record["wrapCode"] === "boolean" ? record["wrapCode"] : DEFAULT_SETTINGS.wrapCode,
     markdownWidth: MARKDOWN_WIDTHS.find((width) => width === record["markdownWidth"]) ?? DEFAULT_SETTINGS.markdownWidth,
     diffStyle: DIFF_STYLES.find((style) => style === record["diffStyle"]) ?? DEFAULT_SETTINGS.diffStyle,

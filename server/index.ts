@@ -23,10 +23,6 @@ import { type AlertTiming, defaultStateDir, handlePushRequest } from "./push.ts"
 import { attachableIdentity } from "./pty/sidecar.ts";
 import { connectUpdater, handleUpdateRequest, type UpdateService } from "./update-api.ts";
 import { handleHerdrUpdateRequest, HerdrUpdater } from "./herdr-update.ts";
-import { handleUsageRequest, UsageService } from "./usage.ts";
-import { CLIProxyService } from "./cliproxy.ts";
-import { CLIProxyRoutes } from "./cliproxy-routes.ts";
-import { UsageLoginService } from "./usage-login.ts";
 
 import { BRIDGE_PROTOCOL } from "../shared/machines.ts";
 import { bridgeIdentity, registerBridge } from "./bridge.ts";
@@ -111,12 +107,6 @@ export function createServer(
     updates?: UpdateService;
     /** updates herdr itself (server/herdr-update.ts); unset, the app offers no herdr update. Tests pass one that runs a stand-in herdr. */
     herdrUpdate?: HerdrUpdater;
-    /** plan limits of the AI subscriptions signed in here; tests pass one without real sign-ins */
-    usage?: UsageService;
-    /** Tests supply an isolated proxy service, never a user's configured instance. */
-    cliProxy?: CLIProxyService;
-    /** Tests use a disposable credential home and stand-in CLI binaries. */
-    usageLogin?: UsageLoginService;
     machines?: boolean;
     /** Read-only saved profiles from the local herdr client; tests supply their own catalog. */
     herdrProfiles?: () => Promise<HerdrMachineProfile[]>;
@@ -157,10 +147,6 @@ export function createServer(
   /** paired devices (server/devices.ts) and the PC's Tailscale login: the two ways in besides the token and this PC itself */
   const devices = new DeviceStore(options.stateDir ?? defaultStateDir());
   const preferences = new PreferenceStore(options.stateDir ?? defaultStateDir());
-  const cliProxy = options.cliProxy ?? new CLIProxyService(options.stateDir ?? defaultStateDir());
-  const cliProxyRoutes = new CLIProxyRoutes(cliProxy);
-  const usageLogin = options.usageLogin ?? new UsageLoginService();
-  const usage = options.usage ?? new UsageService(undefined, undefined, (refresh) => cliProxy.report(refresh));
   /** a login named here is taken as it is: a tagged node has none of its own to read (HERDR_WEB_TAILSCALE_OWNER) */
   const namedOwner = options.tailscaleOwner !== undefined ? options.tailscaleOwner : process.env["HERDR_WEB_TAILSCALE_OWNER"]?.trim() || undefined;
   const tailnet = options.tailnet ?? new TailnetIdentitySource();
@@ -170,7 +156,7 @@ export function createServer(
   };
   const serveOnly = options.tailscaleServeOnly ?? process.env["HERDR_WEB_TAILSCALE_SERVE_ONLY"] === "1";
 
-  const core = createCore({ options, devices, usage, usageLogin, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS });
+  const core = createCore({ options, devices, TYPED_SETTLE_MS, KEY_SETTLE_MS, SUBMIT_DEADLINE_MS, SUBMIT_DELAY_MS });
   const { sidecar, push, logPushError, clientSnapshot, machines, broadcastAll, collector } = core;
   // started after createCore's Node probe (server/pty/sidecar.ts), which can hold the thread up to 3 s: that wait
   // would count against the read's own 2.5 s limit, and a read cut short leaves the owner unknown for 5 minutes
@@ -326,9 +312,6 @@ export function createServer(
       // what every browser of this server shares; a watching device reads it and cannot change it (above)
       if (pathname === "/api/preferences") return handlePreferencesRequest(request, preferences);
 
-      if (pathname === "/api/usage") return handleUsageRequest(request, url, usage);
-      if (pathname === "/api/usage/login") { bunServer.timeout(request, 30); return usageLogin.handle(request, collector.trackPane); }
-      if (pathname === "/api/cliproxy" || pathname.startsWith("/api/cliproxy/")) { bunServer.timeout(request, 60); return cliProxyRoutes.handle(request); }
       // a long clip can keep the provider silent past Bun's 10 s idle limit before the first line
 
       if (pathname === "/api/push" || pathname.startsWith("/api/push/")) {

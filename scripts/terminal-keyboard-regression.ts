@@ -15,7 +15,6 @@ import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
 import { createServer } from "../server/index.ts";
 import { paneRead, tabCreate, workspaceClose, workspaceCreate } from "../server/herdr/client.ts";
-import { UsageService } from "../server/usage.ts";
 import { chromePath } from "./chrome-path.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "restty-terminal-keyboard-")));
@@ -24,7 +23,7 @@ mkdirSync(cwd);
 const a = await workspaceCreate({ cwd, label: "keyboard-a" });
 const b = await workspaceCreate({ cwd, label: "keyboard-b" });
 const b2 = await tabCreate({ workspaceId: b.workspace.workspace_id, cwd });
-const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state"), usage: new UsageService(undefined, []) });
+const server = createServer({ port: 0, hostname: "127.0.0.1", token: "", stateDir: join(root, "state") });
 const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox", "--accept-lang=en-US"] });
 
 async function until(check: () => Promise<boolean>, message: string): Promise<void> {

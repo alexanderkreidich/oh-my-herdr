@@ -30,7 +30,6 @@ if (!process.env["CHROME_PATH"] && existsSync(MAC_CHROME)) process.env["CHROME_P
 await import("./test-herdr.ts");
 const { herdrRpc, sessionSnapshot, tabCreate, workspaceClose, workspaceCreate } = await import("../server/herdr/client.ts");
 const { createServer } = await import("../server/index.ts");
-const { UsageService } = await import("../server/usage.ts");
 
 const repo = realpathSync(join(import.meta.dir, ".."));
 const SEED_LABEL = "t-rex";
@@ -55,7 +54,7 @@ async function seed(): Promise<void> {
 
 await seed();
 const port = flag("--shot") === undefined ? Number(process.env["SANDBOX_PORT"] ?? 7417) : 0;
-const server = createServer({ port, hostname: "127.0.0.1", token: "", stateDir: join(root, "push"), usage: new UsageService(undefined, []) });
+const server = createServer({ port, hostname: "127.0.0.1", token: "", stateDir: join(root, "push") });
 const origin = `http://127.0.0.1:${server.port}`;
 
 const shot = flag("--shot");
