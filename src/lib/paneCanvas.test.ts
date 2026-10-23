@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { layoutTopology, paneContextPress, soloPane, splitPath, splitRatioAt } from "./paneCanvas.ts";
+import { cardPlace, layoutTopology, paneContextPress, soloPane, splitPath, splitRatioAt, swappedCells, swapPending, type PaneSwap } from "./paneCanvas.ts";
 import type { PaneLayoutSnapshot } from "../../shared/protocol.ts";
 
 const layout: PaneLayoutSnapshot = {
@@ -53,5 +53,37 @@ describe("the pane a tab shows alone", () => {
     const zoomed = { ...layout, zoomed: true, focused_pane_id: "w1:p2" };
     expect(soloPane(zoomed, panes, "w1:p1", false)).toBe("w1:p2");
     expect(soloPane(zoomed, panes, "w1:p1", true)).toBe("w1:p2");
+  });
+});
+
+describe("pane cards", () => {
+  it("leaves half the gap on each side a card shares, and none at the canvas's edges", () => {
+    expect(cardPlace({ left: 0, top: 0, width: 100, height: 100 })).toEqual({ left: "0%", top: "0%", width: "100%", height: "100%" });
+    expect(cardPlace({ left: 0, top: 0, width: 50, height: 100 })).toEqual({
+      left: "0%", top: "0%", width: "calc(50% - 0.5 * var(--pane-gap, 0px))", height: "100%" });
+    expect(cardPlace({ left: 50, top: 50, width: 25, height: 50 })).toEqual({
+      left: "calc(50% + 0.5 * var(--pane-gap, 0px))", top: "calc(50% + 0.5 * var(--pane-gap, 0px))",
+      width: "calc(25% - 1 * var(--pane-gap, 0px))", height: "calc(50% - 0.5 * var(--pane-gap, 0px))" });
+  });
+
+  const left = { paneId: "w1:p1", focused: true, left: 0, top: 0, width: 50, height: 100 };
+  const right = { paneId: "w1:p2", focused: false, left: 50, top: 0, width: 50, height: 100 };
+  const swap: PaneSwap = { tabId: "w1:t1", a: "w1:p1", b: "w1:p2", cellA: left, cellB: right };
+
+  it("draws a dropped pair traded until herdr's layout has them so", () => {
+    expect(swappedCells([left, right], swap, "w1:t1")).toEqual([
+      { ...left, left: 50 }, { ...right, left: 0 },
+    ]);
+    // herdr swapped them: its own cells are drawn as they come, never traded twice
+    const answered = [{ ...left, left: 50 }, { ...right, left: 0 }];
+    expect(swapPending(answered, swap, "w1:t1")).toBe(false);
+    expect(swappedCells(answered, swap, "w1:t1")).toEqual(answered);
+  });
+
+  it("drops a swap the layout moved past, or one of another tab", () => {
+    expect(swapPending([{ ...left, width: 60 }, { ...right, left: 60, width: 40 }], swap, "w1:t1")).toBe(false);
+    expect(swapPending([left], swap, "w1:t1")).toBe(false);
+    expect(swapPending([left, right], swap, "w1:t2")).toBe(false);
+    expect(swapPending([left, right], null, "w1:t1")).toBe(false);
   });
 });

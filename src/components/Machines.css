@@ -535,3 +535,10 @@
 
 .machine-action.is-setup { border-color: var(--border); }
 .machine-action.is-setup .machine-action-text strong { color: var(--text); }
+
+/* From 769px the top row and the list stand on the window's recessed surface (styles.css) */
+@media (min-width: 769px) {
+  .pc-switch { --pc-switch-hover: color-mix(in srgb, var(--text) 5%, transparent); }
+  .pc-switch-attention { box-shadow: 0 0 0 calc(var(--hairline) * 2) var(--bg); }
+  .machine-list::after { background: linear-gradient(transparent, var(--bg)); }
+}

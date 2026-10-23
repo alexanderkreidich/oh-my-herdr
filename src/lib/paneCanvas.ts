@@ -54,3 +54,64 @@ export function splitRatioAt(split: PaneLayoutSplit, layout: PaneLayoutSnapshot,
   const extent = horizontal ? split.rect.width : split.rect.height;
   return Math.max(0.1, Math.min(0.9, (point - start) / Math.max(1, extent)));
 }
+
+/** A pane's place in percent of its tab's area (lib/layoutMap.ts `layoutCells`). */
+export interface PaneBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a pane's card is drawn: its cell, less half of `--pane-gap` on each side it shares with
+ * another card, so the cards stand apart by the gap and the canvas's edges stay flush.
+ */
+export function cardPlace(cell: PaneBox): { left: string; top: string; width: string; height: string } {
+  const start = (at: number): number => at > 0.01 ? 0.5 : 0;
+  const end = (at: number, size: number): number => at + size < 99.99 ? 0.5 : 0;
+  const left = start(cell.left);
+  const right = end(cell.left, cell.width);
+  const top = start(cell.top);
+  const bottom = end(cell.top, cell.height);
+  const place = (percent: number, gaps: number, sign: "+" | "-"): string =>
+    gaps === 0 ? `${percent}%` : `calc(${percent}% ${sign} ${gaps} * var(--pane-gap, 0px))`;
+  return {
+    left: place(cell.left, left, "+"),
+    top: place(cell.top, top, "+"),
+    width: place(cell.width, left + right, "-"),
+    height: place(cell.height, top + bottom, "-"),
+  };
+}
+
+/** Two panes of a tab dragged into each other's place, and the cells herdr's layout had them in. */
+export interface PaneSwap {
+  tabId: string;
+  a: string;
+  b: string;
+  cellA: PaneBox;
+  cellB: PaneBox;
+}
+
+const sameBox = (one: PaneBox, other: PaneBox): boolean =>
+  Math.abs(one.left - other.left) < 0.01 && Math.abs(one.top - other.top) < 0.01
+  && Math.abs(one.width - other.width) < 0.01 && Math.abs(one.height - other.height) < 0.01;
+
+/**
+ * Whether herdr's layout still has the swapped pair where the swap found them: until it says
+ * otherwise (it swapped them, or the layout moved on) the canvas draws the pair traded.
+ */
+export function swapPending(cells: readonly (PaneBox & { paneId: string })[], swap: PaneSwap | null, tabId: string | undefined): swap is PaneSwap {
+  if (!swap || swap.tabId !== tabId) return false;
+  const a = cells.find((cell) => cell.paneId === swap.a);
+  const b = cells.find((cell) => cell.paneId === swap.b);
+  return !!a && !!b && sameBox(a, swap.cellA) && sameBox(b, swap.cellB);
+}
+
+/** The cells with a pending swap's pair traded: what the canvas draws before herdr's answer arrives. */
+export function swappedCells<T extends PaneBox & { paneId: string }>(cells: readonly T[], swap: PaneSwap | null, tabId: string | undefined): T[] {
+  if (!swapPending(cells, swap, tabId)) return [...cells];
+  const box = ({ left, top, width, height }: PaneBox): PaneBox => ({ left, top, width, height });
+  return cells.map((cell) => cell.paneId === swap.a ? { ...cell, ...box(swap.cellB) }
+    : cell.paneId === swap.b ? { ...cell, ...box(swap.cellA) } : cell);
+}
