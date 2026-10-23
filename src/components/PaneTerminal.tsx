@@ -40,7 +40,6 @@ import { useMediaQuery } from "../lib/useMediaQuery.ts";
 import { useAnnouncedText } from "../lib/useAnnouncedText.ts";
 import { modalOpen } from "../lib/focus.ts";
 import { pinchFontSize } from "../lib/pinchFontSize.ts";
-import { narrowPaneFontSize } from "../lib/narrowPaneFont.ts";
 import { finalStep, HERDR_MOUSE_SCROLL_LINES, wheelSteps } from "../lib/wheelSteps.ts";
 import { attachTerminalWheel } from "../lib/terminalWheel.ts";
 import { SspView } from "../lib/ssp/view.ts";
@@ -99,8 +98,6 @@ export interface PaneTerminalProps {
   focusRequest?: number;
   /** the terminal's font size (settings) */
   terminalFontSize: number;
-  /** one of several panes drawn side by side: under 80 columns its font shrinks to reach them */
-  split?: boolean;
   /** mouse reports sent per wheel event (settings): 1 is the terminal's own one report */
   terminalWheelSpeed: number;
   /** fonts tried before the built-in stack (settings); "" keeps the built-in one */
@@ -136,7 +133,6 @@ export function PaneTerminal({
   autoSelected = false,
   focusRequest = 0,
   terminalFontSize,
-  split = false,
   terminalWheelSpeed,
   terminalFontFamily,
   theme,
@@ -193,7 +189,7 @@ export function PaneTerminal({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const pinchBadgeRef = useRef<HTMLSpanElement | null>(null);
   const pinchStatusRef = useRef<HTMLSpanElement | null>(null);
-  /** the user's font size (settings, or a pinch in progress); a narrow split pane may draw smaller */
+  /** the user's font size (settings, or a pinch in progress) */
   const baseFontRef = useRef(terminalFontSize);
   const stackRef = useRef<HTMLDivElement | null>(null);
   const pageScroll = useRef<((direction: -1 | 1) => void) | null>(null);
@@ -201,7 +197,7 @@ export function PaneTerminal({
   const termRef = useRef<ResttyTerminal | null>(null);
   /** the pane's screen as the bridge syncs it, drawn into the terminal with local echo on top (lib/ssp) */
   const viewRef = useRef<SspView | null>(null);
-  /** fits the grid to the mount (the narrow-pane font first): false while the cell is not measured yet */
+  /** fits the grid to the mount (the user's font size first): false while the cell is not measured yet */
   const fitRef = useRef<(() => boolean) | null>(null);
   const socketRef = useRef<HerdrSocket | null>(null);
   const paneRef = useRef<string | null>(paneId);
@@ -321,10 +317,6 @@ export function PaneTerminal({
   // Settings → Use alongside herdr's own window: off (the default), a tab out of use keeps its pane and its size
   const releaseAwayRef = useRef(settings.releasePaneAway);
   releaseAwayRef.current = settings.releasePaneAway;
-  const narrowFont = split;
-  const narrowFontRef = useRef(narrowFont);
-  narrowFontRef.current = narrowFont;
-  const narrowFontFitted = useRef(narrowFont);
   // every device starts typing straight into the grid; the input line is a choice (key bar or Settings)
   const directTyping = settings.terminalInputMode !== "line";
   const inputLine = !directTyping;
@@ -404,16 +396,12 @@ export function PaneTerminal({
       onData: (data) => onData(data),
       onKey: (event) => onKey(event),
     });
-    // Every fit first settles the font: a split pane under 80 columns draws smaller to reach
-    // them (btop refuses a narrower screen), and returns to the user's size once it is wide enough.
+    // Every fit first settles the font: the user's size, whether the pane is alone or split.
     const fitGrid = (): boolean => {
       // Every local fit (lens, font, resume or initial attach) shares this entry point.
       // A following half keeps the adopted PTY grid, even when its viewport changes.
       if (followRef.current) return true;
-      const base = baseFontRef.current;
-      // a grid this client does not drive gains no columns from a smaller font
-      term.setFontSize(narrowFontRef.current && !observeRef.current && !fixedGridRef.current
-        ? narrowPaneFontSize(base, (size) => term.proposeGrid(size)?.cols ?? null) : base);
+      term.setFontSize(baseFontRef.current);
       return term.fit();
     };
     let compositionEndTimer: number | null = null;
@@ -1216,8 +1204,6 @@ export function PaneTerminal({
         // reclaims it when the user comes back: the refit below)
         const nowObserving = message.mode === "observe";
         observeRef.current = nowObserving;
-        // no fit runs while observing: a font shrunk for this client's own grid would stay
-        if (nowObserving) term.setFontSize(baseFontRef.current);
         setObserving(nowObserving);
         term.inputDisabled = nowObserving || heldRef.current;
         onRoleAckRef.current?.(message.mode);
@@ -1233,11 +1219,7 @@ export function PaneTerminal({
         // observe clients adopt the pty's grid; interact clients drive it and ignore this,
         // unless the grid is fixed: then nobody here drives it
         if (message.pane_id !== paneRef.current) return;
-        if (message.fixed) {
-          fixedGridRef.current = true;
-          // nor while the grid is fixed (a mirrored pane): back to the user's size
-          term.setFontSize(baseFontRef.current);
-        }
+        if (message.fixed) fixedGridRef.current = true;
         // kept while this terminal ignores it: another device may drive the grid
         sharedGridRef.current = { cols: message.cols, rows: message.rows };
         if (!observeRef.current && !fixedGridRef.current && !followRef.current) {
@@ -2048,18 +2030,6 @@ export function PaneTerminal({
     return () => { superseded = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the family is fontKey's
   }, [terminalFontSize, fontKey]);
-
-  // the setting, a zoom or the last sibling closing need not resize the host: the observer may stay silent
-  useEffect(() => {
-    if (narrowFontFitted.current === narrowFont) return;
-    narrowFontFitted.current = narrowFont;
-    const term = termRef.current;
-    if (!term || observeRef.current || fixedGridRef.current || keyboardHoldsRef.current(false)) return;
-    fitRef.current?.();
-    fittedRef.current();
-    const pane = paneRef.current;
-    if (pane && sizesPty() && inUse()) socketRef.current?.resize(pane, term.cols, term.rows);
-  }, [narrowFont]);
 
   // the grid fits once it is laid out, right after the first attach
   useEffect(() => {

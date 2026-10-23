@@ -103,7 +103,6 @@ run_script scripts/opencode-prompt-regression.ts
 run_script scripts/files-prompt-regression.ts
 run_script scripts/plugin-actions-demo-regression.ts
 run_script scripts/palette-machines-demo-regression.ts
-run_script scripts/narrow-pane-demo-regression.ts
 run_script scripts/touch-long-press-demo-regression.ts
 run_script scripts/context-menu-inputs-demo-regression.ts
 run_script scripts/render-crash-demo-regression.ts

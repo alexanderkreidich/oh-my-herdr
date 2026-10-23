@@ -539,11 +539,8 @@ The values are the ones in `src/styles.css`. Every token but `--fs-input` is `ca
   Cancellation restores the starting size. The badge is hidden from assistive tech; a polite live
   region says "Terminal text size {px} px" once, when a pinch ends at a new size, and says nothing
   for a cancelled pinch.
-- A split pane that would have fewer than 80 columns at that size draws in the largest smaller
-  whole-pixel size that gives it 80, never below `10px`. A pane alone in its tab or zoomed, a pane that `10px` cannot bring
-  to 80 columns, and a pane this browser only watches or mirrors keep the user's size. The saved
-  size never changes for this; in such a pane a pinch still saves the size it shows, and the pane
-  draws it once it has the room.
+- Every pane draws at that size, alone or split: a split pane narrower than 80 columns keeps it, and
+  a program that needs 80 (btop) gets them from a zoom, a wider split or a smaller size in Settings.
 - Interface font size (`uiFontSize`): the body size (`--fs-md`) in px, `11–20px`, `null` follows the
   density (`14px` comfortable, `13px` compact); it reaches CSS as `--ui-scale` (above). The chat follows
   it until it has a size of its own; the terminal keeps its own size.
