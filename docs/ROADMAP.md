@@ -62,8 +62,7 @@ The visible UI shrinks to a workspace list, one top bar of pill tabs and the ter
 - [ ] Focus mode follow-ups: the bridge says which shells run a command (`pane.process_info`), so
       a shell at work does not read as idle; tab rows reorder by drag.
 - [ ] Follow-ups: the split view's halves still draw their own strip rows under an empty bar;
-      the sidebar's top zone in the bar snaps while the sidebar slides; Install app in the
-      sidebar footer is a candidate for removal (Phase 3).
+      the sidebar's top zone in the bar snaps while the sidebar slides.
 
 Done when: desktop (1440×900) and phone (390×844) screenshots in both themes show only the
 workspace list, the tab bar and the terminal; `bun run check fast` is green;
@@ -90,6 +89,9 @@ docs, so the tree is as small as the product.
       (22 of its scripts are gone, most others assume the chat, the More menu, the lens switch or
       the agent list). Keep a script only if it passes against this UI; delete the rest, and the
       demo-only scripts with them. `docs/development.md` loses the deleted scripts in the same PR.
+      Done so far: the scripts for removed UI are gone; `ui-regression.ts` (with its folder
+      filter), the split view, mobile tabs and the render crash probe still reach kept UI through
+      removed paths and are next.
 - [ ] GJC's transcript lookup keeps a `purpose: "chat"` branch only status no longer takes;
       collapsing it touches the SDK timeouts and failure cache, so it is its own slice.
 
@@ -115,8 +117,12 @@ lists the bundle size and line count before and after.
       Supported agents and Features sections describe it).
 - [ ] CI: one GitHub Actions workflow running `bun run check fast` on PRs; the self-hosted-runner
       setup goes.
-- [ ] Decide, one by one, what else leaves (each a small PR or a "keep" note here): usage meters
-      and CLIProxy, voice input, Portal, in-app alerts (Droplet), the sidebar's Install app button.
+- [x] What else leaves: the plan meters and CLIProxy hub, voice input, Portal, in-app alerts
+      (Droplet) and the alert sound, the sidebar's Install app button (Settings keeps Install),
+      Markdown with KaTeX, Mermaid and highlighting (the update notes draw their changelog
+      section directly), the recorded agent fixtures and the browser scripts for removed UI.
+- [x] Kept: the agent integrations that read pane status (OmO, GJC, Claude's subagents and store,
+      background waits), push alerts, remote PCs and the ko/ja/zh translations.
 
 ## Phase 4 — restty terminal
 
