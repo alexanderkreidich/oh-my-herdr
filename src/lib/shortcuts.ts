@@ -12,15 +12,17 @@ export const SHORTCUTS = [
   { id: "focus-input", label: "Focus pane input", keys: ["Mod", "Shift", "E"] },
   { id: "scroll-up", label: "Scroll pane up", keys: ["Mod", "Shift", "PageUp"] },
   { id: "scroll-down", label: "Scroll pane down", keys: ["Mod", "Shift", "PageDown"] },
-  { id: "toggle-sidebar", label: "Toggle sidebar", keys: ["Mod", "Shift", "B"] },
+  // Mod+B as in VS Code (Mod+Shift+B still toggles, unlisted)
+  { id: "toggle-sidebar", label: "Toggle sidebar", keys: ["Mod", "B"] },
   // the tabs move under their workspaces in the sidebar and the bar over the pane goes (App)
   { id: "focus-mode", label: "Toggle focus mode", keys: ["Mod", "Shift", "."] },
   // Mod+Shift+N keeps working where the browser lets it through (the installed app), but Chrome
   // keeps Ctrl+Shift+N for a new incognito window in a tab: O is the one shown, and works in both
   { id: "new-session", label: "New workspace", keys: ["Mod", "Shift", "O"] },
-  // no default key: the free Mod+Shift letters are few, so each person picks one in Settings
+  // New tab and Split pane down have no default key: the free Mod+Shift letters are few, so each
+  // person picks one in Settings. Split pane right is Mod+D, as in Ghostty and iTerm2 on a Mac
   { id: "new-tab", label: "New tab", keys: [] },
-  { id: "split-right", label: "Split pane right", keys: [] },
+  { id: "split-right", label: "Split pane right", keys: ["Mod", "D"] },
   { id: "split-down", label: "Split pane down", keys: [] },
   { id: "previous-pane", label: "Previous pane", keys: ["Mod", "Shift", "ArrowUp"] },
   { id: "next-pane", label: "Next pane", keys: ["Mod", "Shift", "ArrowDown"] },
@@ -56,16 +58,23 @@ const KEY_TO_ID: Readonly<Record<string, ShortcutId>> = {
 };
 
 /**
- * Defaults that are exact chords, not Mod+Shift+key: stored as overrides store them. Ctrl+F takes
- * the key from the terminal (readline's forward-char) on purpose; Settings can give it back.
+ * Defaults that are exact chords, not Mod+Shift+key: stored as overrides store them, with "mod+" for
+ * ⌘ on Apple platforms and Ctrl elsewhere. Ctrl+F takes the key from the terminal (readline's
+ * forward-char) on purpose, and off a Mac so do Ctrl+B and Ctrl+D (EOF); Settings can give them back.
  */
 const DEFAULT_CHORDS: Readonly<Partial<Record<ShortcutId, string>>> = {
   palette: "ctrl+f",
+  "toggle-sidebar": "mod+b",
+  "split-right": "mod+d",
 };
 
-export function shortcutKeys(id: ShortcutId, overrides: ShortcutOverrides): string[] {
+function defaultChord(id: ShortcutId, platformIsMac: boolean): string | null {
+  return DEFAULT_CHORDS[id]?.replace(/^mod\+/, platformIsMac ? "meta+" : "ctrl+") ?? null;
+}
+
+export function shortcutKeys(id: ShortcutId, overrides: ShortcutOverrides, platformIsMac = isMacPlatform()): string[] {
   if (Object.hasOwn(overrides, id)) return overrides[id] ? [overrides[id]!] : [];
-  const chord = DEFAULT_CHORDS[id];
+  const chord = defaultChord(id, platformIsMac);
   return [...(chord ? [chord] : []), ...Object.entries(KEY_TO_ID).filter(([, action]) => action === id).map(([key]) => key)];
 }
 
@@ -88,7 +97,7 @@ export function bindingDisplayKeys(value: string): string[] {
 /** Two bindings conflict when they name the same chord on this platform, however each is stored. */
 export function shortcutConflict(id: ShortcutId, keys: string[], overrides: ShortcutOverrides, platformIsMac = isMacPlatform()): boolean {
   const wanted = new Set(keys.map((key) => formatExactChord(bindingChord(key, platformIsMac))));
-  return SHORTCUTS.some((other) => other.id !== id && shortcutKeys(other.id, overrides).some((key) => wanted.has(formatExactChord(bindingChord(key, platformIsMac)))));
+  return SHORTCUTS.some((other) => other.id !== id && shortcutKeys(other.id, overrides, platformIsMac).some((key) => wanted.has(formatExactChord(bindingChord(key, platformIsMac)))));
 }
 
 /** The key a Mod+Shift chord names, as overrides and KEY_TO_ID store it (letters lowercase). */
@@ -140,7 +149,7 @@ export function matchShortcut(event: ShortcutEventLike, platformIsMac: boolean, 
   if (event.ctrlKey || event.altKey || event.metaKey) {
     const pressed = formatExactChord(exactChordFromEvent(event));
     for (const shortcut of SHORTCUTS) {
-      const value = Object.hasOwn(overrides, shortcut.id) ? overrides[shortcut.id] : DEFAULT_CHORDS[shortcut.id] ?? null;
+      const value = Object.hasOwn(overrides, shortcut.id) ? overrides[shortcut.id] : defaultChord(shortcut.id, platformIsMac);
       const chord = value ? parseExactChord(value) : null;
       if (chord && formatExactChord(chord) === pressed) return shortcut.id;
     }

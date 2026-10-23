@@ -155,7 +155,7 @@ export const KO: Record<string, string> = {
   "Close this half": "이쪽 화면 닫기",
   "Drop on the left": "왼쪽에 놓기",
   "Drop on the right": "오른쪽에 놓기",
-  "Toggle sidebar (⌘⇧B)": "사이드바 토글 (⌘⇧B)",
+  "Toggle sidebar ({keys})": "사이드바 토글 ({keys})",
   "Live terminal is coming to Windows PCs: herdr cannot attach a terminal there yet.": "Windows PC의 실시간 터미널은 준비 중입니다. herdr가 아직 Windows에서 터미널 attach를 지원하지 않습니다.",
   "Terminal": "터미널",
   "Terminal for {title}": "{title} 터미널",

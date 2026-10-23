@@ -157,7 +157,7 @@ export const JA: Record<string, string> = {
   "Close this half": "この半分を閉じる",
   "Drop on the left": "左側にドロップ",
   "Drop on the right": "右側にドロップ",
-  "Toggle sidebar (⌘⇧B)": "サイドバーの切り替え (⌘⇧B)",
+  "Toggle sidebar ({keys})": "サイドバーの切り替え ({keys})",
   "Live terminal is coming to Windows PCs: herdr cannot attach a terminal there yet.": "Windows PC のライブターミナルは準備中です。herdr はまだ Windows でターミナルをアタッチできません。",
   "Terminal": "ターミナル",
   "Terminal for {title}": "{title} のターミナル",

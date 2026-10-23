@@ -400,7 +400,7 @@ Optional integrations and the updater have separate network behavior. See [the s
 
 ## Keyboard shortcuts
 
-`Mod` is **⌘** on Apple platforms and **Ctrl** elsewhere. Global app shortcuts add Shift, so the terminal keeps its own Ctrl keys. These are the defaults:
+`Mod` is **⌘** on Apple platforms and **Ctrl** elsewhere. Global app shortcuts add Shift, so the terminal keeps its own Ctrl keys, except `Mod+B` and `Mod+D`: off a Mac they take Ctrl+B and Ctrl+D (EOF) from the terminal, and Settings → Shortcuts can give them back. These are the defaults:
 
 | Shortcut | Action |
 | --- | --- |
@@ -408,7 +408,8 @@ Optional integrations and the updater have separate network behavior. See [the s
 | `Mod+Shift+J` | Switch Chat / Terminal |
 | `Mod+Shift+E` | Focus the current pane's message box, terminal input line or terminal |
 | `Mod+Shift+PageUp` / `PageDown` | Scroll the current pane up / down, retaining one line |
-| `Mod+Shift+B` | Toggle sidebar |
+| `Mod+B` | Toggle sidebar (`Mod+Shift+B` too) |
+| `Mod+D` | Split the current pane right |
 | `Mod+Shift+.` | Focus mode: each workspace's tabs as rows under it in the sidebar, no bar over the pane (a hidden sidebar hands the tabs back to the bar) |
 | `Mod+Shift+O` | New workspace (`Mod+Shift+N` too, in the installed app: a Chrome tab keeps `Ctrl+Shift+N` for an incognito window) |
 | `Mod+Shift+↑` / `↓` | Previous / next pane |
@@ -419,7 +420,7 @@ focus where it was. **Mod+Shift+E** focuses the selected pane's input in any mod
 terminal's input line and direct input; it prefers masked input while a secret prompt is open. The
 shortcut can be reassigned or disabled in Settings → Shortcuts.
 
-**New tab**, **Split pane right** and **Split pane down** have no default key: pick one in
+**New tab** and **Split pane down** have no default key: pick one in
 **Settings → Shortcuts**, and the command palette shows it beside the action.
 
 **Settings → Shortcuts** changes each app binding or turns it off: press **Record** on a row,

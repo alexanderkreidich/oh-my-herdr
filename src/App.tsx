@@ -35,7 +35,7 @@ import { rosterPanes } from "./lib/dagPane.ts";
 import { CreatedTabs } from "./lib/createdTabs.ts";
 import { SnapshotRequests } from "./lib/snapshotRequests.ts";
 import { alertPrefs, useSettings } from "./lib/settings.ts";
-import { useShortcuts } from "./lib/shortcuts.ts";
+import { formatKeys, shortcutDisplayKeys, useShortcuts } from "./lib/shortcuts.ts";
 import { useMediaQuery } from "./lib/useMediaQuery.ts";
 import { useAnnouncedText } from "./lib/useAnnouncedText.ts";
 import { paneContextPress } from "./lib/paneCanvas.ts";
@@ -1238,13 +1238,14 @@ export function App() {
   }
   if (locked) return <AccessGate reason={lockReason} initialCode={pairCode} onUnlocked={unlock} />;
 
+  const sidebarKeys = formatKeys(shortcutDisplayKeys("toggle-sidebar", settings.shortcutOverrides)).join("+");
   const sidebarToggle = (
     <button
       type="button"
       className="icon-button header-desktop-only sidebar-toggle"
       aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
       aria-pressed={!sidebarCollapsed}
-      title={t("Toggle sidebar (⌘⇧B)")}
+      title={sidebarKeys ? t("Toggle sidebar ({keys})", { keys: sidebarKeys }) : t("Toggle sidebar")}
       onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
     >
       <PanelLeft />

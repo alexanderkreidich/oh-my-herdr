@@ -68,6 +68,11 @@ function compactKeys(keys: readonly string[]): string {
   return formatKeys(keys).map((key) => ({ Shift: "⇧", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" }[key] ?? (key.length === 1 ? key.toUpperCase() : key))).join("+");
 }
 
+/** The key of a Mod+Shift binding as shown: the reservations isReservedShortcutKey knows are Mod+Shift ones, not ⌘B's. */
+function modShiftKey(keys: readonly string[]): string | undefined {
+  return keys[0] === "Mod" && keys[1] === "Shift" ? keys[2] : undefined;
+}
+
 const FONT_LIST_LIMIT = 150;
 const FONT_FAMILY_PLACEHOLDER = 'D2Coding, "Cascadia Mono"';
 
@@ -573,13 +578,13 @@ function ShortcutsPage() {
       <SettingsGroup className="settings-shortcuts" section="shortcuts" note={<>{t("Bindings apply to this browser and device. Mod+Shift chords leave the terminal its keys; Record also takes other chords with Ctrl, Alt or (on a Mac) ⌘, exactly as pressed.")} {t("Text selection in focused fields stays native; Tab/list keys are UI-local, not global shortcuts.")} {t("The mobile key bar sends terminal keys, not app actions.")}</>}>
         {visible.map((shortcut) => {
           const displayedKeys = shortcutDisplayKeys(shortcut.id, settings.shortcutOverrides);
-          const selectedKey = displayedKeys[displayedKeys.length - 1];
+          const selectedKey = modShiftKey(displayedKeys);
           const override = Object.hasOwn(settings.shortcutOverrides, shortcut.id) ? settings.shortcutOverrides[shortcut.id] : null;
           const exact = override ? parseExactChord(override) : null;
           const selectedRisk = exact ? exactChordRisk(exact, platformIsMac) : selectedKey !== undefined && isReservedShortcutKey(selectedKey, platformIsMac) ? "browser" : null;
           const confirming = pending?.id === shortcut.id ? pending : null;
           const defaultKeys = shortcutDisplayKeys(shortcut.id, {});
-          const defaultKey = defaultKeys[defaultKeys.length - 1];
+          const defaultKey = modShiftKey(defaultKeys);
           const defaultReserved = defaultKey !== undefined && isReservedShortcutKey(defaultKey, platformIsMac);
           // a binding without a default key is off by default: its Default row reads Off, with no second Off
           const unbound = defaultKeys.length === 0;
